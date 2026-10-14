@@ -77,10 +77,15 @@ class HumanRoleTests(unittest.TestCase):
         self.assertEqual(owner.request('/api/policy-config'), {'enabled': False, 'can_sign': False})
         for path, body in [('/api/groups', {'name': 'No signer', 'humans': [], 'request_id': 'signed', 'signed_policy': True}),
                            ('/api/policy-renew', {'group_id': 'legacy', 'expected_revision': 1, 'request_id': 'renew'}),
-                           ('/api/policy-deliver', {'group_id': 'legacy', 'request_id': 'deliver'})]:
+                           ('/api/policy-deliver', {'group_id': 'legacy', 'request_id': 'deliver'}),
+                           ('/api/credential-preview', {'group_id': 'legacy'}),
+                           ('/api/credential-issue', {'group_id': 'legacy'})]:
             with self.subTest(path=path), self.assertRaises(HTTPError) as error: owner.request(path, body)
             self.assertEqual(error.exception.code, 403)
             error.exception.close()
+        with self.assertRaises(HTTPError) as error: owner.request('/api/credential-issuances?group_id=legacy')
+        self.assertEqual(error.exception.code, 403)
+        error.exception.close()
 
 
 class HumanMigrationTests(unittest.TestCase):

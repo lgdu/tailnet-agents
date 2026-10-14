@@ -4,6 +4,7 @@ let groups=[], activeGroup=null, creationKey=null;
 let policyConfig={can_sign:false}, currentPolicy=null, policyPreview=null, policyPending=null;
 let policyRefresh=0, policyDissolving=false;
 let deliveryTargets=[], deliveryPreview=null, deliveryPending=null;
+let credentialPreview=null, credentialPending=null, issuedCredential=null, credentialGeneration=0, credentialStates=new Map();
 let session = 0, view = 0, loading = false, history = new Map(), moreOlder = false;
 const $ = id => document.getElementById(id);
 function node(tag, text, className) { const n = document.createElement(tag); if(text !== undefined) n.textContent = text; if(className) n.className = className; return n; }
@@ -73,7 +74,7 @@ async function refreshMessages(mode='new',forceBottom=false) {
   finally{if(current===view&&currentSession===session){loading=false;$('older').disabled=false;}}
 }
 async function select(value) {
-  if(busy||pending||policyPending||policyDissolving||deliveryPending){$('delivery-status').textContent='请先处理待确认消息或策略操作。';return;}
+  if(busy||pending||policyPending||policyDissolving||deliveryPending||credentialPending){$('delivery-status').textContent='请先处理待确认消息或策略操作。';return;}
   if(!activeGroup)return;
   conversation=value;view++;loading=false;history=new Map();moreOlder=false;$('older').hidden=true;$('messages').replaceChildren();
   $('group-button').classList.toggle('active',value==='group');$('conversation-title').textContent=value==='group'?'群组讨论':members.find(m=>m.id===value.slice(3))?.name;
@@ -91,8 +92,8 @@ function renderGroups(){
   if(selected?.dissolved)$('sync-status').textContent='群组已解散 · 历史只读';
 }
 async function chooseGroup(id){
-  if(busy||pending||policyPending||policyDissolving||deliveryPending){$('group-select').value=activeGroup||'';$('delivery-status').textContent='请先处理待确认消息或策略操作。';return;}
-  activeGroup=id;currentPolicy=null;policyPreview=null;deliveryTargets=[];deliveryPreview=null;view++;loading=false;history=new Map();members=[];moreOlder=false;$('older').hidden=true;$('messages').replaceChildren();renderGroups();
+  if(busy||pending||policyPending||policyDissolving||deliveryPending||credentialPending){$('group-select').value=activeGroup||'';$('delivery-status').textContent='请先处理待确认消息或策略操作。';return;}
+  activeGroup=id;credentialPreview=null;issuedCredential=null;credentialGeneration++;credentialStates.clear();$('credential-result').textContent='';currentPolicy=null;policyPreview=null;deliveryTargets=[];deliveryPreview=null;view++;loading=false;history=new Map();members=[];moreOlder=false;$('older').hidden=true;$('messages').replaceChildren();renderGroups();
   if(!id){renderMembers();$('messages').append(node('div',me?.role==='admin'?'点击「创建群组」开始。Agent 不会自动创建。':'等待管理员将你加入一个群组。','empty'));$('sync-status').textContent='尚未加入群组';return;}
   const current=session,selected=id;
   try{const result=await api('/api/members');if(current!==session||selected!==activeGroup)return;members=result.members;await select('group');}
@@ -118,7 +119,7 @@ $('login-form').onsubmit=async e=>{
     $('human-name').textContent=me.id;$('human-role').textContent={admin:'管理员',participant:'参与者',observer:'观察者'}[me.role];$('login').hidden=true;$('workspace').hidden=false;$('token').value='';await chooseGroup(groups[0]?.id||null);
   }catch(error){if(current!==session)return;token='';me=null;$('workspace').hidden=true;$('login').hidden=false;$('login-error').textContent=error.message;}
 };
-$('logout').onclick=()=>{session++;view++;policyRefresh++;activeGroup=null;groups=[];$('group-dialog').close();$('manage-dialog').close();token='';me=null;pending=null;currentPolicy=null;policyPreview=null;policyPending=null;policyDissolving=false;deliveryTargets=[];deliveryPreview=null;deliveryPending=null;$('policy-grant').value='';busy=false;loading=false;history=new Map();conversation='group';$('workspace').hidden=true;$('login').hidden=false;$('message').value='';$('message').disabled=false;$('send-button').disabled=false;$('send-button').textContent='发送 ↑';$('messages').replaceChildren();$('group-button').classList.add('active');$('conversation-title').textContent='群组讨论';$('conversation-kind').textContent='GROUP CONVERSATION';};
+$('logout').onclick=()=>{session++;view++;policyRefresh++;activeGroup=null;groups=[];$('group-dialog').close();$('manage-dialog').close();token='';me=null;pending=null;currentPolicy=null;policyPreview=null;policyPending=null;policyDissolving=false;deliveryTargets=[];deliveryPreview=null;deliveryPending=null;credentialPending=null;credentialPreview=null;issuedCredential=null;credentialGeneration++;credentialStates.clear();$('credential-public-key').value='';$('credential-result').textContent='';$('credential-consent').textContent='';$('credential-history').replaceChildren();$('policy-grant').value='';busy=false;loading=false;history=new Map();conversation='group';$('workspace').hidden=true;$('login').hidden=false;$('message').value='';$('message').disabled=false;$('send-button').disabled=false;$('send-button').textContent='发送 ↑';$('messages').replaceChildren();$('group-button').classList.add('active');$('conversation-title').textContent='群组讨论';$('conversation-kind').textContent='GROUP CONVERSATION';};
 $('group-button').onclick=()=>select('group');$('older').onclick=()=>refreshMessages('older');
 $('compose').onsubmit=async e=>{
   e.preventDefault();if(busy||!me||!activeGroup||me.role==='observer')return;if(!pending&&!$('message').value.trim())return;
@@ -145,7 +146,7 @@ setInterval(async()=>{
 
 async function refreshManagement(){
   const current=session,selected=activeGroup,refresh=++policyRefresh;
-  currentPolicy=null;policyPreview=null;deliveryPreview=null;policyControls();
+  currentPolicy=null;policyPreview=null;deliveryPreview=null;credentialPreview=null;credentialGeneration++;credentialStates.clear();$('credential-consent').textContent='';policyControls();
   $('policy-error').classList.remove('success');
   if(!policyPending&&!policyDissolving)$('policy-error').textContent='正在读取最新策略，下载暂不可用…';
   const info=await api('/api/group-info?group_id='+encodeURIComponent(selected));
@@ -156,6 +157,7 @@ async function refreshManagement(){
   for(const human of people.humans){if(info.humans.includes(human.id))continue;const option=node('option',human.id+' · '+human.role);option.value=human.id;$('add-human').append(option);}
   await refreshPolicy(current,selected,refresh);
   await refreshDelivery(current,selected,refresh);
+  await refreshCredentials(current,selected,refresh);
   if(current!==session||selected!==activeGroup||refresh!==policyRefresh)return false;
   $('add-member').disabled=info.dissolved||!$('add-human').options.length;
   if(!policyPending&&!policyDissolving){
@@ -170,7 +172,7 @@ $('manage-group').onclick=async()=>{try{$('manage-error').textContent='';$('diss
 $('close-manage').onclick=()=>$('manage-dialog').close();
 $('add-member').onclick=async()=>{const current=session;try{await api('/api/group-members',{group_id:activeGroup,subject:$('add-human').value,operation:'add'});if(current===session)await refreshManagement();}catch(error){if(current===session)$('manage-error').textContent=error.message;}};
 $('dissolve-group').onclick=async()=>{
-  if(policyPending||policyDissolving||deliveryPending)return;
+  if(policyPending||policyDissolving||deliveryPending||credentialPending)return;
   const current=session,selected=activeGroup;
   policyDissolving=true;currentPolicy=null;policyPreview=null;policyControls();
   $('policy-error').classList.remove('success');$('policy-error').textContent='正在解散并读取最新状态…';
@@ -190,14 +192,15 @@ $('dissolve-group').onclick=async()=>{
 };
 
 function policyControls(){
-  const disabled=!!policyPending||policyDissolving||!!deliveryPending||!currentPolicy||currentPolicy.claims.state==='dissolved';
+  const disabled=!!policyPending||policyDissolving||!!deliveryPending||!!credentialPending||!currentPolicy||currentPolicy.claims.state==='dissolved';
   document.querySelectorAll('.policy-action').forEach(button=>button.disabled=disabled);
   $('policy-approve').disabled=disabled||!policyPreview;
   $('policy-retry').hidden=!policyPending;
   $('policy-grant').disabled=disabled;
-  $('policy-export').disabled=!!policyPending||policyDissolving||!!deliveryPending||!currentPolicy;
-  $('dissolve-group').disabled=!!policyPending||policyDissolving||!!deliveryPending||!!groups.find(g=>g.id===activeGroup)?.dissolved;
+  $('policy-export').disabled=!!policyPending||policyDissolving||!!deliveryPending||!!credentialPending||!currentPolicy;
+  $('dissolve-group').disabled=!!policyPending||policyDissolving||!!deliveryPending||!!credentialPending||!!groups.find(g=>g.id===activeGroup)?.dissolved;
   deliveryControls();
+  credentialControls();
 }
 async function refreshPolicy(current,selected,refresh){
   $('policy-panel').hidden=!policyConfig.can_sign;
@@ -226,7 +229,7 @@ async function refreshPolicy(current,selected,refresh){
   policyControls();
 }
 async function runPolicyAction(path,payload={}){
-  if(policyPending||policyDissolving||deliveryPending||!currentPolicy)return;
+  if(policyPending||policyDissolving||deliveryPending||credentialPending||!currentPolicy)return;
   policyPending={path,body:{group_id:activeGroup,expected_revision:currentPolicy.claims.revision,...payload,request_id:crypto.randomUUID()}};
   await retryPolicyAction();
 }
@@ -269,14 +272,14 @@ $('policy-preview').onclick=async()=>{
 };
 $('policy-approve').onclick=()=>{if(policyPreview)runPolicyAction('/api/policy-approve',{grant:policyPreview.grant,expected_revision:policyPreview.revision});};
 $('policy-export').onclick=()=>{
-  if(policyPending||policyDissolving||deliveryPending||!currentPolicy||currentPolicy.group_id!==activeGroup)return;
+  if(policyPending||policyDissolving||deliveryPending||credentialPending||!currentPolicy||currentPolicy.group_id!==activeGroup)return;
   const url=URL.createObjectURL(new Blob([currentPolicy.policy+'\n'],{type:'text/plain'}));
   const link=node('a');link.href=url;link.download=currentPolicy.group_id+'.policy';link.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 };
 
 function deliveryControls(){
-  const disabled=!!policyPending||policyDissolving||!!deliveryPending||!currentPolicy;
+  const disabled=!!policyPending||policyDissolving||!!deliveryPending||!!credentialPending||!currentPolicy;
   $('policy-target').disabled=disabled;
   $('delivery-preview').disabled=disabled||!deliveryTargets.some(target=>target.id===$('policy-target').value);
   $('delivery-confirm').disabled=disabled||!deliveryPreview||deliveryPreview.policy_hash!==currentPolicy?.policy_hash;
@@ -307,7 +310,7 @@ async function refreshDelivery(current,selected,refresh){
 }
 $('policy-target').onchange=()=>{deliveryPreview=null;$('delivery-consent').textContent='';deliveryControls();};
 $('delivery-preview').onclick=async()=>{
-  if(!currentPolicy||deliveryPending||policyPending||policyDissolving)return;
+  if(!currentPolicy||deliveryPending||credentialPending||policyPending||policyDissolving)return;
   const current=session,selected=activeGroup,target=$('policy-target').value;
   deliveryPreview=null;deliveryControls();
   try{
@@ -321,7 +324,7 @@ $('delivery-preview').onclick=async()=>{
   finally{if(current===session&&selected===activeGroup)deliveryControls();}
 };
 $('delivery-confirm').onclick=async()=>{
-  if(!deliveryPreview||deliveryPending||policyPending||policyDissolving||!currentPolicy||deliveryPreview.policy_hash!==currentPolicy.policy_hash)return;
+  if(!deliveryPreview||deliveryPending||credentialPending||policyPending||policyDissolving||!currentPolicy||deliveryPreview.policy_hash!==currentPolicy.policy_hash)return;
   deliveryPending={body:{group_id:activeGroup,target_id:deliveryPreview.target.id,target_fingerprint:deliveryPreview.target.fingerprint,
     expected_revision:deliveryPreview.revision,policy_hash:deliveryPreview.policy_hash,request_id:crypto.randomUUID()}};
   await retryDelivery();
@@ -346,3 +349,93 @@ async function retryDelivery(){
   }finally{if(current===session&&selected===activeGroup){$('delivery-retry').disabled=false;policyControls();}}
 }
 $('delivery-retry').onclick=retryDelivery;
+
+function credentialFields(){
+  return {public_key:$('credential-public-key').value.trim(),permissions:[...document.querySelectorAll('#credential-permissions input:checked')].map(input=>input.value).sort(),lifetime:Number($('credential-lifetime').value)};
+}
+function credentialControls(){
+  const busy=!!policyPending||policyDissolving||!!deliveryPending||!!credentialPending;
+  const active=!!currentPolicy&&currentPolicy.claims.state==='active';
+  $('credential-preview').disabled=busy||!active;
+  $('credential-public-key').disabled=busy||!active;$('credential-lifetime').disabled=busy||!active;
+  document.querySelectorAll('#credential-permissions input').forEach(input=>input.disabled=busy||!active||input.value==='join');
+  $('credential-confirm').disabled=busy||!active||!credentialPreview||Date.now()/1000>=credentialPreview.preview_expires_at||credentialPreview.policy_hash!==currentPolicy?.policy_hash;
+  $('credential-retry').hidden=!credentialPending;
+  const available=!busy&&active&&issuedCredential?.claims.group_id===activeGroup&&credentialStates.get(issuedCredential.claims.jti)==='valid'&&issuedCredential.claims.nbf<=Date.now()/1000&&Date.now()/1000<issuedCredential.claims.exp;
+  $('credential-download').disabled=!available;$('credential-use').disabled=!available;
+  document.querySelectorAll('.credential-recover').forEach(button=>button.disabled=busy||!active||button.dataset.state!=='valid');
+}
+function invalidateCredential(){
+  credentialGeneration++;credentialPreview=null;issuedCredential=null;
+  $('credential-consent').textContent='';$('credential-result').textContent='';credentialControls();
+}
+$('credential-public-key').oninput=invalidateCredential;
+$('credential-lifetime').oninput=invalidateCredential;
+$('credential-permissions').onchange=invalidateCredential;
+$('credential-preview').onclick=async()=>{
+  if(!currentPolicy||credentialPending||policyPending||deliveryPending||policyDissolving)return;
+  const current=session,selected=activeGroup,generation=++credentialGeneration,fields=credentialFields();
+  credentialPreview=null;issuedCredential=null;$('credential-result').textContent='';credentialControls();
+  try{
+    const preview=await api('/api/credential-preview',{group_id:selected,...fields,expected_revision:currentPolicy.claims.revision,policy_hash:currentPolicy.policy_hash});
+    if(current!==session||selected!==activeGroup||generation!==credentialGeneration)return;
+    if(!currentPolicy||preview.policy_hash!==currentPolicy.policy_hash)throw new Error('策略已变化，请刷新并重新预览。');
+    credentialPreview=preview;
+    $('credential-consent').textContent=`仅签发给 ${preview.subject}；群组 ${preview.group_id}；所有者 ${preview.owner}；权限 ${preview.permissions.join(', ')}；固定期限 ${new Date(preview.issued_at*1000).toLocaleString()} 至 ${new Date(preview.expires_at*1000).toLocaleString()}；预览有效至 ${new Date(preview.preview_expires_at*1000).toLocaleTimeString()}；策略第 ${preview.expected_revision} 版。`;
+    $('credential-error').textContent='预览未签发。请核对 Agent 公钥指纹与完整权限；确认后仍需另行批准成员。';
+  }catch(error){if(current===session&&selected===activeGroup&&generation===credentialGeneration)$('credential-error').textContent=error.message;}
+  finally{if(current===session&&selected===activeGroup)credentialControls();}
+};
+$('credential-confirm').onclick=async()=>{
+  if(!credentialPreview||credentialPending||policyPending||deliveryPending||policyDissolving||!currentPolicy||credentialPreview.policy_hash!==currentPolicy.policy_hash||Date.now()/1000>=credentialPreview.preview_expires_at)return;
+  const preview=credentialPreview;
+  credentialPending={body:{group_id:activeGroup,public_key:preview.public_key,permissions:preview.permissions,lifetime:preview.lifetime,
+    expected_revision:preview.expected_revision,policy_hash:preview.policy_hash,issued_at:preview.issued_at,consent_hash:preview.consent_hash,request_id:crypto.randomUUID()}};
+  await retryCredential();
+};
+async function retryCredential(){
+  if(!credentialPending)return;
+  const current=session,selected=activeGroup,operation=credentialPending;
+  policyControls();$('credential-retry').disabled=true;$('credential-error').textContent='正在签发或取回此请求的原凭证…';
+  try{
+    if(!operation.ack)operation.ack=await api('/api/credential-issue',operation.body);
+    if(current!==session||selected!==activeGroup)return;
+    if(!await refreshManagement())throw new Error('本地页面尚未刷新。');
+    credentialPending=null;issuedCredential=operation.ack;
+    const claims=issuedCredential.claims;
+    $('credential-result').textContent=`已签发 ${claims.sub}；凭证 ${claims.jti}；权限 ${claims.permissions.join(', ')}；到期 ${new Date(claims.exp*1000).toLocaleString()}。`;
+    $('credential-error').textContent='成员策略未改变。请下载并校验安装，或另行预览、确认成员审批。重试不会延长期限。';
+  }catch(error){
+    if(current!==session||selected!==activeGroup)return;
+    if(error.status>=400&&error.status<500){credentialPending=null;credentialPreview=null;}
+    $('credential-error').textContent=operation.ack?'签发已确认，但页面读取失败；重试只读取本地页面。'+error.message:
+      credentialPending?'结果未知，请重试同一签发；不会生成另一份凭证。'+error.message:error.message;
+  }finally{if(current===session&&selected===activeGroup){$('credential-retry').disabled=false;policyControls();}}
+}
+$('credential-retry').onclick=retryCredential;
+async function refreshCredentials(current,selected,refresh){
+  if(!currentPolicy||current!==session||selected!==activeGroup||refresh!==policyRefresh)return;
+  const history=await api('/api/credential-issuances?group_id='+encodeURIComponent(selected));
+  if(current!==session||selected!==activeGroup||refresh!==policyRefresh)return;
+  $('credential-history').replaceChildren();credentialStates=new Map(history.issuances.map(entry=>[entry.claims.jti,entry.state]));
+  for(const entry of history.issuances){
+    const state={valid:'签发时效有效（不代表已获准入群）',expired:'已到期',future:'尚未生效',retired:'移除时已停用'}[entry.state];
+    const row=node('li',`${entry.claims.sub} · ${entry.claims.jti} · ${entry.claims.permissions.join(', ')} · ${state} · 到期 ${new Date(entry.claims.exp*1000).toLocaleString()}`);
+    const recover=node('button','明确取回这份原凭证');recover.type='button';recover.className='credential-recover';recover.dataset.state=entry.state;
+    recover.onclick=async()=>{if(credentialPending||policyPending||deliveryPending||policyDissolving||!currentPolicy||currentPolicy.claims.state!=='active'||entry.state!=='valid')return;credentialPending={body:{group_id:selected,...entry.request}};await retryCredential();};
+    row.append(recover);$('credential-history').append(row);
+    if(issuedCredential?.claims.jti===entry.claims.jti&&entry.state!=='valid')issuedCredential=null;
+  }
+  credentialControls();
+}
+$('credential-download').onclick=()=>{
+  credentialControls();if($('credential-download').disabled)return;
+  const url=URL.createObjectURL(new Blob([issuedCredential.grant+'\n'],{type:'text/plain'}));
+  const link=node('a');link.href=url;link.download=issuedCredential.claims.sub.split(':')[1].slice(0,16)+'-'+issuedCredential.claims.jti+'.grant';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+$('credential-use').onclick=()=>{
+  credentialControls();if($('credential-use').disabled)return;
+  $('policy-grant').value=issuedCredential.grant;policyPreview=null;$('policy-preview').click();
+};
+setInterval(credentialControls,1000);

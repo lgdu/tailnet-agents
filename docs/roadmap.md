@@ -1,4 +1,4 @@
-# Remaining work for the v0.21 development line
+# Remaining work for the v0.22 development line
 
 The verified directory can persist and exchange signed policy and credential
 revocations between configured peers. The human UI remains a local simulated chat application, with an optional
@@ -12,22 +12,25 @@ membership, choose policy sources or generate identities/groups at startup.
 
 v0.20 adds human-confirmed signing, verified grant preview/approval, removal,
 manual renewal, terminal dissolution, local audit and policy export. Grant
-issuance/provisioning remains a separate manual step. v0.21 adds explicitly
+issuance/provisioning was a separate manual step at that stage. v0.21 adds explicitly
 configured recipient delivery with signed readback and historical freshness receipts.
+v0.22 adds separate human-confirmed credential issuance/download, stable recovery
+and an identity-checking private-file installer. Transfer remains manual through
+a trusted channel; membership approval and runtime proof remain separate.
 
 | Priority | Work | Acceptance evidence |
 |---|---|---|
-| P0 | Human credential issuance/provisioning UX | Human reviews an existing simulation public key and explicit scope/lifetime, securely provisions the issued credential, and separately approves membership before runtime proof |
 | P1 | Signed presence and stable Agent runtime | Authorized restart restores the original identity/group; leases, runtime incarnations and offline display converge |
 | P1 | Discovery operations and explicit runtime enrollment | Validate physical LAN/tailnet behavior, optional mDNS/peer enumeration and a separately authorized handoff from candidate to admitted runtime |
 | P1 | Cross-node group/direct messages | Authenticated identities, group scopes, recipient privacy, durable outbox, deduplication and reconnect catch-up are verified across nodes |
 | P1 | Durable tasks | Executor persists request/result identity; caller recovery cannot silently execute uncertain side effects twice |
 | P1 | Multi-source reconciliation and policy renewal UX | Compare sources beyond ordered failover, diagnose equivocation, renew signed authorization through explicit human-controlled administration |
 | P2 | Real adapters | Validate available OpenClaw, Codex, Claude Code, Qoder and Grok interfaces individually; model APIs and product Agents are distinct |
+| P2 | Secure provisioning operations | Authenticated confidential transfer, credential retention/pruning, recovery and key rotation are verified without confusing installation with admission |
 | P2 | Operational deployment | Actual household LAN and cross-region tailnet trials, certificate/key renewal, backups, rate limits and service packaging |
 | P2 | Release readiness | Browser interaction QA, interoperability/security review, installation instructions and owner-selected open-source license |
 
-Suggested order: human-controlled enrollment and policy renewal → presence
+Suggested order: stable authenticated runtime enrollment and presence
 and messages → durable execution → real adapters and deployment trials.
 Discovery is separate from authorization. A fresh or isolated Agent waits for
 human approval or restores existing valid qualification; it never creates a group.

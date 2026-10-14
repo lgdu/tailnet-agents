@@ -1,4 +1,4 @@
-# Human policy signing — v0.21
+# Human policy signing — v0.22 (unreleased)
 
 The local UI can optionally act as a trusted human signing gateway. An explicitly
 configured admin can create a new signed group, preview and approve pre-issued
@@ -47,10 +47,11 @@ There is no implicit conversion or reassignment of their IDs.
    This creates one new group ID with an empty Agent member map. Human chat
    membership and Agent signing permissions remain separate.
 2. Open **管理群组** and copy the exact signed group ID. Prepare a scoped grant
-   for an existing simulation public key through the trusted administration API,
-   as shown in [group policy](group-policy.md). Use that group ID, explicit
-   permissions and bounded lifetime. Grant generation/provisioning remains a
-   separate manual step; this UI does not issue or renew grants.
+   for an existing simulation public key through the separate
+   [human credential issuance workflow](credential-issuance.md), or the library
+   example in [group policy](group-policy.md). Review explicit scope and fixed
+   lifetime, confirm issuance and install for that Agent separately. Issuance does
+   not approve membership, renew policy or register an Agent.
 3. Paste that grant, select **校验并预览授权范围**, and inspect the verified identity,
    grant permissions/expiry and the complete proposed member permissions. Only
    **确认批准** changes the signed policy. Preview checks owner signature, group,
@@ -153,8 +154,8 @@ it as a dedicated `policy-ui` job using the runner's Chrome installation.
 `--artifacts /tmp/policy-ui-check` optionally saves desktop/narrow-screen images
 after credentials are cleared. Do not use production credentials for this check.
 
-No real product Agent is connected. Background policy delivery, credential
-issuance UX, live directory/revocation monitoring, browser
+No real product Agent is connected. Background policy delivery, automatic
+confidential credential transfer, live directory/revocation monitoring, browser
 sessions, remote admin deployment, owner rotation/recovery, signed presence,
 mesh chat and durable tasks remain future work. Physical LAN/tailnet/WAN behavior
 is unvalidated; this change reuses the existing signed policy wire format.

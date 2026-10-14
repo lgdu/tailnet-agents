@@ -1,13 +1,15 @@
-# Agent identity and admission primitives (v0.20)
+# Agent identity and admission primitives (v0.22, unreleased)
 
 This optional library component uses Ed25519 through `cryptography`.
 [VerifiedDirectory](verified-directory.md) integrates it with registration through
-an in-process API. The optional [human gateway](human-policy.md) previews existing
-grants and signs group approvals for explicit export/manual delivery. Existing
+an in-process API. The optional [human gateway](human-policy.md) separately
+[issues scoped grants](credential-issuance.md), previews them and signs group
+approvals for explicit export or confirmed delivery. Existing
 registry HTTP routes, Bridge and mesh simulator retain their separate paths. Existing services still
 use their documented bearer-token authentication. A separate [loopback HTTP admission endpoint](admission-http.md) is available.
 TLS transport is provided for controlled trials; actual cross-machine validation
-and UI grant issuance/provisioning remain pending.
+remains pending. A recipient-side installer verifies the exact existing Agent
+identity and creates a private grant file; confidential transfer remains manual.
 
 ## Installation
 

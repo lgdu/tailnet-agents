@@ -234,7 +234,7 @@ flowchart LR
   HUMAN["Configured human admin / Explicit confirmation"] --> UI["Loopback UI / Role + Host + Origin checks"]
   KEY["Existing local owner key + public pin"] --> SIGN["Local policy authority"]
   UI --> SIGN
-  GRANT["Manually pre-issued scoped grant"] --> PREVIEW["Verified identity, expiry and complete proposed permissions"]
+  GRANT["Human-issued scoped grant / Separate issuance confirmation"] --> PREVIEW["Verified identity, expiry and complete proposed permissions"]
   UI --> PREVIEW
   PREVIEW -->|"Human approves current revision"| SIGN
   SIGN --> DB[("Same group ID / Policy + audit + retry acknowledgment transaction")]
@@ -265,7 +265,8 @@ directories. A human explicitly applies the export or confirms delivery to a
 configured recipient, which can use existing LAN/Tailscale replication. Approval
 has no remote effect until delivery, and never registers an Agent or proves live
 possession. Receivers still apply expiry and learned revocations. Credential
-issuance/provisioning remains manual. Owner rotation/recovery, hardware keys, remote human sessions and runtime
+issuance is a separate human confirmation in v0.22; private-file installation
+validates the recipient identity and transfer remains manual. Owner rotation/recovery, hardware keys, remote human sessions and runtime
 enrollment are future work. Local audit/backups are not tamper-proof. See
 [human policy signing](human-policy.md) for recovery and retry limits.
 
@@ -305,6 +306,47 @@ delivery invalidate the final acknowledgment, though the older copy may already
 have arrived; a human must preview and deliver the latest revision. There is no
 distributed atomic update, background retry or automatic revocation broadcast.
 See [policy delivery](policy-delivery.md).
+
+### Human credential issuance and recipient installation (v0.22, unreleased)
+
+```mermaid
+flowchart TD
+  KEY["Existing Agent public key / One durable key per Agent"] --> DRAFT["Human selects explicit scope and lifetime"]
+  GROUP["Existing human-created group + current policy revision/hash"] --> DRAFT
+  DRAFT --> PREVIEW["Local preview / Fingerprint + fixed expiry / No issuance"]
+  PREVIEW --> CONFIRM["Separate human issuance confirmation / At most 60 seconds"]
+  CONFIRM --> TX["One credential ID / Public claims + hash + retry request transaction"]
+  OWNER["Original human owner key / Never copied to Agent"] --> TX
+  TX --> DOWNLOAD["Explicit download / Browser memory only before export"]
+  DOWNLOAD --> TRANSFER["Human uses authenticated confidential transfer"]
+  TRANSFER --> INSTALL["Recipient verifies owner, group, expiry and own key / New file 0600"]
+  TX --> APPROVE["Separate grant preview and human member approval"]
+  APPROVE --> POLICY["Explicit signed-policy export or confirmed delivery"]
+  INSTALL --> PROOF["Agent original key + fresh possession proof"]
+  POLICY --> ADMIT["Fresh policy + approved grant + learned revocations"]
+  PROOF --> ADMIT
+```
+
+Issuance neither creates an identity/group nor changes policy membership or its
+revision. Consent binds the canonical public key, complete grant scope, lifetime,
+owner/group, policy hash/revision and fixed issued-at time. A changed policy or
+expired preview requires new human confirmation for a new issuance. Separate
+Agents on one host use different keys and credentials.
+
+SQLite stores public claims and the signed-token hash, not complete grants.
+An explicit identical retry deterministically reconstructs the same Ed25519 JWS
+with its original credential ID and expiry. Startup/history reads never do so.
+Expired, locally retired and dissolved-group retrieval fails closed. Issuance
+history is local plaintext metadata; the owner signer can reconstruct valid
+credentials, and database rollback/tampering protection remains unimplemented.
+
+The installer reads a bounded token from stdin and validates it against the
+recipient's existing key before exclusive mode-0600 creation. It does not replace
+keys/files, contact peers, approve membership or register anything. Browser
+Downloads copies have OS-controlled permissions and must be handled separately.
+Transfer is operator-controlled; automatic confidential provisioning, runtime
+enrollment and key rotation/recovery remain future work. See
+[credential issuance](credential-issuance.md).
 
 ## Human interaction
 
@@ -364,7 +406,9 @@ necessary; network membership never grants filesystem or secret access.
   approval, removal, manual renewal and terminal dissolution with transactional audit.
 - v0.21: explicit configured-recipient delivery, signed readback,
   historical age receipts and restart-safe human retry.
-- Next: credential issuance UX and candidate runtime enrollment.
+- v0.22 (unreleased): separate human credential issuance/download and stable
+  recovery, recipient identity validation and exclusive private-file installation.
+- Next: candidate runtime enrollment and signed presence.
 - Next: mesh transport with cryptographic admission and signed presence.
 - Then: validated agent adapters, durable tasks and real LAN/tailnet trials.
 

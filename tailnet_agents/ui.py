@@ -95,13 +95,14 @@ def handler(store, users):
                     if set(query) != {'group_id'} or len(query['group_id']) != 1:
                         raise ValueError('one explicit group ID required')
                     return self.response(200, store.policy_export(principal, query['group_id'][0]))
-                if parsed.path in ('/api/policy-targets', '/api/policy-deliveries'):
+                if parsed.path in ('/api/policy-targets', '/api/policy-deliveries', '/api/credential-issuances'):
                     if role != 'admin':
                         raise PermissionError('admin role required')
                     query = parse_qs(parsed.query, keep_blank_values=True)
                     if set(query) != {'group_id'} or len(query['group_id']) != 1:
                         raise ValueError('one explicit group ID required')
-                    method = store.policy_recipients if parsed.path == '/api/policy-targets' else store.policy_delivery_history
+                    method = {'/api/policy-targets': store.policy_recipients, '/api/policy-deliveries': store.policy_delivery_history,
+                              '/api/credential-issuances': store.credential_history}[parsed.path]
                     return self.response(200, method(principal, query['group_id'][0]))
                 if parsed.path == '/api/groups':
                     return self.response(200, {'groups':store.groups(principal)})
@@ -153,10 +154,13 @@ def handler(store, users):
                 if not isinstance(group_id,str):
                     raise ValueError('invalid group id')
                 store.require_group(principal,group_id)
-                if self.path in ('/api/policy-preview', '/api/policy-approve', '/api/policy-remove', '/api/policy-renew', '/api/policy-delivery-preview', '/api/policy-deliver'):
+                if self.path in ('/api/policy-preview', '/api/policy-approve', '/api/policy-remove', '/api/policy-renew', '/api/policy-delivery-preview', '/api/policy-deliver', '/api/credential-preview', '/api/credential-issue'):
                     authority = store.policy_authority
                     if role != 'admin' or authority is None or principal != authority.principal:
                         raise PermissionError('configured policy administrator required')
+                    if self.path in ('/api/credential-preview', '/api/credential-issue'):
+                        method = store.credential_preview if self.path == '/api/credential-preview' else store.credential_issue
+                        return self.response(200, method(principal, group_id, payload))
                     if self.path == '/api/policy-delivery-preview':
                         return self.response(200, store.policy_delivery_preview(principal, group_id, payload))
                     if self.path == '/api/policy-deliver':
