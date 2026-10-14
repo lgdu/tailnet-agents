@@ -7,6 +7,7 @@ import threading
 import time
 from .identity import Admission, AdmissionError, identity_id, sign, verify, verify_grant
 from .registry import Registry
+from .group_policy import PolicyStore
 
 REVOCATION_TYPE='tailnet-agent-revocation+jwt'
 
@@ -18,7 +19,7 @@ def issue_revocation(owner_key,group_id,credential_id):
 
 
 class VerifiedDirectory:
-    def __init__(self,owner_key,group_id,audience,*,database=':memory:',clock=time.time):
+    def __init__(self,owner_key,group_id,audience,*,database=':memory:',clock=time.time,require_policy=False):
         self.owner_key,self.group_id,self.clock=owner_key,group_id,clock
         self.lock=threading.Lock()
         self._registry=Registry({},clock=clock,database=database)
@@ -33,11 +34,25 @@ class VerifiedDirectory:
                 db.execute('INSERT OR IGNORE INTO admission_context VALUES(1,?,?)',expected)
                 db.execute('CREATE TABLE IF NOT EXISTS admission_grants (agent_id TEXT PRIMARY KEY,token TEXT NOT NULL)')
                 db.execute('CREATE TABLE IF NOT EXISTS admission_revocations (jti TEXT PRIMARY KEY,proof TEXT NOT NULL)')
+                db.execute('CREATE TABLE IF NOT EXISTS admission_policy_mode (id INTEGER PRIMARY KEY CHECK(id=1),required INTEGER NOT NULL)')
+                mode=db.execute('SELECT required FROM admission_policy_mode WHERE id=1').fetchone()
+                if mode and mode[0] and not require_policy:
+                    raise AdmissionError('cannot disable persisted policy enforcement')
+                db.execute('INSERT INTO admission_policy_mode VALUES(1,?) ON CONFLICT(id) DO UPDATE SET required=MAX(required,excluded.required)',(int(require_policy),))
+                self.require_policy=bool(require_policy)
+                self._policy=PolicyStore(db,owner_key,group_id)
             revoked=[row[0] for row in db.execute('SELECT jti FROM admission_revocations')]
             self._admission=Admission(owner_key,group_id,audience,clock=clock,revoked=revoked)
         except Exception:
             self._registry.close()
             raise
+
+    def apply_policy(self,signed_policy):
+        with self.lock:
+            if not self.require_policy:
+                raise AdmissionError('policy enforcement must be explicitly enabled')
+            claims=self._policy.apply(signed_policy)
+            return {'group_id':claims['group_id'],'revision':claims['revision'],'state':claims['state']}
 
     @staticmethod
     def record_context(record):
@@ -59,6 +74,9 @@ class VerifiedDirectory:
                 raise AdmissionError('identity is derived from the verified subject, not caller input')
             agent_id='agent-'+identity_id(subject_key).split(':')[1]
             metadata=Registry.normalize_record(record|{'id':agent_id})
+            if self.require_policy:
+                grant=verify_grant(grant_token,self.owner_key,self.group_id,now=self.clock(),revoked=self._admission.revoked)
+                self._policy.authorize(grant)
             grant=self._admission.admit(grant_token,subject_key,proof,nonce,context=self.record_context(record))
             remaining=math.floor(grant['exp']-self.clock())
             if remaining<10:
@@ -94,7 +112,9 @@ class VerifiedDirectory:
                 if row is None:
                     continue  # Raw registry entries do not become verified entries.
                 try:
-                    verify_grant(row[0],self.owner_key,self.group_id,now=self.clock(),revoked=self._admission.revoked)
+                    grant=verify_grant(row[0],self.owner_key,self.group_id,now=self.clock(),revoked=self._admission.revoked)
+                    if self.require_policy:
+                        self._policy.authorize(grant)
                 except AdmissionError:
                     continue
                 result.append(record)

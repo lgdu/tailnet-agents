@@ -1,4 +1,4 @@
-# Credential-enforced directory (v0.14)
+# Credential-enforced directory (v0.15)
 
 `VerifiedDirectory` connects the optional identity component to SQLite directory
 registration. This module remains an **in-process API**. A separate
@@ -14,7 +14,8 @@ Install `.[identity]` before importing this component.
 2. The caller prepares registration metadata (without an ID).
 3. The directory creates a one-use challenge bound to normalized metadata.
 4. The agent signs possession proof binding grant, audience, nonce and context.
-5. Registration verifies the proof and grant before writing the metadata/credential
+5. In policy mode, the current signed snapshot must approve the grant first.
+   Registration verifies the proof and grant before writing the metadata/credential
    association in one SQLite transaction. The ID is derived from the public key.
 6. Discovery returns live leases only while their associated grants remain valid.
 
@@ -48,8 +49,10 @@ finally:
 
 This example creates demo keys once; repeat runs must use `load_identity`.
 The group ID must originate in a human-created policy. The API receives a pinned
-owner key/group from its trusted caller; it does not itself validate a signed
-group-creation policy. It cannot be used as proof that the whole mesh is secure.
+owner key/group from its trusted caller; grant-only mode does not require a signed
+group-creation policy. With `require_policy=True`, a persisted signed snapshot
+must also approve the subject, grant ID and all grant permissions. See
+[group policy](group-policy.md). It cannot be used as proof that the whole mesh is secure.
 
 ## Revocation and renewal
 
@@ -83,8 +86,9 @@ length; credentials with less than 10 seconds remaining cannot register.
   verified channel/audience to prevent relay and endpoint identity confusion.
 - Signed grant permission `join` authorizes directory admission only. Advertised
   skills are self-descriptions, not execution privileges or attestations.
-- No owner-key rotation, signed group policy, dissolution record integration or
-  credential issuance UI. Local UI lifecycle and this directory remain separate.
+- No owner-key rotation or credential issuance UI. Optional signed policy
+  enforcement integrates member removal and terminal dissolution into this
+  directory; local UI lifecycle remains separate.
 - SQLite stores grant and signed revocation tokens in plaintext. Protect backups.
 - Construct one instance per database. Wrapper methods serialize admission;
   bypassing its private Registry/SQLite state bypasses its checks.

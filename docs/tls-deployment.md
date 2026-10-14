@@ -1,4 +1,4 @@
-# Verified admission over TLS (v0.14)
+# Verified admission over TLS (v0.15)
 
 The verified admission service can now bind an IPv4 LAN or tailnet address when
 TLS and explicit HTTP host names are configured. Default remains loopback HTTP.
@@ -16,8 +16,10 @@ purposes: do not interchange them. The certificate authenticates the server URL;
 the grant and possession proof authenticate the admitted Agent.
 
 The service needs the already approved group ID, pinned authority public key
-and agreed audience. Signed human group-creation policy is not validated by this
-service yet. No automatic Agent group creation is added.
+and agreed audience. For persistent member-policy enforcement, also configure
+`--require-policy` and an administrator-signed snapshot as described in
+[group policy](group-policy.md). This remains separate from the UI group table.
+No automatic Agent group creation is added.
 
 ## LAN example
 
@@ -84,7 +86,7 @@ do not assume this direct-server configuration works behind arbitrary proxies.
 There is no mTLS; subject identity is verified with signed admission proofs.
 The challenge is bound to a configured audience and record, not a TLS exporter.
 Cert renewal, owner-key rotation, per-source rate limits, hardened HTTP serving,
-signed policy binding, discovery plugins and distributed lifecycle remain work
+human UI policy issuance, discovery plugins and distributed lifecycle remain work
 items. TLS acceptance currently occurs in the server accept path and can delay
 other accepts up to its timeout. Do not treat it as a hardened public service.
 

@@ -67,9 +67,9 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http"):
         def do_POST(self):
             try:
                 self.local()
-                if self.path not in ('/v1/challenges','/v1/registrations','/v1/revocations'):
+                if self.path not in ('/v1/challenges','/v1/registrations','/v1/revocations','/v1/policies'):
                     return self.respond(404,{'error':'not found'})
-                if self.path=='/v1/revocations':
+                if self.path in ('/v1/revocations','/v1/policies'):
                     self.read_auth()
                 size=int(self.headers.get('Content-Length','0'))
                 if not 0<size<=65536:
@@ -77,6 +77,10 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http"):
                 payload=json.loads(self.rfile.read(size))
                 if not isinstance(payload,dict):
                     raise ValueError('object required')
+                if self.path=='/v1/policies':
+                    if set(payload)!={'policy'}:
+                        raise ValueError('invalid policy fields')
+                    return self.respond(200,directory.apply_policy(payload['policy']))
                 if self.path=='/v1/challenges':
                     if set(payload)!={'record'}:
                         raise ValueError('invalid challenge fields')
@@ -160,6 +164,8 @@ def main():
     parser.add_argument('--tls-key')
     parser.add_argument('--allow-host',action='append',help='explicit DNS hostname or IPv4 address without port')
     parser.add_argument('--database',default='state/verified-directory.sqlite3')
+    parser.add_argument('--require-policy',action='store_true',help='fail closed without an active signed member policy; persisted across restart')
+    parser.add_argument('--policy-file',help='initial signed policy; implies --require-policy')
     args=parser.parse_args()
     token=os.environ.get('TAILNET_VERIFIED_READ_TOKEN','')
     if len(token)<32 or not token.isascii():
@@ -167,7 +173,13 @@ def main():
     try:
         allowed,context=transport_config(args.host,args.tls_cert,args.tls_key,args.allow_host)
         authority=Ed25519PublicKey.from_public_bytes(decode(Path(args.authority_public_key).read_text().strip()))
-        directory=VerifiedDirectory(authority,args.group_id,args.audience,database=args.database)
+        directory=VerifiedDirectory(authority,args.group_id,args.audience,database=args.database,require_policy=args.require_policy or bool(args.policy_file))
+        if args.policy_file:
+            try:
+                directory.apply_policy(Path(args.policy_file).read_text().strip())
+            except Exception:
+                directory.close()
+                raise
     except (ValueError,OSError):
         parser.error('authority/group/database setup failed; see docs/admission-http.md')
     scheme='https' if context else 'http'

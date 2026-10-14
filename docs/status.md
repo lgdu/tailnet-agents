@@ -1,4 +1,4 @@
-# Implementation status — v0.14
+# Implementation status — v0.15
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -10,8 +10,9 @@ its future requirements must not be read as implemented security guarantees.
 | MCP | Local tools subset | Real client interoperability verification |
 | Human UI | Configured people/roles, explicit groups, private scopes, paging/polling | Browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
-| Agent identity | Optional Ed25519 keys, scoped grants and possession proofs | Signed group policy and transport integration |
-| Verified directory | Library + HTTP/TLS admission, read token, durable signed revocation | Real LAN/tailnet trial, signed group policy and mesh replication |
+| Agent identity | Optional Ed25519 keys, scoped grants and possession proofs | Human policy issuance and peer propagation |
+| Verified directory | Library + HTTP/TLS admission, read token, durable signed revocation | Real LAN/tailnet trial, human policy issuance and mesh replication |
+| Signed group policy | Durable signed snapshots, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | UI integration and authenticated peer propagation |
 | Mesh | State simulator only | Cryptographic admission, LAN/seed/tailnet providers |
 | Product agents | None | OpenClaw/Claude Code/Codex/Qoder/Grok interface validation |
 
@@ -20,7 +21,10 @@ ID and valid qualification; failure to discover peers must not create a new grou
 All-node downtime is sleep, not destruction. Local UI dissolution retains history.
 
 UI human membership and cryptographic Agent credentials remain separate. The
-verified directory integrates credentials into a library registration path, but
+verified directory can enforce signed member policy when explicitly enabled.
+That mode persists across restart and cannot be reopened as grant-only. Existing
+grant-only databases stay compatible. This does not create a human approval UI;
+policies are issued by a trusted administrator API. The
 existing registry/Bridge HTTP routes have not changed authentication. The mesh simulator's static IDs are not cryptographic identities.
 The UI's three Echo participants are not real authorized network agents.
 

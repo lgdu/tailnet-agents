@@ -70,16 +70,26 @@ authentication remains in place until an explicit transport integration revision
 
 [VerifiedDirectory](verified-directory.md) enforces signed admission for its
 in-process registration path. It does not replace or expose the HTTP endpoints
-above. Network admission and verified read authorization remain future work.
+above. The separate service below supplies network admission and read authorization.
 
 ## Loopback signed admission HTTP (v0.13)
 
 [Admission HTTP](admission-http.md) is a separate service with challenge/register/
 revoke routes. It does not change the bearer registry/task APIs above.
-Cross-machine channels and signed group-policy binding are not implemented.
+TLS and optional signed group policy were added by the following revisions.
 
 ## Direct TLS admission transport (v0.14)
 
 The separate verified service supports explicit TLS binding and CA-verified
 clients. See [TLS deployment](tls-deployment.md). This does not change ordinary
 registry/Bridge APIs or implement automatic LAN/tailnet discovery.
+
+## Signed group policy (v0.15)
+
+The separate verified service optionally requires a durable owner-signed member
+snapshot. POST `/v1/policies` requires its read token plus an owner signature.
+Registration and discovery reject unapproved grant IDs, removed members and
+dissolved groups. Stale/conflicting snapshots are rejected; enforcement mode
+and learned dissolution persist across restart. Existing grant-only mode stays
+compatible. See [group policy](group-policy.md) for schema, migration and
+partition/backup limits. No task receiver or UI signing flow is added.

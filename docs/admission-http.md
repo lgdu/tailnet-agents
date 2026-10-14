@@ -1,4 +1,4 @@
-# Verified admission HTTP/TLS — prototype (v0.14)
+# Verified admission HTTP/TLS — prototype (v0.15)
 
 This separate optional service exposes VerifiedDirectory over HTTP/TLS. Default
 binding is loopback HTTP. Non-loopback binds require server certificate/key and
@@ -28,8 +28,12 @@ path.chmod(0o600)
 ```
 
 The public-key file contains base64url raw Ed25519 bytes, not a PEM public key.
-Group ID/audience must be agreed through trusted setup. This service does not
-verify a signed group-creation policy or automatically trust the UI group table.
+Group ID/audience must be agreed through trusted setup. Grant-only mode does not
+require signed group policy and never automatically trusts the UI group table.
+For policy enforcement, follow [the policy guide](group-policy.md) and start with
+`--require-policy` or `--policy-file state/group.policy`. Without an active
+snapshot, policy mode rejects all registrations. Its enforcement flag persists
+in SQLite; restarting without the flag then fails instead of weakening checks.
 
 ## Start
 
@@ -44,7 +48,8 @@ python3 -m tailnet_agents.admission_server \
 Default URL: `http://127.0.0.1:8771`. Default database:
 `state/verified-directory.sqlite3`, pinned to the configured authority/group.
 The read token gates discovery and the revocation submission route. It does
-not grant membership or signing authority.
+not grant membership or signing authority. Policy submission also requires the
+authority signature and is available only in policy mode.
 
 ## Register through the client
 
@@ -83,10 +88,11 @@ endpoint is metadata and is not contacted by this service.
 
 | Method/path | Requirement | Payload/result |
 |---|---|---|
-| GET `/healthz` | Local request | Process liveness |
-| POST `/v1/challenges` | Local request | `{record}` → `{nonce, context}` |
+| GET `/healthz` | Allowed Host/Origin | Process liveness |
+| POST `/v1/challenges` | Allowed Host/Origin | `{record}` → `{nonce, context}` |
 | POST `/v1/registrations` | Signed grant and subject proof | `{record, grant, public_key, proof, nonce}` → ID/TTL |
 | GET `/v1/agents?skill=echo` | Read bearer token | Verified, leased, non-revoked records |
+| POST `/v1/policies` | Read token AND authority signature, policy mode enabled | `{policy}` → group ID/revision/state |
 | POST `/v1/revocations` | Read token AND authority signature | `{revocation}` → acknowledgment |
 
 `public_key` is base64url raw Ed25519 bytes. A proof binds the exact normalized
@@ -105,5 +111,6 @@ Tests use two local simulated subjects over actual loopback HTTP. They cover
 registration, discovery, revocation, renewed stable IDs, nonce replay, foreign
 groups, metadata tampering, Origin checks, read authorization and body limits.
 TLS transport is now tested on loopback, including CA and hostname validation.
-Actual cross-machine LAN/tailnet deployment, TLS channel binding, signed group
-policy, UI grant issuance and distributed revocation remain unvalidated or pending.
+Actual cross-machine LAN/tailnet deployment, TLS channel binding, UI grant issuance and distributed revocation remain unvalidated or pending.
+Signed group policy updates and enforcement are tested locally, including
+member removal, rollback rejection and terminal dissolution.

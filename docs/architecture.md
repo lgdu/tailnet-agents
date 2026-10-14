@@ -153,8 +153,10 @@ necessary; network membership never grants filesystem or secret access.
   no cross-machine mesh or UI policy integration.
 - v0.14: direct TLS admission transport with client CA/hostname validation;
   real LAN/tailnet trials and signed group-policy integration remain pending.
-- Next: cryptographic identity/admission implementation and network mesh transport.
-- Next: trusted human gateway with simulated chat participants and durable history.
+- v0.15: durable signed group policy, explicitly approved credential IDs,
+  rollback/conflict rejection and terminal dissolution in opt-in verified admission.
+- Next: human UI signing workflow and authenticated peer policy propagation.
+- Next: network discovery and mesh transport with cryptographic admission.
 - Then: validated agent adapters, durable tasks and real LAN/tailnet trials.
 
 Do not replace working registry mode until mesh fault and authorization tests pass.
@@ -187,7 +189,10 @@ The current chat demo requires human creation for fresh groups; existing legacy
 group history is preserved on upgrade. The simulator receives its policy from
 the test harness. Neither currently creates dynamic
 network groups. v0.9 implements a local human group-creation form and database membership checks.
-Its signed approval flow and mesh propagation remain to be implemented. The old automatic-creation proposal is superseded.
+Its human UI signing flow and mesh propagation remain to be implemented. The old automatic-creation proposal is superseded.
 
 Current implementation boundaries are tracked in [status.md](status.md); signed group
-policy and lifecycle replication remain future work even though grant primitives exist.
+policy issuance from the human UI and lifecycle replication remain future work.
+v0.15 implements durable owner-signed group snapshots and opt-in enforcement
+in verified admission, including member removal and terminal dissolution.
+The human UI and mesh simulator remain separate from these snapshots.

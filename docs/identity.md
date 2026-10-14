@@ -1,4 +1,4 @@
-# Agent identity and admission primitives (v0.14)
+# Agent identity and admission primitives (v0.15)
 
 This optional library component uses Ed25519 through `cryptography`.
 [VerifiedDirectory](verified-directory.md) integrates it with registration through
@@ -79,9 +79,10 @@ noncanonical base64url are rejected.
 - Revocation is a caller-supplied set of credential IDs. The caller must persist
   and refresh it. VerifiedDirectory persists verified owner-signed revocations locally, but no
   distributed propagation or immediate partition-wide revocation exists yet. Tests do not imply that existing services enforce it.
-- TLS/channel binding, relay-resistant network handshakes, admission rate limits,
-  group policy signatures and dissolution proofs are still needed before exposing
-  this over a network. A signed response alone does not authenticate a channel.
+- Verified admission has TLS and opt-in [signed group policy](group-policy.md),
+  including terminal dissolution. TLS exporter binding, relay-resistant network
+  handshakes, admission rate limits and peer policy propagation remain pending.
+  A signed response alone does not authenticate a channel.
 - Signature serialization has tests, but no external JWT/JWS conformance suite
   or independent security audit has been run.
 - A grant passing verification does not execute a task or bypass a product's

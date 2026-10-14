@@ -1,6 +1,7 @@
 """Optional Ed25519 identity and scoped admission primitives.
 
-This module is not wired into the UI, registry or network mesh yet.
+Used by the optional verified directory and signed group policy.
+The human UI and distributed mesh are not integrated yet.
 """
 import base64
 import hashlib
