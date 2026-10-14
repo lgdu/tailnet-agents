@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tailnet-agents"
-version = "0.5.0"
+version = "0.6.0"
 description = "Discover heterogeneous agents across a Tailscale network"
 requires-python = ">=3.11"
 
@@ -13,6 +13,10 @@ tailnet-agent-registry = "tailnet_agents.registry:main"
 tailnet-agent-bridge = "tailnet_agents.bridge:main"
 tailnet-agents = "tailnet_agents.cli:main"
 tailnet-agents-mcp = "tailnet_agents.mcp:main"
+tailnet-agents-ui = "tailnet_agents.ui:main"
 
 [tool.setuptools.packages.find]
 include = ["tailnet_agents*"]
+
+[tool.setuptools.package-data]
+tailnet_agents = ["web/*.html", "web/*.css", "web/*.js"]
