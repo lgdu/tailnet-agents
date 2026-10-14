@@ -1,4 +1,4 @@
-# Explicit policy delivery — v0.21 (unreleased)
+# Explicit policy delivery — v0.21
 
 The trusted loopback human gateway can deliver its current signed snapshot to an
 explicitly configured recipient. Opening a group, listing recipients, previewing

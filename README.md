@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.21 prototype (unreleased).** Working components are listed below. The network mesh and
+**v0.21 prototype.** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -224,7 +224,7 @@ membership and the three Echo participants remain separate from signed Agent
 membership. See [human policy signing](docs/human-policy.md) for key handling,
 manual delivery, retry semantics and remaining work.
 
-## Explicit policy delivery (v0.21, unreleased)
+## Explicit policy delivery (v0.21)
 
 Set `--policy-targets-file` on the trusted human gateway to enable up to eight
 configured origins/groups with separate read credentials from environment names.
@@ -277,8 +277,8 @@ add signed presence propagation and runtime enrollment, connect verified
 identity and candidate discovery to the mesh engine, broaden browser QA,
 and then add real product adapters and durable tasks.
 The working registry mode remains available during mesh development.
-v0.20.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.20.0)
-with a matching version tag. v0.21.0 is prepared in this PR, not published or tagged. Release checks and tag synchronization are described
+v0.21.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.21.0)
+with a matching annotated version tag. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 
 No open-source license has been selected yet. Public release requires an owner

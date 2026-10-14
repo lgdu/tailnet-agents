@@ -1,4 +1,4 @@
-# Implementation status — v0.21 (unreleased)
+# Implementation status — v0.21
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -107,7 +107,7 @@ Credential issuance/provisioning, background delivery, remote sessions, owner
 recovery/rotation and full runtime enrollment remain unimplemented. See
 [human policy signing](human-policy.md). v0.20.0 is published as a GitHub prerelease with a matching version tag.
 
-v0.21 (unreleased) adds explicit recipient configuration and human-confirmed policy
+v0.21 adds explicit recipient configuration and human-confirmed policy
 delivery with signed readback and historical revision/freshness receipts. Recipient
 URLs/groups/CA and credential environment names are configured only on the trusted
 human machine. Startup, preview, policy signing and discovery do not contact them.
@@ -123,7 +123,7 @@ The suite now contains 208 tests (24 new delivery checks and five same-machine
 multi-Agent checks), plus Chromium UI delivery
 and lost-acknowledgment regression in CI. Real Agents and physical LAN/tailnet/WAN
 remain unvalidated. Grant issuance UX remains manual. See
-[policy delivery](policy-delivery.md). v0.21.0 is not yet published or tagged.
+[policy delivery](policy-delivery.md). v0.21.0 is published as a GitHub prerelease with a matching annotated tag.
 
 ## Documentation maintenance rule
 

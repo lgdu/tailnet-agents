@@ -269,7 +269,7 @@ issuance/provisioning remains manual. Owner rotation/recovery, hardware keys, re
 enrollment are future work. Local audit/backups are not tamper-proof. See
 [human policy signing](human-policy.md) for recovery and retry limits.
 
-### Explicit policy delivery (v0.21, unreleased)
+### Explicit policy delivery (v0.21)
 
 ```mermaid
 flowchart TD
@@ -362,7 +362,7 @@ necessary; network membership never grants filesystem or secret access.
   multicast and configured HTTP/TLS seeds; no automatic enrollment.
 - v0.20: opt-in local human policy signing and export, grant preview/
   approval, removal, manual renewal and terminal dissolution with transactional audit.
-- v0.21 (unreleased): explicit configured-recipient delivery, signed readback,
+- v0.21: explicit configured-recipient delivery, signed readback,
   historical age receipts and restart-safe human retry.
 - Next: credential issuance UX and candidate runtime enrollment.
 - Next: mesh transport with cryptographic admission and signed presence.

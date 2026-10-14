@@ -207,7 +207,7 @@ Downloads carry the existing signed policy JWS and can be explicitly applied
 through the directory's protected policy route or the v0.21 delivery workflow. No received/advertised URL becomes
 trusted automatically. See [human policy signing](human-policy.md).
 
-## Explicit policy delivery (v0.21, unreleased)
+## Explicit policy delivery (v0.21)
 
 These additional loopback UI routes require the configured signer admin and
 group creator. Recipient URLs, read tokens and CA files come only from trusted

@@ -1,4 +1,4 @@
-# Human policy signing — v0.21 (unreleased)
+# Human policy signing — v0.21
 
 The local UI can optionally act as a trusted human signing gateway. An explicitly
 configured admin can create a new signed group, preview and approve pre-issued

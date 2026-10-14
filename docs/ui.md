@@ -1,4 +1,4 @@
-# Human UI v0.21 (unreleased): signing and explicit policy delivery
+# Human UI v0.21: signing and explicit policy delivery
 
 The UI is a local demonstration of the interaction model. It does
 not integrate the mesh simulator, registry, MCP tools or real agent adapters.
