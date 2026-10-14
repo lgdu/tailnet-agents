@@ -109,6 +109,47 @@ remain durable longer than stale credentials can be accepted. Offline nodes may
 not yet know dissolution; sensitive work cannot rely only on their stale copy.
 Authority key recovery/rotation and credential renewal UX remain open decisions.
 
+### Implemented signed-age gate and configured-source failover (v0.18, unreleased)
+
+In verified policy mode, active authorization ends at signed `issued_at` plus a
+local maximum age (default 300 seconds). The bound persists in SQLite and cannot
+be increased by restarting; it can be tightened. Receiving the same snapshot,
+restarting or changing sources never changes that deadline. Registration leases
+are capped by both policy and credential expiry. Registration/discovery fail
+closed on stale policies or policy timestamps more than 30 seconds in the future.
+Trusted synchronized wall clocks are required; this is not a secure-clock design.
+
+Only the existing human-controlled authority can sign a newer policy revision.
+Receivers and source relays possess no owner private key and cannot automatically
+refresh authorization. Missing sources or expired policy preserve the original
+group, identity and tombstones while waiting; they never create a replacement.
+
+```mermaid
+flowchart LR
+  CONFIG["Trusted configuration / LAN and tailnet HTTPS sources"] --> SYNC["Ordered pull / Independent credentials, CA and cursors"]
+  SYNC --> PRIMARY["Primary source"]
+  SYNC -->|"Error, empty, stale or incomplete"| BACKUP["Backup sources"]
+  PRIMARY --> VERIFY["Pinned owner + group / Signature and monotonic revision"]
+  BACKUP --> VERIFY
+  VERIFY --> DB[("Original group policy / Durable revocations and dissolution")]
+  DB --> GATE["Active + fresh policy / Grant approval + possession proof"]
+  GATE -->|"Authorized"| DIRECTORY["Registration and discovery"]
+  GATE -->|"Expired or unapproved"| DENY["Wait for human-authorized renewal / No group creation"]
+```
+
+Every poll starts with the primary and stops after the first source supplies a
+usable policy and a completed bounded revocation scan. A source's cursor cannot
+skip another source's records. Valid partial records persist through failover.
+Existing owner/group pins, rollback/conflict rejection and terminal dissolution
+apply equally to all sources. Status reports source indexes, not credentials or
+transport exception contents. No credentials are obtained from peer discovery.
+
+Ordered failover is not quorum consensus, anti-entropy across all sources or
+replay-resistant online authority attestation. A still-fresh primary may hide a
+newer backup policy; unseen revocations remain possible within the age bound.
+LAN and Tailscale use the same hostname-verified TLS transport. Cross-machine
+trials and automatic discovery remain future work; tests use synthetic identities.
+
 ## Human interaction
 
 The human UI shows groups, verified members, local reachability, capabilities,
@@ -159,7 +200,9 @@ necessary; network membership never grants filesystem or secret access.
   synchronization, manual CLI and read-protected status. No automatic mesh discovery.
 - v0.17: paginated signed credential-revocation replication, bounded scans,
   restart-safe learned revocations and source generation handling.
-- Next: human UI signing workflow, policy freshness and peer discovery.
+- v0.18 (unreleased): signed-age authorization gate, persisted tighter bounds,
+  lease expiry caps and ordered configured-source failover with separate cursors.
+- Next: human UI signing/renewal workflow and peer discovery.
 - Next: network discovery and mesh transport with cryptographic admission.
 - Then: validated agent adapters, durable tasks and real LAN/tailnet trials.
 
@@ -203,3 +246,5 @@ v0.16 adds configured-peer policy replication, including removals and dissolutio
 v0.17 also replicates signed credential revocations. Presence, chat and tasks
 are not replicated.
 The human UI and mesh simulator remain separate from these snapshots.
+v0.18 bounds active-policy age and adds source failover; it does not connect those
+independent paths or grant membership through discovery.

@@ -5,6 +5,7 @@ import time
 from .identity import AdmissionError, PERMISSIONS, identity_id, sign, verify
 
 POLICY_TYPE = 'tailnet-group-policy+jwt'
+POLICY_FUTURE_SKEW = 30
 
 
 def validate_policy(claims, owner_key, group_id):
@@ -82,10 +83,12 @@ class PolicyStore:
     """One pinned group on caller's SQLite connection; caller serializes access.
 
     Snapshots may skip revisions. Same-revision conflicts and rollback fail closed.
-    Learned dissolution is permanent. This does not guarantee partition freshness.
+    Learned dissolution is permanent. Active authorization has a bounded age
+    measured from the owner's signed timestamp, never from receipt or polling.
     """
-    def __init__(self, db, owner_key, group_id):
+    def __init__(self, db, owner_key, group_id, *, clock=time.time, max_age=300):
         self.db, self.owner_key, self.group_id = db, owner_key, group_id
+        self.clock, self.max_age = clock, max_age
         db.execute('CREATE TABLE IF NOT EXISTS group_policy (id INTEGER PRIMARY KEY CHECK(id=1), token TEXT NOT NULL)')
         self.current()  # Reject a corrupt or foreign snapshot on startup.
 
@@ -95,6 +98,8 @@ class PolicyStore:
 
     def apply(self, token):
         incoming = verify_policy(token, self.owner_key, self.group_id)
+        if incoming['issued_at'] > self.clock() + POLICY_FUTURE_SKEW:
+            raise AdmissionError('policy timestamp is in the future')
         with self.db:
             previous = self.current()
             if previous:
@@ -109,11 +114,29 @@ class PolicyStore:
             self.db.execute('INSERT INTO group_policy VALUES(1,?) ON CONFLICT(id) DO UPDATE SET token=excluded.token', (token,))
         return incoming
 
+    def status(self):
+        policy = self.current()
+        result = {'state': 'missing', 'revision': None, 'issued_at': None,
+                  'expires_at': None, 'max_age': self.max_age}
+        if policy is None:
+            return result
+        now = self.clock()
+        expires = policy['issued_at'] + self.max_age
+        state = ('dissolved' if policy['state'] == 'dissolved' else
+                 'future' if policy['issued_at'] > now + POLICY_FUTURE_SKEW else
+                 'stale' if now >= expires else 'fresh')
+        return result | {'state': state, 'revision': policy['revision'],
+                         'issued_at': policy['issued_at'], 'expires_at': expires}
+
     def authorize(self, grant):
         policy = self.current()
         if policy is None or policy['state'] != 'active':
             raise AdmissionError('active group policy required')
+        now = self.clock()
+        if policy['issued_at'] > now + POLICY_FUTURE_SKEW or now >= policy['issued_at'] + self.max_age:
+            raise AdmissionError('fresh group policy required')
         member = policy['members'].get(grant['sub'])
         if (member is None or grant['jti'] not in member['grant_ids'] or
                 not set(grant['permissions']) <= set(member['permissions'])):
             raise AdmissionError('grant not approved by current policy')
+        return policy

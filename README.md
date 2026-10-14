@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.17 prototype.** Working components are listed below. The network mesh and
+**v0.18 prototype (unreleased).** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -16,9 +16,9 @@ action; agents may only discover or restore previously authorized groups.
 | MCP | Stdio discovery, delegation, result tools | 2025 handshake family; real client compatibility unvalidated |
 | Human UI | Explicit groups, human roles, scoped group/private chat, polling, pagination | Loopback-only, simulated agents, no E2E encryption |
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
-| Policy replication | Configured peer pull over HTTP/TLS, periodic synchronization, signed credential revocations and status | Policy and credential revocations only; no presence/chat/task replication |
+| Policy replication | Ordered HTTP/TLS source failover, independent revocation cursors, periodic pull and status | Configured sources only; no quorum, presence/chat/task replication |
 | Mesh simulator | Restart, partition reconciliation, stale claims, dissolution rules | Deterministic state model, no network or cryptographic admission |
-| Signed group policy | Owner-signed snapshots, approved grant IDs, rollback rejection, terminal dissolution | Opt-in verified directory enforcement; no UI issuance or automatic peer discovery |
+| Signed group policy | Owner-signed snapshots, bounded signed age, approved grant IDs, rollback rejection, terminal dissolution | Opt-in verified admission; owner must renew policy, no UI issuance or automatic peer discovery |
 | Agent identity | Ed25519 identities, signed scoped grants, expiry/revocation checks, possession proof | Verified admission integrated; no UI/mesh identity integration |
 | Verified directory | Proof-based registration, metadata binding, durable signed revocation | TLS service with optional durable signed member policy; not mesh/UI integrated |
 
@@ -51,9 +51,13 @@ flowchart TB
   subgraph VERIFY["Optional verified admission / 可选身份准入"]
     direction TB
     VC["Verified client / 持有身份私钥"] -->|"TLS + grant + proof"| API["Admission HTTP service"]
-    API -->|"Policy and revocation pull / 配置的来源"| PEER["Peer admission service / 签名策略副本"]
+    API --> SYNC["Ordered source failover / 来源故障切换"]
+    SYNC -->|"Policy + revocation pull / 主来源"| PEER["Primary admission service / 主策略副本"]
+    SYNC -->|"Fallback / 备用来源"| BACKUP["Backup admission services / 备用策略副本"]
+    SYNC -->|"Verify same owner and group / 验证与持久化"| VD
     API --> VD["Verified directory / 身份与授权校验"]
     VD --> GP["Signed group policy / 成员、凭证、解散"]
+    GP --> AGE["Signed age gate / 过期拒绝准入与发现"]
     VD --> ID["Ed25519 / 签名、有效期、撤销"]
     VD --> VDB[("SQLite / 注册、策略、撤销")]
     GP --> VDB
@@ -152,6 +156,13 @@ adds certificate-verified transport for controlled cross-machine trials.
 dissolution checks to verified admission. A read token cannot sign a policy.
 [Policy synchronization](docs/policy-sync.md) enables configured nodes to pull
 signed policies and credential revocations periodically over HTTP/TLS.
+Policy mode now expires active authorization 300 seconds after the signed
+`issued_at` by default. Duplicate delivery, source failover and restart cannot
+refresh it. The human authority must issue a newer signed revision before expiry;
+an unavailable authority means admission eventually stops. Configure a stricter
+persisted limit with `--policy-max-age`, and ordered independently authenticated
+LAN/tailnet sources with `--policy-sources-file`. See the guide for migration,
+clock requirements and the remaining partition limits.
 
 ## Verification
 
@@ -163,6 +174,8 @@ python3 -m tailnet_agents.mesh_sim
 Install the identity extra to run cryptographic tests; without it, those tests
 are explicitly skipped. CI runs both core and identity installations. Browser
 visual/interaction validation and real-agent compatibility remain outstanding.
+The v0.17 baseline had 95 tests; this change adds expiry, restart/upgrade,
+source failover, independent-cursor and actual HTTP/TLS subprocess coverage.
 
 ## Design and roadmap
 
@@ -173,10 +186,12 @@ visual/interaction validation and real-agent compatibility remain outstanding.
 - [Prioritized remaining work](docs/roadmap.md)
 
 Next: connect human group creation to signed policies, add peer discovery and
-policy freshness and presence propagation, connect verified
+signed presence propagation, connect verified
 identity to the mesh engine, implement LAN/seed/tailnet discovery, validate the
 human UI in a browser, and then add real product adapters and durable tasks.
 The working registry mode remains available during mesh development.
+The v0.18.0 version is pending release; publish its GitHub tag together with the
+release after merging and validating main, as described in [operations](docs/operations.md#version-and-github-tag).
 
 No open-source license has been selected yet. Public release requires an owner
 license decision. Keys, tokens and SQLite state must stay outside git.

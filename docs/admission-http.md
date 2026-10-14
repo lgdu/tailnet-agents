@@ -1,4 +1,4 @@
-# Verified admission HTTP/TLS — prototype (v0.17)
+# Verified admission HTTP/TLS — prototype (v0.18, unreleased)
 
 This separate optional service exposes VerifiedDirectory over HTTP/TLS. Default
 binding is loopback HTTP. Non-loopback binds require server certificate/key and
@@ -34,6 +34,11 @@ For policy enforcement, follow [the policy guide](group-policy.md) and start wit
 `--require-policy` or `--policy-file state/group.policy`. Without an active
 snapshot, policy mode rejects all registrations. Its enforcement flag persists
 in SQLite; restarting without the flag then fails instead of weakening checks.
+Policy mode also persists a maximum signed age (default 300 seconds), configurable
+with `--policy-max-age`. Stale policy denies registration/renewal and hides
+discovery results. Restart cannot increase a saved limit; only a fresh signed
+owner revision renews authorization for the same group. [Policy sync](policy-sync.md)
+documents migration and ordered primary/backup source configuration.
 
 ## Start
 
@@ -93,7 +98,7 @@ endpoint is metadata and is not contacted by this service.
 | POST `/v1/registrations` | Signed grant and subject proof | `{record, grant, public_key, proof, nonce}` → ID/TTL |
 | GET `/v1/agents?skill=echo` | Read bearer token | Verified, leased, non-revoked records |
 | GET `/v1/policies` | Read bearer token, policy mode enabled | `{policy}` signed snapshot or null |
-| GET `/v1/policy-sync` | Read bearer token | Local synchronizer state/timestamps/revision or disabled |
+| GET `/v1/policy-sync` | Read bearer token | Sync state, active source index, per-source cursors, current policy age/expiry; also available when sync is disabled |
 | POST `/v1/policies` | Read token AND authority signature, policy mode enabled | `{policy}` → group ID/revision/state |
 | GET `/v1/revocations?after=0&limit=100` | Read bearer token | Paged signed records, source generation, cursor and has_more |
 | POST `/v1/revocations` | Read token AND authority signature | `{revocation}` → acknowledgment |
@@ -114,9 +119,11 @@ Tests use two local simulated subjects over actual loopback HTTP. They cover
 registration, discovery, revocation, renewed stable IDs, nonce replay, foreign
 groups, metadata tampering, Origin checks, read authorization and body limits.
 TLS transport is now tested on loopback, including CA and hostname validation.
-Actual cross-machine LAN/tailnet deployment, TLS channel binding, UI grant issuance and distributed revocation remain unvalidated or pending.
+Actual cross-machine LAN/tailnet deployment, TLS channel binding and UI grant
+issuance remain unvalidated or pending. Signed revocation replication is tested
+locally; immediate partition-wide revocation is not guaranteed.
 Signed group policy updates and enforcement are tested locally, including
 member removal, rollback rejection and terminal dissolution.
 [Policy sync](policy-sync.md) adds optional periodic pull from an explicitly
-configured source; registration leases and tasks/chat are not replicated. Signed credential
+configured sources with failover; registration leases and tasks/chat are not replicated. Signed credential
 revocations propagate through a paginated read-protected feed.

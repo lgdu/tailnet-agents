@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from .identity import AdmissionError,decode
 from .verified_directory import VerifiedDirectory
 from .client import Client
-from .policy_sync import PolicySynchronizer
+from .policy_sync import PolicySynchronizer,load_policy_sources
 
 
 def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=None):
@@ -66,7 +66,8 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=N
                         raise ValueError('policy routes do not accept query parameters')
                     if parsed.path=='/v1/policies':
                         return self.respond(200,directory.export_policy())
-                    return self.respond(200,{'state':'disabled'} if synchronizer is None else synchronizer.status())
+                    status={'state':'disabled'} if synchronizer is None else synchronizer.status()
+                    return self.respond(200,status|{'policy':directory.policy_status()})
                 if parsed.path!='/v1/agents':
                     return self.respond(404,{'error':'not found'})
                 self.read_auth()
@@ -181,9 +182,12 @@ def main():
     parser.add_argument('--database',default='state/verified-directory.sqlite3')
     parser.add_argument('--require-policy',action='store_true',help='fail closed without an active signed member policy; persisted across restart')
     parser.add_argument('--policy-file',help='initial signed policy; implies --require-policy')
-    parser.add_argument('--policy-peer',help='explicit source directory URL; requires policy mode and TAILNET_POLICY_PEER_TOKEN')
+    sources=parser.add_mutually_exclusive_group()
+    sources.add_argument('--policy-peer',help='explicit source directory URL; requires policy mode and TAILNET_POLICY_PEER_TOKEN')
+    sources.add_argument('--policy-sources-file',help='ordered JSON array of 1..8 sources: url, token_env and optional ca_cert')
     parser.add_argument('--policy-peer-ca',help='trusted CA certificate PEM for the configured source')
     parser.add_argument('--policy-sync-interval',type=float,default=10,help='policy pull interval, 1..3600 seconds')
+    parser.add_argument('--policy-max-age',type=int,help='maximum signed policy age, 1..86400 seconds; default 300 or persisted limit')
     args=parser.parse_args()
     token=os.environ.get('TAILNET_VERIFIED_READ_TOKEN','')
     if len(token)<32 or not token.isascii():
@@ -193,17 +197,23 @@ def main():
         parser.error('policy peer requires policy mode and a 32+ character ASCII peer read token')
     if args.policy_peer_ca and not args.policy_peer:
         parser.error('--policy-peer-ca requires --policy-peer')
+    if (args.policy_sources_file or args.policy_max_age is not None) and not (args.require_policy or args.policy_file):
+        parser.error('policy sources and maximum age require policy mode')
     directory=None
     synchronizer=None
     try:
         allowed,context=transport_config(args.host,args.tls_cert,args.tls_key,args.allow_host)
         authority=Ed25519PublicKey.from_public_bytes(decode(Path(args.authority_public_key).read_text().strip()))
-        directory=VerifiedDirectory(authority,args.group_id,args.audience,database=args.database,require_policy=args.require_policy or bool(args.policy_file))
+        peers=[]
+        if args.policy_sources_file:
+            peers=load_policy_sources(args.policy_sources_file)
+        elif args.policy_peer:
+            peers=[Client(args.policy_peer,peer_token,ca_file=args.policy_peer_ca)]
+        directory=VerifiedDirectory(authority,args.group_id,args.audience,database=args.database,require_policy=args.require_policy or bool(args.policy_file),policy_max_age=args.policy_max_age)
         if args.policy_file:
             directory.apply_policy(Path(args.policy_file).read_text().strip())
-        if args.policy_peer:
-            peer=Client(args.policy_peer,peer_token,ca_file=args.policy_peer_ca)
-            synchronizer=PolicySynchronizer(directory,peer,args.policy_sync_interval)
+        if peers:
+            synchronizer=PolicySynchronizer(directory,peers[0],args.policy_sync_interval,fallback_clients=peers[1:])
     except (ValueError,OSError):
         if directory is not None:
             directory.close()

@@ -1,4 +1,4 @@
-# Verified admission over TLS (v0.17)
+# Verified admission over TLS (v0.18, unreleased)
 
 The verified admission service can now bind an IPv4 LAN or tailnet address when
 TLS and explicit HTTP host names are configured. Default remains loopback HTTP.
@@ -23,6 +23,12 @@ No automatic Agent group creation is added.
 For periodic signed snapshot pull, configure a peer URL and its trusted CA as
 described in [policy sync](policy-sync.md). Peer URLs also require HTTPS outside
 loopback; the source token never follows redirects.
+For primary/backup sources, `--policy-sources-file` provides an independent token
+environment-variable name and optional CA per URL. The ordered list can mix LAN
+and Tailscale HTTPS destinations. CA/hostname failure triggers the next configured
+source without disabling verification or copying credentials between sources.
+Policy age is bounded independently of TLS contact. See the sync guide for the
+default 300-second deadline and human-controlled policy renewal.
 
 ## LAN example
 

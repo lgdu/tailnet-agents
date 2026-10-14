@@ -113,3 +113,26 @@ Accepted revocations persist, are relayed unchanged, and are never removed by
 policy updates or missing source records. Cursor checkpoints are routing hints;
 completed scans and process restart rescan from zero. See [policy sync](policy-sync.md)
 for the response schema, partial-progress behavior and version compatibility.
+
+## Signed policy age and ordered sources (v0.18, unreleased)
+
+Policy JWS and update acknowledgments retain their existing wire format. In
+policy mode, active authorization requires `now < issued_at + max_age`;
+default max_age is 300 seconds and the local bound persists across restart.
+Increasing a persisted bound or disabling policy mode is rejected. Timestamps
+over 30 seconds in the future are rejected; expired snapshots can still be stored
+and relayed for monotonicity but cannot authorize registration/discovery. Leases
+are capped by policy and grant expiry. Learned dissolution/revocations never expire.
+
+GET `/v1/policy-sync` adds `policy` freshness, plus `active_source` and `sources`
+when synchronization is configured. Policy status includes state, revision,
+issued_at, expires_at and max_age, evaluated even with sync disabled.
+Expired registration/renewal returns the existing generic 403; discovery omits
+affected records. `/healthz` remains liveness, not authorization readiness.
+
+The periodic service tries 1..8 explicitly ordered sources with independent
+credentials/CA/cursors. Failure, null/stale policy, invalid revision/signature or
+incomplete revocations triggers fallback. Identical owner/group, rollback,
+conflict and terminal-state checks apply to each source. Partial verified records
+persist; polling/failover cannot extend signed authorization. There is no new
+discovery route, membership grant, quorum or real Agent adapter.

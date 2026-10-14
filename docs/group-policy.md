@@ -1,4 +1,4 @@
-# Signed group policy — v0.17
+# Signed group policy — v0.18 (unreleased)
 
 This optional layer connects persistent signed membership to the verified
 admission directory. It does **not** connect the human UI or implement a full
@@ -64,6 +64,14 @@ For non-loopback connections also configure [TLS](tls-deployment.md).
 startup but denies admission until an authorized signed snapshot is submitted.
 Restart can omit the file once stored, but must retain `--require-policy`.
 Reapplying the same latest snapshot is harmless; an older file fails startup.
+Active snapshots now have a maximum signed age: 300 seconds by default, or a
+stricter persisted `--policy-max-age` limit. Restart and duplicate delivery do
+not renew them. Registration leases cannot exceed the policy deadline. Before
+expiry, the existing human authority must issue a newer signed revision with a
+current timestamp, even when membership is unchanged. Do not recreate the group.
+Without renewal, registration fails and discovery hides affected records while
+preserving the original group and identity for recovery. See
+[configuration and migration](policy-sync.md#signed-policy-age-and-renewal).
 
 Submit subsequent snapshots with the authenticated shared client:
 
@@ -117,8 +125,12 @@ already dispatched tasks are not cancelled. Registration leases still expire
 and require fresh possession proof after directory restart.
 
 Configured directory peers can now pull full signed snapshots periodically.
-No automatic peer discovery, global ordering, owner-key rotation, policy freshness
-lease or partition-wide immediate revocation exists. A partitioned receiver cannot learn a removal until it receives the update.
+No automatic peer discovery, global ordering, owner-key rotation or partition-wide
+immediate revocation exists. Signed age is now bounded, with up to 30 seconds of
+future-timestamp tolerance and no expiry grace. A partitioned receiver cannot
+learn a removal immediately; its last policy authorizes only until its original
+deadline. Learned dissolution never expires. Ordered source failover does not
+weaken rollback or conflict rejection.
 Two owner-signed snapshots at the same revision cause a conflict requiring human
 resolution via a higher revision; terminal dissolution remains irreversible at
 receivers that learned it. Restoring an older database backup can lose learned

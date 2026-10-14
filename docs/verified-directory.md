@@ -1,4 +1,4 @@
-# Credential-enforced directory (v0.17)
+# Credential-enforced directory (v0.18, unreleased)
 
 `VerifiedDirectory` connects the optional identity component to SQLite directory
 registration. This module remains an **in-process API**. A separate
@@ -77,6 +77,13 @@ owner/group fails. Restart retains identity ownership, grants and revocations,
 but invalidates leases until fresh proof-based registration. New valid grants
 for the same subject retain the same derived Agent ID. Grant validity caps lease
 length; credentials with less than 10 seconds remaining cannot register.
+Policy mode also caps leases at signed `issued_at + policy_max_age` and rejects
+stale policy during registration/discovery. The maximum age defaults to 300
+seconds and persists; the `policy_max_age` constructor argument may tighten it
+but cannot increase it on restart. `policy_status()` reports current freshness
+without changing the stored snapshot. Owner-authorized renewal preserves the
+same group and subject identity. See [policy sync](policy-sync.md) for migration,
+clock requirements and configured-source failover.
 
 ## Limits
 
