@@ -1,8 +1,9 @@
-"""Loopback-only single-owner Web UI for simulated chat."""
+"""Loopback-only role-aware Web UI for simulated chat."""
 import argparse
 import hmac
 import json
 import os
+import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -11,7 +12,28 @@ from .chat import ChatStore
 WEB = Path(__file__).parent / 'web'
 
 
-def handler(store, token):
+def validate_users(users):
+    if not isinstance(users, dict) or not users:
+        raise ValueError('users must be a nonempty object')
+    tokens = set()
+    for principal, config in users.items():
+        if not isinstance(principal, str) or not re.fullmatch(r'[a-zA-Z0-9_.-]{1,64}', principal):
+            raise ValueError('invalid human identity')
+        if not isinstance(config, dict) or set(config) != {'token', 'role'}:
+            raise ValueError('each human needs token and role')
+        token, role = config['token'], config['role']
+        if not isinstance(token, str) or len(token) < 32 or not token.isascii() or token in tokens:
+            raise ValueError('human tokens must be unique ASCII secrets of at least 32 characters')
+        if role not in ('admin', 'participant', 'observer'):
+            raise ValueError('invalid human role')
+        tokens.add(token)
+    return users
+
+
+def handler(store, users):
+    if isinstance(users, str):
+        users = {'demo-owner': {'token': users, 'role': 'admin'}}
+    validate_users(users)
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
             super().setup()
@@ -41,8 +63,11 @@ def handler(store, token):
         def authorize(self):
             self.local_request()
             auth = self.headers.get('Authorization', '')
-            if not auth.startswith('Bearer ') or not hmac.compare_digest(auth[7:].encode(), token.encode()):
-                raise PermissionError('invalid UI credential')
+            if auth.startswith('Bearer '):
+                for principal, config in users.items():
+                    if hmac.compare_digest(auth[7:].encode(), config['token'].encode()):
+                        return principal, config['role']
+            raise PermissionError('invalid UI credential')
 
         def do_GET(self):
             try:
@@ -54,12 +79,16 @@ def handler(store, token):
                 if parsed.path in static:
                     filename, mime = static[parsed.path]
                     return self.response(200, (WEB / filename).read_bytes(), mime)
-                self.authorize()
+                principal, role = self.authorize()
+                if parsed.path == '/api/me':
+                    return self.response(200, {'id': principal, 'role': role})
                 if parsed.path == '/api/members':
                     return self.response(200, {'members': store.members()})
                 if parsed.path == '/api/messages':
                     conversation = parse_qs(parsed.query).get('conversation', ['group'])[0]
-                    return self.response(200, {'messages': store.history(conversation)})
+                    if role == 'observer' and conversation != 'group':
+                        raise PermissionError('observer cannot access private conversations')
+                    return self.response(200, {'messages': store.history(conversation, principal)})
                 self.response(404, {'error': 'not found'})
             except PermissionError as exc:
                 self.response(403, {'error': str(exc)})
@@ -68,7 +97,7 @@ def handler(store, token):
 
         def do_POST(self):
             try:
-                self.authorize()
+                principal, role = self.authorize()
                 length = int(self.headers.get('Content-Length', '0'))
                 if not 0 < length <= 65536:
                     return self.response(413, {'error': 'invalid body size'})
@@ -76,8 +105,12 @@ def handler(store, token):
                 if not isinstance(payload, dict):
                     raise ValueError('body must be an object')
                 if self.path == '/api/messages':
-                    return self.response(200, store.send(payload))
+                    if role == 'observer':
+                        raise PermissionError('observer cannot send messages')
+                    return self.response(200, store.send(payload, principal))
                 if self.path == '/api/presence':
+                    if role != 'admin':
+                        raise PermissionError('admin role required')
                     store.set_online(payload.get('agent'), payload.get('online'))
                     return self.response(200, {'members': store.members()})
                 self.response(404, {'error': 'not found'})
@@ -95,11 +128,15 @@ def main():
     parser.add_argument('--port', type=int, default=8770)
     parser.add_argument('--database', default='state/chat.sqlite3')
     args = parser.parse_args()
-    token = os.environ.get('TAILNET_UI_TOKEN', '')
-    if len(token) < 32 or not token.isascii():
-        parser.error('TAILNET_UI_TOKEN must contain at least 32 ASCII characters')
+    try:
+        configured = os.environ.get('TAILNET_UI_USERS')
+        users = json.loads(configured) if configured else {
+            'demo-owner': {'token': os.environ.get('TAILNET_UI_TOKEN', ''), 'role': 'admin'}}
+        validate_users(users)
+    except (ValueError, TypeError):
+        parser.error('Invalid human credentials; see docs/ui.md')
     store = ChatStore(args.database)
-    server = ThreadingHTTPServer(('127.0.0.1', args.port), handler(store, token))
+    server = ThreadingHTTPServer(('127.0.0.1', args.port), handler(store, users))
     print(f'Simulated chat UI: http://127.0.0.1:{server.server_port}', flush=True)
     try:
         server.serve_forever()

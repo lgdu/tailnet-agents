@@ -2,7 +2,7 @@
 
 Discover heterogeneous agents across regions on a shared Tailscale network.
 
-Status: **v0.6 prototype**. Automatic bridge registration/renewal, discovery,
+Status: **v0.7 prototype**. Automatic bridge registration/renewal, discovery,
 Echo task submission, result polling and MCP stdio tools work. Real product
 adapters and A2A transport are planned. The custom task API is not A2A.
 
@@ -101,5 +101,8 @@ python3 -m tailnet_agents.ui
 
 在本机打开 `http://127.0.0.1:8770`，输入上述环境变量的值。
 界面提供群聊点名、三个模拟 Agent 的独立对话、模拟在线切换以及 SQLite 历史。
-仅绑定回环地址，是单所有者的本地演示，不是可公开部署的多用户聊天服务。
+仅绑定回环地址，支持配置多个本地身份与角色；仍不是可公开部署的聊天服务。
 完整说明见 [Human UI](docs/ui.md)。
+
+v0.7 支持独立人类 token、管理员/参与者/观察者角色，以及后端按人隔离私聊。
+角色和多用户配置见 [Human UI](docs/ui.md)。

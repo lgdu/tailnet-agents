@@ -1,4 +1,5 @@
 'use strict';
+let me = null;
 let token = '', conversation = 'group', members = [], pending = null, busy = false;
 const $ = id => document.getElementById(id);
 function node(tag, text, className) { const n = document.createElement(tag); if(text !== undefined) n.textContent = text; if(className) n.className = className; return n; }
@@ -10,10 +11,10 @@ function renderMembers() {
   $('member-count').textContent = `${members.filter(m => m.online).length} / ${members.length} 模拟成员在线`;
   $('member-list').replaceChildren(); $('direct-list').replaceChildren();
   for(const m of members) {
-    const nav = node('button', '@ ' + m.name, 'nav' + (conversation === 'dm:' + m.id ? ' active' : '')); nav.onclick = () => select('dm:' + m.id); $('direct-list').append(nav);
+    const nav = node('button', '@ ' + m.name, 'nav' + (conversation === 'dm:' + m.id ? ' active' : '')); nav.onclick = () => select('dm:' + m.id); if(me?.role !== 'observer') $('direct-list').append(nav);
     const card = node('div', undefined, 'member-card'), top = node('div', undefined, 'member-top'); top.append(node('span', m.name[0], 'avatar'));
     const info = node('div'); info.append(node('strong', m.name), node('small', m.online ? '模拟 Echo · 在线' : '模拟 Echo · 离线')); top.append(info, node('span', undefined, 'presence' + (m.online ? '' : ' offline')));
-    const toggle = node('button', m.online ? '模拟离线' : '恢复在线'); toggle.onclick = async () => { try { const result = await api('/api/presence', {agent: m.id, online: !m.online}); members = result.members; renderMembers(); } catch(e) {$('network-error').textContent = e.message;} }; card.append(top,toggle); $('member-list').append(card);
+    const toggle = node('button', m.online ? '模拟离线' : '恢复在线'); toggle.onclick = async () => { try { const result = await api('/api/presence', {agent: m.id, online: !m.online}); members = result.members; renderMembers(); } catch(e) {$('network-error').textContent = e.message;} }; card.append(top); if(me?.role === 'admin') card.append(toggle); $('member-list').append(card);
   }
 }
 function renderRecipients() {
@@ -30,8 +31,8 @@ async function refreshMessages() {
   $('messages').replaceChildren();
   if(!data.messages.length) $('messages').append(node('div', '这里还没有消息。\n开始一段新的讨论。', 'empty'));
   for(const message of data.messages) {
-    const human = message.sender === 'human', label = human ? '你' : (members.find(m=>m.id===message.sender)?.name || message.sender);
-    const row = node('div', undefined, 'chat-row' + (human ? ' human' : '')); row.append(node('span', human ? '人' : label[0], 'avatar'));
+    const human = message.sender === 'human', own = human && message.author === me?.id, label = human ? (own ? '你' : message.author) : (members.find(m=>m.id===message.sender)?.name || message.sender);
+    const row = node('div', undefined, 'chat-row' + (own ? ' human' : '')); row.append(node('span', human ? '人' : label[0], 'avatar'));
     const content = node('div'); content.append(node('div', `${label} · ${new Date(message.created*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`, 'message-meta'), node('div', message.text, 'bubble')); row.append(content); $('messages').append(row);
   }
   $('messages').scrollTop = $('messages').scrollHeight;
@@ -46,10 +47,10 @@ async function select(value) {
 }
 $('login-form').onsubmit = async e => {
   e.preventDefault(); token = $('token').value; $('login-error').textContent='';
-  try { members = (await api('/api/members')).members; $('login').hidden=true; $('workspace').hidden=false; $('token').value=''; renderMembers(); renderRecipients(); await refreshMessages(); }
+  try { me = await api('/api/me'); members = (await api('/api/members')).members; $('human-name').textContent=me.id; $('human-role').textContent={admin:'管理员',participant:'参与者',observer:'观察者'}[me.role]; $('compose').hidden=me.role==='observer'; $('login').hidden=true; $('workspace').hidden=false; $('token').value=''; renderMembers(); renderRecipients(); await refreshMessages(); }
   catch(error) {token=''; $('workspace').hidden=true; $('login').hidden=false; $('login-error').textContent=error.message;}
 };
-$('logout').onclick = () => {token=''; pending=null; conversation='group'; $('workspace').hidden=true; $('login').hidden=false; $('message').value=''; $('messages').replaceChildren(); $('group-button').classList.add('active'); $('conversation-title').textContent='群组讨论'; $('conversation-kind').textContent='GROUP CONVERSATION';};
+$('logout').onclick = () => {token=''; me=null; pending=null; conversation='group'; $('workspace').hidden=true; $('login').hidden=false; $('message').value=''; $('messages').replaceChildren(); $('group-button').classList.add('active'); $('conversation-title').textContent='群组讨论'; $('conversation-kind').textContent='GROUP CONVERSATION';};
 $('group-button').onclick = () => select('group');
 $('compose').onsubmit = async e => {
   e.preventDefault(); if(busy) return; if(!pending && !$('message').value.trim()) return;
