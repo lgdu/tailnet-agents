@@ -203,6 +203,36 @@ conflicts return 409; identical committed retries return the original acknowledg
 without signing again. Invalid schema/grants return 400 and unauthorized access
 returns 403. Removal retires IDs within this UI database, not a new distributed
 credential-revocation proof. A new grant ID is needed for UI readmission.
-Downloads carry the existing signed policy JWS and must be explicitly applied
-through the directory's protected policy route. No received/advertised URL becomes
+Downloads carry the existing signed policy JWS and can be explicitly applied
+through the directory's protected policy route or the v0.21 delivery workflow. No received/advertised URL becomes
 trusted automatically. See [human policy signing](human-policy.md).
+
+## Explicit policy delivery (v0.21, unreleased)
+
+These additional loopback UI routes require the configured signer admin and
+group creator. Recipient URLs, read tokens and CA files come only from trusted
+startup configuration. No route accepts an arbitrary destination or credential.
+The existing directory routes and signed policy format are unchanged.
+
+| Route | Behavior |
+|---|---|
+| GET `/api/policy-targets?group_id=...` | Configured recipients for this existing signed group; ID, URL, group and fingerprint, never tokens |
+| GET `/api/policy-deliveries?group_id=...` | Latest 20 persisted attempts and historical receipts |
+| POST `/api/policy-delivery-preview` | `group_id`, `target_id`, `expected_revision`, `policy_hash`; local consent preview with no remote request |
+| POST `/api/policy-deliver` | Those fields plus `target_fingerprint`, `request_id`; explicit delivery and verified readback |
+
+The group-policy export also includes `policy_hash`, the SHA-256 of the exact
+signed token. Consent binds this hash, revision and recipient fingerprint.
+Delivery verifies the recipient's current signed policy, sends only an older or
+empty recipient the selected snapshot, and reads back the exact signed copy and
+`/v1/policy-sync` age metadata. A receipt records target, group, revision, hash,
+policy/authorization state, `max_age`, `expires_at` and `checked_at`. Success can
+report an expired copy; it never renews or registers anything.
+
+409 reports stale consent, changed retry payload or remote revision conflict.
+502 reports an unknown network/protocol outcome: the copy may already have been
+applied. An explicit retry reads back an identical copy before considering POST.
+A completed identical request returns its original receipt without remote I/O.
+Receipts are point-in-time evidence, not live receiver status. Local changes
+during I/O can leave an older remote copy and require new human consent. See
+[policy delivery](policy-delivery.md) for configuration and recovery.

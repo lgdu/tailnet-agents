@@ -276,3 +276,9 @@ one-shot relay with a null policy makes no changes. Disconnected receivers still
 cannot learn new revocations immediately. Polling is full-history work, not an
 optimized production replication protocol, and cancelling running tasks remains
 unimplemented.
+
+The optional v0.21 [human delivery workflow](policy-delivery.md) explicitly pushes
+one selected snapshot to a recipient fixed in the human UI's startup configuration
+and records signed readback and age metadata. These recipients are separate from
+configured pull sources and discovery candidates. Opening or previewing the UI
+does not synchronize, and no discovered endpoint is promoted to either trust list.

@@ -108,6 +108,7 @@ class VerifiedDirectory:
             # Metadata validation precedes consuming a valid single-use challenge.
             if not isinstance(record,dict) or 'id' in record:
                 raise AdmissionError('identity is derived from the verified subject, not caller input')
+            # Identity belongs to an Agent key, never its shared machine/IP/endpoint.
             agent_id='agent-'+identity_id(subject_key).split(':')[1]
             metadata=Registry.normalize_record(record|{'id':agent_id})
             policy=None

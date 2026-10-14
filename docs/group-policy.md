@@ -1,8 +1,9 @@
-# Signed group policy — v0.20
+# Signed group policy — v0.21 (unreleased)
 
 This optional layer connects persistent signed membership to the verified
 admission directory. The optional [human UI signing gateway](human-policy.md)
-now creates and updates snapshots with explicit export/manual delivery. Full mesh
+now creates and updates snapshots with explicit export/manual application or
+[human-confirmed recipient delivery](policy-delivery.md). Full mesh
 integration remains future work. [Configured-peer policy replication](policy-sync.md) is available. A trusted administrator explicitly creates and signs snapshots;
 an Agent must never call creation on startup or discovery timeout.
 

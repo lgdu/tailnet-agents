@@ -13,6 +13,15 @@ directory database maintained by trusted administration or configured-source syn
 Load the existing Agent key; do not generate a replacement at startup. Keep the
 owner private key exclusively with human-controlled administration.
 
+Several independently approved Agents may share a LAN IP, hostname or Tailscale
+device. Give each Agent its own persistent key and scoped grant; separate
+publishers/listeners use distinct ports and state databases. Configure each
+publisher with that Agent's original `--discovery-agent-key` and endpoint. Results
+merge by verified subject, never by host or display name. Two keys on the same
+host remain two candidates. Conflicting locators for one reused/cloned key affect
+only that subject, not other Agents on the machine. Discovery of either candidate
+does not register it or authorize its peers.
+
 Publishers sign minimal metadata with the approved identity key. No bearer token,
 grant, private key, member list, capability list, chat or task data is sent.
 The public discovery route and LAN multicast are disabled by default. Enabling

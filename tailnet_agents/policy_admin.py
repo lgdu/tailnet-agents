@@ -46,6 +46,7 @@ class PolicyAuthority:
         db.execute('CREATE TABLE IF NOT EXISTS ui_policy_requests (group_id TEXT NOT NULL, request_id TEXT NOT NULL, payload TEXT NOT NULL, result TEXT NOT NULL, PRIMARY KEY(group_id,request_id))')
         db.execute('CREATE TABLE IF NOT EXISTS ui_policy_events (id INTEGER PRIMARY KEY, group_id TEXT NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, subject TEXT NOT NULL, revision INTEGER NOT NULL, policy_hash TEXT NOT NULL, created REAL NOT NULL)')
         db.execute('CREATE TABLE IF NOT EXISTS ui_retired_grants (group_id TEXT NOT NULL, jti TEXT NOT NULL, PRIMARY KEY(group_id,jti))')
+        db.execute('CREATE TABLE IF NOT EXISTS ui_policy_deliveries (group_id TEXT NOT NULL, request_id TEXT NOT NULL, payload TEXT NOT NULL, target TEXT NOT NULL, revision INTEGER NOT NULL, policy_hash TEXT NOT NULL, outcome TEXT NOT NULL, receipt TEXT, updated REAL NOT NULL, PRIMARY KEY(group_id,request_id))')
         for group_id, token in db.execute('SELECT group_id,token FROM ui_group_policies'):
             claims = verify_policy(token, self.key.public_key(), group_id)
             group = db.execute('SELECT name,creator,dissolved FROM chat_groups WHERE id=?', (group_id,)).fetchone()
@@ -80,7 +81,7 @@ class PolicyAuthority:
         token, policy = self.current(db, group_id)
         events = db.execute('SELECT actor,action,subject,revision,policy_hash,created FROM ui_policy_events WHERE group_id=? ORDER BY id DESC LIMIT 50', (group_id,)).fetchall()
         return {'group_id': group_id, 'owner_public_key': encode(public_bytes(self.key.public_key())),
-                'policy': token, 'claims': policy,
+                'policy': token, 'policy_hash': hashlib.sha256(token.encode()).hexdigest(), 'claims': policy,
                 'audit': [dict(zip(('actor', 'action', 'subject', 'revision', 'policy_hash', 'created'), row)) for row in reversed(events)]}
 
     def preview(self, db, group_id, grant):

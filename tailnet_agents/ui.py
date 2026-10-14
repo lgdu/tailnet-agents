@@ -7,7 +7,7 @@ import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
-from .chat import ChatStore
+from .chat import ChatStore, PolicyDeliveryError
 
 WEB = Path(__file__).parent / 'web'
 
@@ -95,6 +95,14 @@ def handler(store, users):
                     if set(query) != {'group_id'} or len(query['group_id']) != 1:
                         raise ValueError('one explicit group ID required')
                     return self.response(200, store.policy_export(principal, query['group_id'][0]))
+                if parsed.path in ('/api/policy-targets', '/api/policy-deliveries'):
+                    if role != 'admin':
+                        raise PermissionError('admin role required')
+                    query = parse_qs(parsed.query, keep_blank_values=True)
+                    if set(query) != {'group_id'} or len(query['group_id']) != 1:
+                        raise ValueError('one explicit group ID required')
+                    method = store.policy_recipients if parsed.path == '/api/policy-targets' else store.policy_delivery_history
+                    return self.response(200, method(principal, query['group_id'][0]))
                 if parsed.path == '/api/groups':
                     return self.response(200, {'groups':store.groups(principal)})
                 if parsed.path == '/api/humans':
@@ -145,10 +153,14 @@ def handler(store, users):
                 if not isinstance(group_id,str):
                     raise ValueError('invalid group id')
                 store.require_group(principal,group_id)
-                if self.path in ('/api/policy-preview', '/api/policy-approve', '/api/policy-remove', '/api/policy-renew'):
+                if self.path in ('/api/policy-preview', '/api/policy-approve', '/api/policy-remove', '/api/policy-renew', '/api/policy-delivery-preview', '/api/policy-deliver'):
                     authority = store.policy_authority
                     if role != 'admin' or authority is None or principal != authority.principal:
                         raise PermissionError('configured policy administrator required')
+                    if self.path == '/api/policy-delivery-preview':
+                        return self.response(200, store.policy_delivery_preview(principal, group_id, payload))
+                    if self.path == '/api/policy-deliver':
+                        return self.response(200, store.policy_deliver(principal, group_id, payload))
                     if self.path == '/api/policy-preview':
                         if set(payload) != {'grant'}:
                             raise ValueError('signed grant required')
@@ -182,6 +194,8 @@ def handler(store, users):
                 self.response(403, {'error': str(exc)})
             except FileExistsError as exc:
                 self.response(409, {'error': str(exc)})
+            except PolicyDeliveryError as exc:
+                self.response(502, {'error': str(exc)})
             except (ValueError, UnicodeError, TypeError) as exc:
                 self.response(400, {'error': str(exc)})
     return Handler
@@ -194,6 +208,7 @@ def main():
     parser.add_argument('--policy-owner-key', help='existing private owner PEM on this trusted local gateway')
     parser.add_argument('--policy-owner-public-key', help='separate pinned owner public key file')
     parser.add_argument('--policy-admin', help='configured admin human allowed to sign group policies')
+    parser.add_argument('--policy-targets-file', help='trusted recipient JSON; origins/groups and credential environment names')
     args = parser.parse_args()
     try:
         configured = os.environ.get('TAILNET_UI_USERS')
@@ -207,7 +222,13 @@ def main():
                 raise ValueError('complete policy authority configuration and admin role required')
             from .policy_admin import PolicyAuthority
             authority = PolicyAuthority.from_files(*signing)
-        store = ChatStore(args.database, policy_authority=authority)
+        targets = ()
+        if args.policy_targets_file:
+            if authority is None:
+                raise ValueError('explicit policy recipients require the configured signer')
+            from .policy_delivery import load_policy_targets
+            targets = load_policy_targets(args.policy_targets_file)
+        store = ChatStore(args.database, policy_authority=authority, policy_targets=targets)
     except (ImportError, ValueError, TypeError, OSError):
         parser.error('Invalid human credentials or policy authority configuration; see docs/ui.md')
     class UIServer(ThreadingHTTPServer):

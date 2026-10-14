@@ -136,6 +136,7 @@ class Candidates:
         now = self.clock()
         claims = verify_announcement(envelope, self.policy, self.owner, self.group_id,
                                      now=now, max_age=self.max_age, revoked=self.revoked)
+        # Several independently approved subjects may share one host or origin.
         records = self._records.setdefault(claims['subject'], {})
         locator = (claims['endpoint'], claims['audience'])
         if records and locator not in records:
