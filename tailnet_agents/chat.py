@@ -189,6 +189,27 @@ class ChatStore:
             self._require_group(actor, group_id, active=True)
             return self.policy_authority.change(self.db, group_id, operation, payload)
 
+    def credential_preview(self, actor, group_id, payload):
+        with self.lock:
+            self._require_policy_admin(actor, group_id)
+            self._require_group(actor, group_id, active=True)
+            from .credential_admin import preview
+            return preview(self.policy_authority, self.db, group_id, payload)
+
+    def credential_issue(self, actor, group_id, payload):
+        with self.lock, self.db:
+            self.db.execute('BEGIN IMMEDIATE')
+            self._require_policy_admin(actor, group_id)
+            self._require_group(actor, group_id, active=True)
+            from .credential_admin import issue
+            return issue(self.policy_authority, self.db, group_id, payload)
+
+    def credential_history(self, actor, group_id):
+        with self.lock:
+            self._require_policy_admin(actor, group_id)
+            from .credential_admin import history
+            return history(self.policy_authority, self.db, group_id)
+
     def configure_policy_targets(self, targets):
         targets = tuple(targets)
         if len(targets) > 8:

@@ -1,4 +1,4 @@
-# Human UI v0.21: signing and explicit policy delivery
+# Human UI v0.22 (unreleased): credential issuance, signing and explicit delivery
 
 The UI is a local demonstration of the interaction model. It does
 not integrate the mesh simulator, registry, MCP tools or real agent adapters.
@@ -146,7 +146,8 @@ Group creation is now idempotent by `(human creator, request_id)` across restart
 Retry identical payloads with the same key; a changed payload returns 409. The
 UI retains its key while the create dialog stays open. Closing/reopening it or
 reloading loses that key: check the group list before making another request.
-Grant issuance remains manual. Opt-in signed policy approval/export is described
+Grant issuance now has a separate [preview/confirmation workflow](credential-issuance.md),
+with explicit download and a recipient identity-checking installer. Opt-in signed policy approval/export is described
 in [human policy signing](human-policy.md); explicit directory application enables
 existing policy propagation.
 This is application-level access control on a local server, not mesh authorization.
@@ -196,11 +197,11 @@ credentials/configuration and database backup. Lifecycle records are plaintext
 local audit data, not tamper-proof evidence against a database operator.
 
 The optional [signing workflow](human-policy.md) connects this UI to existing
-Agent grants and signed policies through explicit human actions. Grant creation,
+Agent grants and signed policies through explicit human actions. Runtime identity creation,
 Agent runtime enrollment and background directory delivery remain separate. The
 optional [delivery workflow](policy-delivery.md) previews locally, requires human
 confirmation of the recipient and exact snapshot, and persists point-in-time
 receiver revision/age receipts. It never registers an Agent or renews policy.
-Recipient configuration is off by default; grant issuance still uses manual
-provisioning. Human
+Recipient configuration is off by default; credential issuance requires separate
+human consent and transfer remains a trusted manual step. Human
 role configuration and local group membership use the checks documented above. See [status](status.md) for the current integration boundary.

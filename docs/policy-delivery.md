@@ -7,7 +7,8 @@ must confirm the origin, group, owner, revision and snapshot hash first.
 
 This copies authorization state. It does not issue credentials, register Agents,
 renew signed timestamps, cancel running work or promote discovered endpoints into
-trusted recipients/sources. Grant issuance/provisioning remains manual.
+trusted recipients/sources. [Grant issuance and installation](credential-issuance.md)
+use separate explicit human actions; transfer remains manual.
 
 ## Configure recipients on the human machine
 
@@ -137,6 +138,6 @@ restart recovery and policy changes during slow network I/O. Chromium checks the
 visible preview, explicit confirmation, lost delivery acknowledgment/retry and
 terminal delivery; the same check runs in CI.
 
-Credential issuance/provisioning UI, runtime enrollment, live receiver monitoring,
+Automatic confidential credential transfer, runtime enrollment, live receiver monitoring,
 owner recovery/rotation, distributed presence/chat and durable tasks remain future
 work. No real product Agent or physical LAN/WAN/tailnet trial is included.

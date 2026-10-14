@@ -13,7 +13,7 @@ from playwright.sync_api import sync_playwright, expect
 from tailnet_agents.chat import ChatStore
 from tailnet_agents.ui import handler
 from tailnet_agents.policy_admin import PolicyAuthority
-from tailnet_agents.identity import issue_grant
+from tailnet_agents.identity import encode, identity_id, public_bytes, verify_grant
 from tailnet_agents.policy_delivery import PolicyTarget
 from tailnet_agents.verified_directory import VerifiedDirectory
 from tailnet_agents.admission_server import handler as admission_handler
@@ -72,7 +72,75 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#delivery-confirm').click()
             expect(page.locator('#delivery-error')).to_contain_text('接收第 1 版')
             assert recipient.export_policy()['policy']==store.policy_export('owner',group)['policy']
-            grant=issue_grant(owner, agent.public_key(), group, ['join','discover'])
+            page.locator('#credential-public-key').fill(encode(public_bytes(agent.public_key())))
+            page.locator('#credential-permissions input[value=discover]').check()
+            # A delayed response for an edited draft must never restore old consent.
+            held_previews=[]
+            def hold_credential_preview(route):
+                held_previews.append((route,route.fetch()))
+                page.evaluate("document.body.dataset.credentialHeld='yes'")
+            page.route('**/api/credential-preview',hold_credential_preview)
+            page.locator('#credential-preview').click()
+            expect(page.locator('body')).to_have_attribute('data-credential-held','yes')
+            page.locator('#credential-lifetime').fill('1800')
+            route,response=held_previews.pop();route.fulfill(response=response)
+            page.unroute('**/api/credential-preview',hold_credential_preview)
+            expect(page.locator('#credential-confirm')).to_be_disabled()
+            page.locator('#credential-preview').click()
+            expect(page.locator('#credential-consent')).to_contain_text(identity_id(agent.public_key()))
+            assert store.credential_history('owner',group)['issuances']==[]
+            assert store.policy_export('owner',group)['claims']['members']=={}
+            if args.artifacts:
+                page.locator('#credential-consent').scroll_into_view_if_needed()
+                page.screenshot(path=str(args.artifacts/'credential-preview-desktop.png'))
+                page.set_viewport_size({'width':375,'height':812})
+                page.locator('#credential-consent').scroll_into_view_if_needed()
+                page.screenshot(path=str(args.artifacts/'credential-preview-mobile.png'))
+                assert page.evaluate("document.querySelector('#manage-dialog').scrollWidth<=document.querySelector('#manage-dialog').clientWidth")
+                page.set_viewport_size({'width':1360,'height':900})
+            before_network=list(network)
+            dropped_issuance=[False]
+            def lose_issuance_ack(route):
+                if not dropped_issuance[0]:
+                    dropped_issuance[0]=True;route.fetch();route.abort()
+                else: route.continue_()
+            page.route('**/api/credential-issue',lose_issuance_ack)
+            page.locator('#credential-confirm').click()
+            expect(page.locator('#credential-retry')).to_be_enabled()
+            assert len(store.credential_history('owner',group)['issuances'])==1
+            page.locator('#credential-retry').click()
+            expect(page.locator('#credential-download')).to_be_enabled()
+            assert len(store.credential_history('owner',group)['issuances'])==1
+            assert network==before_network
+            page.unroute('**/api/credential-issue',lose_issuance_ack)
+            # Known issuance + failed history refresh must retry reads, not issue again.
+            failed_history=[False]
+            def lose_history(route):
+                if not failed_history[0]: failed_history[0]=True;route.abort()
+                else: route.continue_()
+            page.route('**/api/credential-issuances?*',lose_history)
+            page.locator('.credential-recover').first.click()
+            expect(page.locator('#credential-error')).to_contain_text('签发已确认，但页面读取失败')
+            expect(page.locator('#credential-download')).to_be_disabled()
+            issuance_posts=[]
+            def issued_request(request):
+                if request.method=='POST': issuance_posts.append(request.url)
+            page.on('request',issued_request)
+            page.locator('#credential-retry').click()
+            expect(page.locator('#credential-download')).to_be_enabled()
+            page.remove_listener('request',issued_request)
+            assert issuance_posts==[]
+            page.unroute('**/api/credential-issuances?*',lose_history)
+            with page.expect_download() as transfer:
+                page.locator('#credential-download').click()
+            grant=Path(transfer.value.path()).read_text().strip()
+            claims=verify_grant(grant,owner.public_key(),group)
+            assert claims['sub']==identity_id(agent.public_key())
+            assert claims['permissions']==['discover','join']
+            assert grant not in page.content()  # No credential in the DOM before explicit approval preview.
+            assert page.locator('#policy-grant').input_value()==''
+            assert page.evaluate('localStorage.length')==0
+            assert page.evaluate('sessionStorage.length')==0
             held_reads=[]
             def hold_policy_read(route):
                 response=route.fetch()
@@ -118,8 +186,7 @@ with tempfile.TemporaryDirectory() as folder:
                     page.locator('#policy-export').click()
                 assert Path(transfer.value.path()).read_text().strip()==store.policy_export('owner',group)['policy']
 
-            page.locator('#policy-grant').fill(grant)
-            page.locator('#policy-preview').click()
+            page.locator('#credential-use').click()
             expect(page.locator('#policy-preview-result')).to_contain_text('discover')
             assert store.policy_export('owner',group)['claims']['members']=={}
             change_with_delayed_read(lambda: page.locator('#policy-approve').click(), 2)
@@ -177,6 +244,8 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#delivery-confirm').click()
             expect(page.locator('#delivery-error')).to_contain_text('终止策略')
             assert recipient.policy_status()['state']=='dissolved'
+            expect(page.locator('#credential-confirm')).to_be_disabled()
+            expect(page.locator('#credential-download')).to_be_disabled()
             assert 'd'*32 not in page.content()
             if args.artifacts:
                 page.screenshot(path=str(args.artifacts/'policy-desktop.png'))
@@ -188,7 +257,7 @@ with tempfile.TemporaryDirectory() as folder:
                 page.screenshot(path=str(args.artifacts/'policy-mobile.png'))
             assert not errors, errors
             browser.close()
-            print('Browser PASS: signing, gated fresh exports, failed/lost response recovery; recipient preview sends no requests, explicit delivery reads back signed copies, lost delivery ACK retries without remote POST, terminal delivery succeeds; no page errors.')
+            print('Browser PASS: explicit credential preview/issuance/download, edited-draft race and lost-ACK recovery; issuance does not approve or contact recipients; separate approval, signing, gated exports, explicit delivery and terminal state; no page errors or stored browser credentials.')
     finally:
         if recipient_server is not None:
             recipient_server.shutdown();recipient_server.server_close();recipient_worker.join();recipient.close()

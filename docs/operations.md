@@ -191,3 +191,26 @@ does not establish current freshness. If local policy changed during delivery,
 the recipient may hold the older revision even when the UI reports conflict;
 preview and explicitly deliver the latest revision. There is no background retry
 or atomic multi-recipient revocation. See [policy delivery](policy-delivery.md).
+
+## Human-issued credentials and recipient files (v0.22, unreleased)
+
+Back up the UI database consistently with its original owner key/public pin and
+human identity. It now records public issuance claims, scope, fixed expiry,
+request deduplication and credential hashes. Complete signed grants are not
+stored, but the trusted owner signer can reconstruct valid records only on an
+explicit issue/recovery POST. History and startup never export credentials.
+Treat metadata/backups as private; audit is not tamper-proof or rollback-resistant.
+
+The browser cannot set restrictive permissions on Downloads files. Use private
+storage and an existing authenticated confidential channel to the intended Agent.
+`tailnet-grant-install` takes the token through stdin, validates the original
+Agent key, owner/group and expiry, then exclusively creates a mode-0600 file.
+It refuses existing files/symlinks and removes a failed partial write. Use trusted
+parent directories and independently protect/delete downloaded and transferred
+copies; there is no automatic transfer or secure-deletion guarantee.
+
+Each Agent on a host uses its own key/grant directory. Installation does not
+approve membership, renew signed policy or establish a live registration. Approve
+the credential separately and explicitly deliver the new policy before proof-based
+admission. Expiry/retirement does not overwrite installed state or issue a new
+credential. See [credential issuance](credential-issuance.md).

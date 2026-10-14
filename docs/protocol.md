@@ -183,8 +183,8 @@ for configuration, synchronized policy checks, replay and validation limits.
 
 These routes belong only to the loopback UI, retaining its human bearer role,
 Host and Origin checks. The directory wire format and HTTP routes are unchanged.
-No route accepts a private key, issues a grant, selects a remote recipient or
-registers an Agent. Signer configuration loads only from trusted startup flags.
+These v0.20 routes do not accept a private key, issue a grant, select a remote
+recipient or register an Agent. Signer configuration loads only from trusted startup flags.
 
 | Route | Behavior |
 |---|---|
@@ -236,3 +236,39 @@ A completed identical request returns its original receipt without remote I/O.
 Receipts are point-in-time evidence, not live receiver status. Local changes
 during I/O can leave an older remote copy and require new human consent. See
 [policy delivery](policy-delivery.md) for configuration and recovery.
+
+## Human credential issuance (v0.22, unreleased)
+
+These loopback UI routes require the configured signer admin and group creator,
+retaining Host/Origin and `no-store` response protection. They accept an existing
+canonical raw Ed25519 public key, never an Agent/owner private key, destination
+URL or machine identifier. Issuance does not change signed membership or policy
+revision. The directory's wire format and proof checks are unchanged.
+
+| Route | Behavior |
+|---|---|
+| POST `/api/credential-preview` | `group_id`, `public_key`, `permissions`, `lifetime`, `expected_revision`, `policy_hash`; returns subject/owner, canonical request, fixed issued/expiry time, preview deadline and `consent_hash`; no issuance or remote I/O |
+| POST `/api/credential-issue` | Those request fields plus `issued_at`, `consent_hash`, `request_id`; explicit issuance or recovery of that exact existing request |
+| GET `/api/credential-issuances?group_id=...` | Latest 50 public request/claim/hash/time records with local valid/expired/future/retired state; never returns complete grants |
+
+`permissions` is a duplicate-free subset of the existing permission vocabulary
+and must include `join`. `lifetime` is an integer 1..86400; the owner authority
+key cannot be the Agent subject. New issuance binds current policy hash/revision
+and a fixed preview timestamp, with confirmation before the earlier of preview
+age 60 seconds or credential expiry. Changed consent/current policy/expired
+preview returns 409. Invalid schemas, keys or expired credential recovery return
+400; unauthorized/retired/dissolved access returns 403.
+
+The consent hash binds fields for human confirmation and consistency; it is not
+a signed delegation or a substitute for authenticating the human admin. The
+successful response includes `grant`, verified `claims`, `grant_hash`,
+`request_id`, `issued_policy_revision`, `issued_policy_hash` and
+`membership_changed: false`. Persisted retry metadata contains public claims and
+hash only. Identical retries reconstruct the same deterministic signature with
+the original ID and absolute expiry, even after unrelated revision changes.
+They do not issue a replacement, extend validity, approve or register anything.
+
+Recovery after restart is explicit POST with the original request from history;
+GET/startup never reconstructs credentials. Browser memory and download files
+must be handled as credential material. See [credential issuance](credential-issuance.md)
+for the separate stdin installer, transfer and remaining operational limits.

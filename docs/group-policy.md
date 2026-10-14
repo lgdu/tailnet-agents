@@ -7,6 +7,11 @@ now creates and updates snapshots with explicit export/manual application or
 integration remains future work. [Configured-peer policy replication](policy-sync.md) is available. A trusted administrator explicitly creates and signs snapshots;
 an Agent must never call creation on startup or discovery timeout.
 
+v0.22 also provides [separate human credential issuance](credential-issuance.md)
+for existing simulation public keys and a recipient identity-checking installer.
+Issuance/installation never adds a member: approve each grant separately, including
+multiple Agent identities sharing one machine/IP/Tailscale device.
+
 ## Human administration example
 
 Install `.[identity]`. Keep the owner's private key on the administrator machine.
