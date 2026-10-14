@@ -2,7 +2,7 @@
 
 Discover heterogeneous agents across regions on a shared Tailscale network.
 
-Status: **v0.4 prototype**. Automatic bridge registration/renewal, discovery,
+Status: **v0.5 prototype**. Automatic bridge registration/renewal, discovery,
 Echo task submission, result polling and MCP stdio tools work. Real product
 adapters and A2A transport are planned. The custom task API is not A2A.
 
@@ -77,3 +77,17 @@ python3 -m unittest discover -s tests -v
 详细约定见 [protocol](docs/protocol.md)。尚未选择开源许可证，发布前由所有者决定。
 
 目录运维、SQLite 备份与恢复见 [Operations](docs/operations.md)。
+
+## Self-organizing groups: design and simulation
+
+统一设计规格见 [Architecture ADR](docs/architecture.md)：覆盖 LAN/Tailscale 发现、
+人的群聊与私聊入口、入群授权、重启恢复、分区同步、休眠和永久解散。
+
+```bash
+python3 -m tailnet_agents.mesh_sim
+```
+
+该命令仅运行确定性状态模拟，不连接网络，不验证签名，不授予真实 Agent 权限。
+静态预授权 ID 由测试程序提供，不能当作生产认证。模拟检查成员记录合并、
+版本冲突、退出、重启与解散状态；尚未实现网络 Mesh、凭证签发或聊天界面。
+原有中心目录模式继续可用。
