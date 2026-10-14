@@ -109,6 +109,15 @@ or logout loses this page-local retry state: inspect current revision/audit befo
 submitting another operation. There is no durable browser outbox. Creation
 likewise retains its key only while the dialog remains open.
 
+Policy mutations and management refreshes invalidate the previous downloadable
+snapshot. Download stays disabled until the latest read completes; successful
+signing alone does not display a download-ready message. The refreshed revision
+must reach the mutation's acknowledged revision, and older overlapping refreshes
+cannot overwrite a newer result. If signing was acknowledged but the following
+read fails, the page keeps exports disabled and retries only reads. If the signing
+response itself was lost, it retries the original idempotent mutation first.
+Dissolution likewise blocks downloads until its terminal snapshot is read.
+
 Policy audit records include actor, operation, subject, revision, policy hash
 and time. The policy, requests and audit commit in the same SQLite transaction.
 The original grant is neither stored in SQLite nor returned in exports; retry
@@ -124,7 +133,10 @@ manual delivery, no automatic registration, grant preview, retries, concurrent
 revision conflicts, signature failure rollback, grant limits, removal/readmission,
 clock rollback/explicit renewal, terminal dissolution, migration, safe key loading
 and real service restarts. A Chromium functional run also exercises creation,
-preview, approval, download, lost-response retry, removal and dissolution.
+preview, approval, download, lost-response retry, removal and dissolution. Deferred
+policy responses test that approval/renewal/removal/dissolution cannot download
+older snapshots; failed reads keep exports disabled, and a read-only retry restores
+an export matching the current server policy without another POST.
 
 The optional reproducible browser check lives in `scripts/check_policy_ui.py`.
 Install Playwright in a development environment, use an existing Chromium binary
@@ -135,7 +147,8 @@ python3 scripts/check_policy_ui.py --browser /usr/bin/chromium
 ```
 
 It uses ephemeral synthetic keys, a temporary database and a random loopback port,
-then shuts its own server down. It is separate from the default unittest/CI suite;
+then shuts its own server down. It is separate from unittest; GitHub Actions runs
+it as a dedicated `policy-ui` job using the runner's Chrome installation.
 `--artifacts /tmp/policy-ui-check` optionally saves desktop/narrow-screen images
 after credentials are cleared. Do not use production credentials for this check.
 

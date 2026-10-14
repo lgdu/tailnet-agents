@@ -218,7 +218,8 @@ flowchart LR
   UI --> PREVIEW
   PREVIEW -->|"Human approves current revision"| SIGN
   SIGN --> DB[("Same group ID / Policy + audit + retry acknowledgment transaction")]
-  DB --> EXPORT["Human downloads signed snapshot"]
+  DB --> SNAPSHOT["Read acknowledged revision / Block export while refreshing"]
+  SNAPSHOT --> EXPORT["Human downloads current signed snapshot"]
   EXPORT --> APPLY["Explicit admin client / Configured directory only"]
   APPLY --> DIRECTORY["Existing pinned admission + policy replication"]
   DIRECTORY --> PROOF["Separate Agent grant + fresh possession proof"]
@@ -234,7 +235,12 @@ reapproval requires a newly issued grant. Confirmed dissolution atomically commi
 local read-only history state and signed terminal policy. No failed signature can
 partially change either side. Existing local-only groups are never converted.
 
-Exports require the configured admin and group creator. The UI does not contact
+Exports require the configured admin and group creator. Mutations and management
+refreshes invalidate the previous cached export. Download-ready feedback and
+exports stay blocked until a read reaches the acknowledged revision. Failed
+post-commit reads retry without repeating the mutation; older overlapping reads
+cannot overwrite the newest refresh. Dissolution also waits for its terminal
+snapshot before enabling export. The UI does not contact
 directories or discovered endpoints; a human explicitly applies the export to a
 configured recipient, which can use existing LAN/Tailscale replication. Approval
 has no remote effect until delivery, and never registers an Agent or proves live

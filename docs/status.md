@@ -100,6 +100,9 @@ the UI. Creation, approvals and renewals require explicit human action. Existing
 local groups remain local and startup never converts them. Browser tests exercise
 creation, verified preview, approval, export, lost-response retry, removal and
 terminal dissolution; backend tests exercise real UI/directory HTTP and restart.
+Browser regressions defer policy reads after mutations, verify export stays
+disabled until the latest revision is read, and cover read failure/retry without
+repeating an acknowledged mutation. A dedicated CI browser job runs these checks.
 Credential issuance/provisioning, automatic delivery, remote sessions, owner
 recovery/rotation and full runtime enrollment remain unimplemented. See
 [human policy signing](human-policy.md). v0.20.0 has no release or tag yet.

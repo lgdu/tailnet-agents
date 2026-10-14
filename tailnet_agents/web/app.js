@@ -2,6 +2,7 @@
 let me = null, token = '', conversation = 'group', members = [], pending = null, busy = false;
 let groups=[], activeGroup=null, creationKey=null;
 let policyConfig={can_sign:false}, currentPolicy=null, policyPreview=null, policyPending=null;
+let policyRefresh=0, policyDissolving=false;
 let session = 0, view = 0, loading = false, history = new Map(), moreOlder = false;
 const $ = id => document.getElementById(id);
 function node(tag, text, className) { const n = document.createElement(tag); if(text !== undefined) n.textContent = text; if(className) n.className = className; return n; }
@@ -71,7 +72,7 @@ async function refreshMessages(mode='new',forceBottom=false) {
   finally{if(current===view&&currentSession===session){loading=false;$('older').disabled=false;}}
 }
 async function select(value) {
-  if(busy||pending||policyPending){$('delivery-status').textContent='请先重试待确认消息，或退出连接后重新进入。';return;}
+  if(busy||pending||policyPending||policyDissolving){$('delivery-status').textContent='请先处理待确认消息或策略操作。';return;}
   if(!activeGroup)return;
   conversation=value;view++;loading=false;history=new Map();moreOlder=false;$('older').hidden=true;$('messages').replaceChildren();
   $('group-button').classList.toggle('active',value==='group');$('conversation-title').textContent=value==='group'?'群组讨论':members.find(m=>m.id===value.slice(3))?.name;
@@ -89,7 +90,7 @@ function renderGroups(){
   if(selected?.dissolved)$('sync-status').textContent='群组已解散 · 历史只读';
 }
 async function chooseGroup(id){
-  if(busy||pending||policyPending){$('group-select').value=activeGroup||'';$('delivery-status').textContent='请先处理待确认消息。';return;}
+  if(busy||pending||policyPending||policyDissolving){$('group-select').value=activeGroup||'';$('delivery-status').textContent='请先处理待确认消息或策略操作。';return;}
   activeGroup=id;currentPolicy=null;policyPreview=null;view++;loading=false;history=new Map();members=[];moreOlder=false;$('older').hidden=true;$('messages').replaceChildren();renderGroups();
   if(!id){renderMembers();$('messages').append(node('div',me?.role==='admin'?'点击「创建群组」开始。Agent 不会自动创建。':'等待管理员将你加入一个群组。','empty'));$('sync-status').textContent='尚未加入群组';return;}
   const current=session,selected=id;
@@ -116,7 +117,7 @@ $('login-form').onsubmit=async e=>{
     $('human-name').textContent=me.id;$('human-role').textContent={admin:'管理员',participant:'参与者',observer:'观察者'}[me.role];$('login').hidden=true;$('workspace').hidden=false;$('token').value='';await chooseGroup(groups[0]?.id||null);
   }catch(error){if(current!==session)return;token='';me=null;$('workspace').hidden=true;$('login').hidden=false;$('login-error').textContent=error.message;}
 };
-$('logout').onclick=()=>{session++;view++;activeGroup=null;groups=[];$('group-dialog').close();$('manage-dialog').close();token='';me=null;pending=null;currentPolicy=null;policyPreview=null;policyPending=null;$('policy-grant').value='';busy=false;loading=false;history=new Map();conversation='group';$('workspace').hidden=true;$('login').hidden=false;$('message').value='';$('message').disabled=false;$('send-button').disabled=false;$('send-button').textContent='发送 ↑';$('messages').replaceChildren();$('group-button').classList.add('active');$('conversation-title').textContent='群组讨论';$('conversation-kind').textContent='GROUP CONVERSATION';};
+$('logout').onclick=()=>{session++;view++;policyRefresh++;activeGroup=null;groups=[];$('group-dialog').close();$('manage-dialog').close();token='';me=null;pending=null;currentPolicy=null;policyPreview=null;policyPending=null;policyDissolving=false;$('policy-grant').value='';busy=false;loading=false;history=new Map();conversation='group';$('workspace').hidden=true;$('login').hidden=false;$('message').value='';$('message').disabled=false;$('send-button').disabled=false;$('send-button').textContent='发送 ↑';$('messages').replaceChildren();$('group-button').classList.add('active');$('conversation-title').textContent='群组讨论';$('conversation-kind').textContent='GROUP CONVERSATION';};
 $('group-button').onclick=()=>select('group');$('older').onclick=()=>refreshMessages('older');
 $('compose').onsubmit=async e=>{
   e.preventDefault();if(busy||!me||!activeGroup||me.role==='observer')return;if(!pending&&!$('message').value.trim())return;
@@ -142,36 +143,65 @@ setInterval(async()=>{
 },2000);
 
 async function refreshManagement(){
-  const current=session,selected=activeGroup;
+  const current=session,selected=activeGroup,refresh=++policyRefresh;
+  currentPolicy=null;policyPreview=null;policyControls();
+  $('policy-error').classList.remove('success');
+  if(!policyPending&&!policyDissolving)$('policy-error').textContent='正在读取最新策略，下载暂不可用…';
   const info=await api('/api/group-info?group_id='+encodeURIComponent(selected));
-  const people=await api('/api/humans');if(current!==session||selected!==activeGroup)return;
+  const people=await api('/api/humans');if(current!==session||selected!==activeGroup||refresh!==policyRefresh)return false;
   $('human-members').replaceChildren();$('add-human').replaceChildren();
   for(const id of info.humans){const row=node('div');row.append(node('span',id+(id===info.creator?' · 创建者':'')));
     if(id!==info.creator&&!info.dissolved){const remove=node('button','撤销访问');remove.type='button';remove.onclick=async()=>{try{await api('/api/group-members',{group_id:selected,subject:id,operation:'remove'});if(current===session&&selected===activeGroup)await refreshManagement();}catch(error){if(current===session)$('manage-error').textContent=error.message;}};row.append(remove);}$('human-members').append(row);}
   for(const human of people.humans){if(info.humans.includes(human.id))continue;const option=node('option',human.id+' · '+human.role);option.value=human.id;$('add-human').append(option);}
-  await refreshPolicy(current,selected);
-  $('add-member').disabled=info.dissolved||!$('add-human').options.length;$('dissolve-group').disabled=info.dissolved||!!policyPending;
+  await refreshPolicy(current,selected,refresh);
+  if(current!==session||selected!==activeGroup||refresh!==policyRefresh)return false;
+  $('add-member').disabled=info.dissolved||!$('add-human').options.length;
+  if(!policyPending&&!policyDissolving){
+    $('policy-error').classList.toggle('success',!!currentPolicy);
+    $('policy-error').textContent=currentPolicy?'已读取当前签名策略，可下载并明确应用到目录。':'';
+  }
+  policyControls();
   if(info.dissolved)$('manage-error').textContent='已解散：历史保留，不能重新开放这个群组。';
+  return true;
 }
 $('manage-group').onclick=async()=>{try{$('manage-error').textContent='';$('dissolve-name').value='';await refreshManagement();if(me)$('manage-dialog').showModal();}catch(error){$('network-error').textContent=error.message;}};
 $('close-manage').onclick=()=>$('manage-dialog').close();
 $('add-member').onclick=async()=>{const current=session;try{await api('/api/group-members',{group_id:activeGroup,subject:$('add-human').value,operation:'add'});if(current===session)await refreshManagement();}catch(error){if(current===session)$('manage-error').textContent=error.message;}};
-$('dissolve-group').onclick=async()=>{if(policyPending)return;const current=session;try{await api('/api/group-dissolve',{group_id:activeGroup,confirm_name:$('dissolve-name').value});if(current!==session)return;groups=(await api('/api/groups')).groups;if(current!==session)return;renderGroups();renderMembers();await refreshManagement();}catch(error){if(current===session)$('manage-error').textContent=error.message;}};
+$('dissolve-group').onclick=async()=>{
+  if(policyPending||policyDissolving)return;
+  const current=session,selected=activeGroup;
+  policyDissolving=true;currentPolicy=null;policyPreview=null;policyControls();
+  $('policy-error').classList.remove('success');$('policy-error').textContent='正在解散并读取最新状态…';
+  try{
+    await api('/api/group-dissolve',{group_id:selected,confirm_name:$('dissolve-name').value});
+    if(current!==session||selected!==activeGroup)return;
+    groups=(await api('/api/groups')).groups;if(current!==session||selected!==activeGroup)return;
+    renderGroups();renderMembers();
+    if(!await refreshManagement())throw new Error('群组状态尚未读取，请重新打开管理页面。');
+    $('policy-error').classList.toggle('success',!!currentPolicy);
+    $('policy-error').textContent=currentPolicy?'已读取最新终止策略。请下载并明确应用到目录。':'';
+  }catch(error){
+    if(current===session&&selected===activeGroup){currentPolicy=null;$('manage-error').textContent=error.message;}
+  }finally{
+    if(current===session&&selected===activeGroup){policyDissolving=false;policyControls();}
+  }
+};
 
 function policyControls(){
-  const disabled=!!policyPending||!currentPolicy||currentPolicy.claims.state==='dissolved';
+  const disabled=!!policyPending||policyDissolving||!currentPolicy||currentPolicy.claims.state==='dissolved';
   document.querySelectorAll('.policy-action').forEach(button=>button.disabled=disabled);
   $('policy-approve').disabled=disabled||!policyPreview;
   $('policy-retry').hidden=!policyPending;
   $('policy-grant').disabled=disabled;
-  $('dissolve-group').disabled=!!policyPending||!!groups.find(g=>g.id===activeGroup)?.dissolved;
+  $('policy-export').disabled=!!policyPending||policyDissolving||!currentPolicy;
+  $('dissolve-group').disabled=!!policyPending||policyDissolving||!!groups.find(g=>g.id===activeGroup)?.dissolved;
 }
-async function refreshPolicy(current,selected){
+async function refreshPolicy(current,selected,refresh){
   $('policy-panel').hidden=!policyConfig.can_sign;
   if(!policyConfig.can_sign)return;
   try{
     const result=await api('/api/group-policy?group_id='+encodeURIComponent(selected));
-    if(current!==session||selected!==activeGroup)return;
+    if(current!==session||selected!==activeGroup||refresh!==policyRefresh)return;
     currentPolicy=result;policyPreview=null;$('policy-preview-result').textContent='';
     $('policy-status').textContent=`群组 ${result.group_id} · 第 ${result.claims.revision} 版 · ${result.claims.state==='dissolved'?'已签名终止':'签发于 '+new Date(result.claims.issued_at*1000).toLocaleString()}。下载后须明确应用到目录；此页面不自动推送或续期。`;
     $('policy-owner').textContent='所有者公钥（用于核对目录信任配置）：'+result.owner_public_key;
@@ -185,33 +215,38 @@ async function refreshPolicy(current,selected){
     if(!Object.keys(result.claims.members).length)$('policy-members').append(node('p','没有获准的网络 Agent。聊天中的 Echo 参与者不会自动获得权限。'));
     for(const event of result.audit)$('policy-audit').append(node('li',`第 ${event.revision} 版 · ${event.actor} · ${event.action} · ${event.subject}`));
   }catch(error){
-    if(current!==session||selected!==activeGroup)return;
+    if(current!==session||selected!==activeGroup||refresh!==policyRefresh)return;
     if(error.status!==400)throw error;
     currentPolicy=null;policyPreview=null;$('policy-status').textContent='此群组仅用于本地聊天，没有签名网络策略。可明确创建一个新的签名群组。';
     $('policy-owner').textContent='';$('policy-members').replaceChildren();$('policy-audit').replaceChildren();
   }
-  $('policy-export').disabled=!currentPolicy;policyControls();
+  policyControls();
 }
 async function runPolicyAction(path,payload={}){
-  if(policyPending||!currentPolicy)return;
+  if(policyPending||policyDissolving||!currentPolicy)return;
   policyPending={path,body:{group_id:activeGroup,expected_revision:currentPolicy.claims.revision,...payload,request_id:crypto.randomUUID()}};
   await retryPolicyAction();
 }
 async function retryPolicyAction(){
   if(!policyPending)return;
   const current=session,selected=activeGroup,operation=policyPending;
+  currentPolicy=null;policyPreview=null;
   policyControls();$('policy-retry').disabled=true;$('policy-error').classList.remove('success');$('policy-error').textContent='正在提交明确授权的操作…';
   try{
-    await api(operation.path,operation.body);
+    if(!operation.ack)operation.ack=await api(operation.path,operation.body);
     if(current!==session||selected!==activeGroup)return;
-    policyPending=null;policyPreview=null;$('policy-grant').value='';
-    $('policy-error').classList.add('success');$('policy-error').textContent='已保存并签名。请下载当前策略，并明确应用到目录。';
-    await refreshManagement();
+    $('policy-grant').value='';$('policy-error').textContent='签名已保存，正在读取最新策略；下载暂不可用…';
+    if(!await refreshManagement()||!currentPolicy||currentPolicy.group_id!==selected||currentPolicy.claims.revision<operation.ack.revision){
+      throw new Error('尚未读取到已签名的策略版本。');
+    }
+    policyPending=null;
+    $('policy-error').classList.add('success');$('policy-error').textContent='已读取最新签名策略。请下载并明确应用到目录。';
   }catch(error){
     if(current!==session||selected!==activeGroup)return;
     $('policy-error').classList.remove('success');
-    if(error.status>=400&&error.status<500){policyPending=null;policyPreview=null;}
-    $('policy-error').textContent=policyPending?'结果未确认：请重试同一操作，暂不切换群组。'+error.message:'操作未完成，请刷新管理信息后重新确认：'+error.message;
+    currentPolicy=null;
+    if(!operation.ack&&error.status>=400&&error.status<500)policyPending=null;
+    $('policy-error').textContent=operation.ack?'签名已保存，但最新策略读取失败；请重试读取，下载保持禁用。'+error.message:policyPending?'结果未确认：请重试同一操作，暂不切换群组。'+error.message:'操作未完成，请刷新管理信息后重新确认：'+error.message;
   }finally{if(current===session&&selected===activeGroup){$('policy-retry').disabled=false;policyControls();}}
 }
 $('policy-retry').onclick=retryPolicyAction;
@@ -231,7 +266,7 @@ $('policy-preview').onclick=async()=>{
 };
 $('policy-approve').onclick=()=>{if(policyPreview)runPolicyAction('/api/policy-approve',{grant:policyPreview.grant,expected_revision:policyPreview.revision});};
 $('policy-export').onclick=()=>{
-  if(!currentPolicy)return;
+  if(policyPending||policyDissolving||!currentPolicy||currentPolicy.group_id!==activeGroup)return;
   const url=URL.createObjectURL(new Blob([currentPolicy.policy+'\n'],{type:'text/plain'}));
   const link=node('a');link.href=url;link.download=currentPolicy.group_id+'.policy';link.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);

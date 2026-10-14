@@ -230,6 +230,8 @@ python3 -m tailnet_agents.mesh_sim
 Install the identity extra to run cryptographic tests; without it, those tests
 are explicitly skipped. CI runs both core and identity installations. The new signing workflow has a Chromium functional check; broader browser
 visual/accessibility coverage and real-agent compatibility remain outstanding.
+The dedicated CI browser job also delays policy reads and checks that download
+never uses a pre-mutation snapshot; failed refreshes keep exports disabled.
 v0.20 includes 179 tests: the 155-test v0.19 baseline plus 24 human-policy/core
 checks. Existing discovery coverage includes signed/expired/foreign records, credential isolation, conflicts,
 real multicast and HTTP/TLS, ingress filtering, learned revocations, read-only
