@@ -2,7 +2,7 @@
 
 Discover heterogeneous agents across regions on a shared Tailscale network.
 
-Status: **v0.3 prototype**. Automatic bridge registration/renewal, discovery,
+Status: **v0.4 prototype**. Automatic bridge registration/renewal, discovery,
 Echo task submission, result polling and MCP stdio tools work. Real product
 adapters and A2A transport are planned. The custom task API is not A2A.
 
@@ -18,7 +18,8 @@ Agent Bridge 将具体产品接入网络；任务最终在伙伴之间直接传�
 
 ## 当前可运行部分
 
-- Python 3.11+ 标准库实现的 HTTP 注册目录，无运行时第三方依赖。
+- Python 3.11+ 标准库实现的 SQLite 注册目录，无运行时第三方依赖。
+- 重启保留身份归属、主动注销与目录状态查询。
 - 注册与续租、按技能查找、到期过滤。
 - 每个节点独立 Bearer token，防止覆盖其他节点的 Agent ID。
 - Bridge 启动后自动注册、20 秒续租，目录故障后自动重试。
@@ -61,8 +62,8 @@ python3 -m unittest discover -s tests -v
 
 ## 限制与路线
 
-原型使用内存存储，重启清空所有记录和 ID 所有权，需要重新注册。
-目录没有配额、持久化、订阅推送或生产级 HTTP 服务，暂不适合不可信客户端。
+目录使用 SQLite 保存记录和 ID 所有权；重启后旧租约失效，Bridge 续租后恢复在线。
+目录没有配额、订阅推送或生产级 HTTP 服务，暂不适合不可信客户端。
 任务及幂等记录也在内存中，重启丢失；任务容量默认 256，达到后拒绝新增。
 登记的 URL 需要调用端在执行前验证允许的主机与权限。
 
@@ -71,6 +72,8 @@ python3 -m unittest discover -s tests -v
 3. A2A 收发与异步任务状态、幂等、超时、取消语义。
 4. OpenClaw、Claude Code、Codex、Qoder 适配器；逐个验证真实开放接口。
 5. Grok 产品能力调查与自研 HTTP/CLI 适配器。
-6. 持久化、节点权限、配额与可观测性。
+6. 已实现目录持久化与状态查询；任务持久化、细粒度节点权限、配额与指标待实现。
 
 详细约定见 [protocol](docs/protocol.md)。尚未选择开源许可证，发布前由所有者决定。
+
+目录运维、SQLite 备份与恢复见 [Operations](docs/operations.md)。

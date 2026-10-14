@@ -32,9 +32,9 @@ class Client:
         # Tailnet calls must not leak credentials to ambient HTTP proxies.
         self.opener = build_opener(ProxyHandler({}), NoRedirect())
 
-    def request(self, path, body=None):
+    def request(self, path, body=None, method=None):
         data = None if body is None else json.dumps(body).encode()
-        request = Request(self.url + path, data=data, headers={
+        request = Request(self.url + path, data=data, method=method, headers={
             'Authorization': 'Bearer ' + self.token, 'Content-Type': 'application/json'})
         with self.opener.open(request, timeout=self.timeout) as response:
             payload = response.read(1024 * 1024 + 1)

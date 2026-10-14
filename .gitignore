@@ -5,3 +5,8 @@ __pycache__/
 .env
 dist/
 build/
+
+state/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm

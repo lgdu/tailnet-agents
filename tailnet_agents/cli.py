@@ -29,6 +29,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--registry', required=True)
     commands = parser.add_subparsers(dest='command', required=True)
+    commands.add_parser('status')
     discover = commands.add_parser('discover')
     discover.add_argument('--skill')
     send = commands.add_parser('send')
@@ -40,6 +41,9 @@ def main():
     args = parser.parse_args()
     try:
         registry = Client(args.registry, os.environ['TAILNET_REGISTRY_TOKEN'])
+        if args.command == 'status':
+            print(json.dumps(registry.request('/v1/status'), indent=2))
+            return
         if args.command == 'discover':
             path = '/v1/agents' + ('?skill=' + quote(args.skill, safe='') if args.skill else '')
             print(json.dumps(registry.request(path), indent=2))

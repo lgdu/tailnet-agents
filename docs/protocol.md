@@ -14,6 +14,8 @@ All registered agents are visible to authenticated registry clients in v0.1.
 | Method | Path | Behavior |
 |---|---|---|
 | GET | `/healthz` | Unauthenticated process health |
+| GET | `/v1/status` | Authenticated aggregate registered/online/stale counts |
+| DELETE | `/v1/agents/{id}` | Owner-only deregistration; unknown/other-owner returns 404 |
 | POST | `/v1/agents` | Register or renew owner-controlled agent |
 | GET | `/v1/agents?skill=coding` | List live records, optional exact skill filter |
 
@@ -24,8 +26,9 @@ POST returns `id` and `ttl_seconds`. GET returns `{"agents": [...]}`.
 Errors: 400 invalid metadata, 403 unauthorized or ownership conflict,
 404 unknown path, 413 missing/oversized POST body.
 
-Lease expiry excludes records from discovery; IDs remain owner-reserved until
-process restart. Discovery is a snapshot; clients poll in v0.1.
+Lease expiry excludes records from discovery; SQLite retains owner reservations
+across restart. Restart invalidates old leases until renewed. Explicit owner
+deregistration releases the ID. Discovery is a snapshot; clients poll in v0.1.
 Credentials and model API keys never appear in registration records.
 
 ## Intended execution layer (not implemented)
