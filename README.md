@@ -24,6 +24,79 @@ Different product agents will connect through adapters. Grok model API access
 and Grok's product Agent are separate integration targets. No claim is made that
 OpenClaw, Claude Code, Codex or Qoder already interoperate through this project.
 
+## Architecture
+
+### Current prototype / 当前已实现
+
+These are three independent paths. The human UI does not yet issue signed
+grants or connect to either directory. Solid arrows show implemented calls.
+
+```mermaid
+flowchart TB
+  subgraph CHAT["Local human collaboration / 本机协作"]
+    direction TB
+    H["Human / 人"] --> UI["Browser UI / 群组管理、群聊、私聊"]
+    UI --> CS["Chat service / 人类角色与成员权限"]
+    CS --> DB[("SQLite / 群组、消息、审计")]
+    CS --> SIM["Simulated agents / 模拟回复"]
+  end
+  subgraph TASK["Directory and tasks / 目录与任务"]
+    direction TB
+    CALL["CLI or MCP caller"] --> REG["Bearer directory / 注册与租约"]
+    CALL -->|"Authenticated task API"| ECHO["Echo bridge / 模拟任务"]
+    ECHO -->|"Register and renew"| REG
+  end
+  subgraph VERIFY["Optional verified admission / 可选身份准入"]
+    direction TB
+    VC["Verified client / 持有身份私钥"] -->|"TLS + grant + proof"| API["Admission HTTP service"]
+    API --> VD["Verified directory / 身份与授权校验"]
+    VD --> ID["Ed25519 / 签名、有效期、撤销"]
+    VD --> VDB[("SQLite / 注册、所有者、撤销")]
+  end
+```
+
+TLS is available on the admission service; its loopback mode can use HTTP.
+The mesh simulator is a separate state model, not a running network service.
+
+### Target architecture / 目标架构
+
+Everything in this diagram is planned integration. Dashed arrows show the
+intended relationships, not working end-to-end connections.
+
+```mermaid
+flowchart TB
+  HUMAN["Human console / 创建群组、批准入群、观察与对话"]
+  POLICY["Signed group policy / 群组身份、成员、权限、撤销"]
+  HUMAN -.->|"Explicit creation and authorization"| POLICY
+  subgraph NETWORK["LAN or Tailscale / 局域网或跨地域网络"]
+    direction TB
+    DISC["Discovery / LAN multicast or configured seeds"]
+    A["Peer A / 身份、群组副本、消息与任务"]
+    B["Peer B / 身份、群组副本、消息与任务"]
+    C["Peer C / 身份、群组副本、消息与任务"]
+    DISC -.->|"Locate peers only"| A
+    DISC -.->|"Locate peers only"| B
+    A -.->|"Authenticated sync and communication"| B
+    B -.->|"Authenticated sync and communication"| C
+    C -.->|"Authenticated sync and communication"| A
+  end
+  POLICY -.->|"Admission and revocation"| A
+  POLICY -.->|"Admission and revocation"| B
+  POLICY -.->|"Admission and revocation"| C
+  HUMAN -.->|"Group chat and private chat"| A
+  A -.-> ADAPTER["Product adapters / OpenClaw、Codex、Claude Code、Grok、Qoder"]
+```
+
+Discovery never grants membership. LAN multicast is local to a broadcast
+domain; cross-region peers use configured seeds or a tailnet-aware discovery
+provider. Authorized agents restore their original group after restart.
+Groups sleep when all peers are offline and are dissolved only by an explicit
+authorized human action. Each peer will have its own product adapter.
+
+See [Architecture and decisions](docs/architecture.md) for the full design and
+[current status](docs/status.md) for implementation limits. These Mermaid
+blocks render directly in GitHub's README view.
+
 ## Start the human UI
 
 Requires Python 3.11+. From the repository root:

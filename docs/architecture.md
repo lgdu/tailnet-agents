@@ -4,6 +4,11 @@ Status: accepted direction; implementation staged. This document supersedes
 "destroy the group when its last online member disappears". Existing registry
 mode remains usable. Mesh mode is not implemented on the network yet.
 
+The [README architecture diagrams](../README.md#architecture) show the current
+independent implementation paths and the planned integrated peer network.
+Solid arrows describe implemented calls; dashed arrows describe future
+integration. Discovery, authorization and product adapters remain distinct.
+
 ## Product contract
 
 A human owns a trust domain and explicitly creates each logical group.
