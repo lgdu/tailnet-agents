@@ -88,6 +88,9 @@ def handler(store, users):
                     if role != 'admin':
                         raise PermissionError('admin role required')
                     return self.response(200, {'humans':[{'id':p,'role':c['role']} for p,c in users.items()]})
+                if parsed.path == '/api/group-info':
+                    group_id=parse_qs(parsed.query).get('group_id',[''])[0]
+                    return self.response(200,store.group_info(principal,group_id))
                 if parsed.path == '/api/members':
                     group_id = parse_qs(parsed.query).get('group_id',['legacy'])[0]
                     store.require_group(principal,group_id)
@@ -102,7 +105,7 @@ def handler(store, users):
                     group_id = query.get('group_id',['legacy'])[0]
                     store.require_group(principal,group_id)
                     options = {key: int(query[key][0]) for key in ('after','before','limit') if key in query}
-                    return self.response(200, store.page(conversation, principal, group_id=group_id, **options))
+                    return self.response(200, store.page(conversation, principal, group_id=group_id, enforce_access=True, **options))
                 self.response(404, {'error': 'not found'})
             except PermissionError as exc:
                 self.response(403, {'error': str(exc)})
@@ -121,20 +124,33 @@ def handler(store, users):
                 if self.path == '/api/groups':
                     if role != 'admin':
                         raise PermissionError('admin role required')
-                    if set(payload) != {'name','humans'} or not isinstance(payload['humans'],list) or any(not isinstance(p,str) or p not in users for p in payload['humans']):
+                    if set(payload) != {'name','humans','request_id'} or not isinstance(payload.get('request_id'),str) or not 1<=len(payload['request_id'])<=128 or not isinstance(payload['humans'],list) or any(not isinstance(p,str) or p not in users for p in payload['humans']):
                         raise ValueError('select configured human members')
-                    return self.response(201,store.create_group(payload['name'],principal,payload['humans']))
+                    return self.response(201,store.create_group(payload['name'],principal,payload['humans'],request_id=payload['request_id']))
                 group_id = payload.pop('group_id','legacy')
                 if not isinstance(group_id,str):
                     raise ValueError('invalid group id')
                 store.require_group(principal,group_id)
+                if self.path == '/api/group-members':
+                    if role!='admin':
+                        raise PermissionError('admin role required')
+                    if set(payload)!={'subject','operation'} or not isinstance(payload.get('subject'),str) or payload['subject'] not in users:
+                        raise ValueError('select a configured human')
+                    return self.response(200,store.update_member(principal,group_id,payload['subject'],payload['operation']))
+                if self.path == '/api/group-dissolve':
+                    if role!='admin':
+                        raise PermissionError('admin role required')
+                    if set(payload)!={'confirm_name'}:
+                        raise ValueError('group name confirmation required')
+                    return self.response(200,store.dissolve_group(principal,group_id,payload['confirm_name']))
                 if self.path == '/api/messages':
                     if role == 'observer':
                         raise PermissionError('observer cannot send messages')
-                    return self.response(200, store.send(payload, principal, group_id))
+                    return self.response(200, store.send(payload, principal, group_id, enforce_access=True))
                 if self.path == '/api/presence':
                     if role != 'admin':
                         raise PermissionError('admin role required')
+                    store.require_group(principal,group_id,active=True)
                     store.set_online(payload.get('agent'), payload.get('online'))
                     return self.response(200, {'members': store.members()})
                 self.response(404, {'error': 'not found'})

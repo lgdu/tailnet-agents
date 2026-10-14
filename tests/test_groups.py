@@ -1,6 +1,7 @@
 import tempfile
 import threading
 import unittest
+import uuid
 from pathlib import Path
 from http.server import ThreadingHTTPServer
 from urllib.error import HTTPError
@@ -23,7 +24,7 @@ class GroupHTTPTests(unittest.TestCase):
         self.server.shutdown();self.server.server_close();self.thread.join();self.store.close()
 
     def create(self,name='Explicit group',humans=None):
-        return self.clients['owner'].request('/api/groups',{'name':name,'humans':humans or ['alice']})['id']
+        return self.clients['owner'].request('/api/groups',{'name':name,'humans':humans or ['alice'],'request_id':uuid.uuid4().hex})['id']
 
     def test_fresh_install_has_no_groups_until_human_creation(self):
         for client in self.clients.values():
@@ -81,8 +82,8 @@ class GroupPersistenceTests(unittest.TestCase):
             store.close()
             store=ChatStore(path)
             try:
-                self.assertEqual(store.groups('owner'),[group])
-                self.assertEqual(store.groups('alice'),[group])
+                self.assertEqual(store.groups('owner'),[group|{'dissolved':False}])
+                self.assertEqual(store.groups('alice'),[group|{'dissolved':False}])
                 self.assertEqual(store.groups('other'),[])
             finally:
                 store.close()

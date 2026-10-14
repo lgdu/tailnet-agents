@@ -1,4 +1,4 @@
-# Human UI v0.9: role-aware local chat simulation
+# Human UI v0.10: role-aware local chat simulation
 
 The UI is a standalone local demonstration of the interaction model. It does
 not integrate the mesh simulator, registry, MCP tools or real agent adapters.
@@ -138,13 +138,14 @@ API additions:
 
 - `GET /api/groups`: groups accessible to the authenticated human.
 - `GET /api/humans`: configured IDs/roles, admin-only; never returns tokens.
-- `POST /api/groups`: admin-only `{ "name": "...", "humans": ["alice"] }`.
+- `POST /api/groups`: admin-only `{ "name": "...", "humans": ["alice"], "request_id": "stable-key" }`.
 - Message and presence POSTs include `group_id`; reads include it in the query.
 
-Group creation does not yet have a durable idempotency key. If its response is
-lost, check your group list before retrying; another explicit request can create
-another group. No editing membership, invite acceptance, dissolution form,
-signed agent grants or distributed membership propagation is implemented yet.
+Group creation is now idempotent by `(human creator, request_id)` across restart.
+Retry identical payloads with the same key; a changed payload returns 409. The
+UI retains its key while the create dialog stays open. Closing/reopening it or
+reloading loses that key: check the group list before making another request.
+Signed agent grants and distributed membership propagation remain unimplemented.
 This is application-level access control on a local server, not mesh authorization.
 
 Upgrade preserves an existing legacy group's history as group `legacy`.
@@ -153,3 +154,37 @@ Its human membership is restricted to identities present as message owners and
 re-authorized. The old group's creator is `demo-owner`. Fresh databases do not
 create `legacy`. Database migrations are additive; keep a consistent backup and
 do not downgrade to older server versions that lack group access checks.
+
+## Membership management and dissolution
+
+"管理群组" is available to the group's creator while that human retains the
+configured admin role. Invited admins cannot manage a group they did not create.
+The creator can add configured human identities or revoke their membership.
+The creator cannot remove itself; use dissolution to close the group. Removing
+an identity from membership denies future reads/writes. It cannot erase history
+already downloaded to a browser. The UI clears the active group when its next
+poll detects revoked membership.
+
+Dissolution requires entering the complete group name. It is terminal for that
+group ID. Members retain read-only access to history; sending, membership changes
+and simulated presence changes are denied. Dissolution is idempotent, persists
+across restart and is recorded once. It does not delete data. Creating another
+group of the same display name creates a different ID through a new human action.
+
+New APIs:
+
+- `GET /api/group-info?group_id=...`: member-accessible metadata, human membership
+  and the latest 50 lifecycle records (no private message content or credentials).
+- `POST /api/group-members`: creator+admin only, `group_id`, `subject`, `operation`
+  (`add` or `remove`). Subject must be a configured human.
+- `POST /api/group-dissolve`: creator+admin only, `group_id`, `confirm_name`.
+
+Message history access and write authorization are rechecked under the SQLite
+lock/transaction. Revocation and terminal state are not just UI controls.
+Legacy-history import is marked once so a restart cannot re-add a removed human
+solely because that person's old messages remain stored.
+
+Membership changes and dissolution do not yet have signed distributed proofs.
+No owner transfer or recovery is implemented: preserve the creator's identity,
+credentials/configuration and database backup. Lifecycle records are plaintext
+local audit data, not tamper-proof evidence against a database operator.

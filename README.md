@@ -2,7 +2,7 @@
 
 Discover heterogeneous agents across regions on a shared Tailscale network.
 
-Status: **v0.9 prototype**. Automatic bridge registration/renewal, discovery,
+Status: **v0.10 prototype**. Automatic bridge registration/renewal, discovery,
 Echo task submission, result polling and MCP stdio tools work. Real product
 adapters and A2A transport are planned. The custom task API is not A2A.
 
@@ -113,3 +113,6 @@ v0.8 增加每 2 秒增量更新、旧历史分页与断线提示。设计规则
 v0.9 新安装没有默认群组，管理员点击「创建群组」并选择允许进入的人。
 不同群组的聊天与私聊独立保存；非成员（包括其他管理员）不能访问。
 这是本地 UI 的成员授权，尚未连接网络 Agent 凭证或 Mesh。
+
+v0.10 增加创建请求去重、创建者管理成员、撤销访问、显式解散和操作记录。
+解散保留历史并永久关闭该群组 ID 的写入；这仍是本地数据库状态，尚未传播到 Mesh。

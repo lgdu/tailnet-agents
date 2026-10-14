@@ -33,37 +33,103 @@ class ChatStore:
         self.db.execute('CREATE TABLE IF NOT EXISTS group_humans (group_id TEXT NOT NULL, principal TEXT NOT NULL, PRIMARY KEY(group_id,principal))')
         self.db.execute('CREATE TABLE IF NOT EXISTS group_submissions (group_id TEXT NOT NULL, owner TEXT NOT NULL, request_id TEXT NOT NULL, payload TEXT NOT NULL, result TEXT NOT NULL, PRIMARY KEY(group_id,owner,request_id))')
         self.db.execute("INSERT OR IGNORE INTO group_submissions SELECT 'legacy',owner,request_id,payload,result FROM user_submissions")
+        self.db.execute('CREATE TABLE IF NOT EXISTS migrations (name TEXT PRIMARY KEY)')
+        legacy_done = self.db.execute("SELECT 1 FROM migrations WHERE name='legacy-group-import'").fetchone()
         # Restore existing predefined-group history; a fresh installation has NO groups.
-        if had_messages and self.db.execute("SELECT 1 FROM messages WHERE group_id='legacy' LIMIT 1").fetchone():
+        if not legacy_done and had_messages and self.db.execute("SELECT 1 FROM messages WHERE group_id='legacy' LIMIT 1").fetchone():
             self.db.execute("INSERT OR IGNORE INTO chat_groups VALUES('legacy','旧版协作组','demo-owner',0)")
             self.db.execute("INSERT OR IGNORE INTO group_humans SELECT 'legacy',owner FROM messages WHERE group_id='legacy'")
             self.db.execute("INSERT OR IGNORE INTO group_humans VALUES('legacy','demo-owner')")
+        self.db.execute("INSERT OR IGNORE INTO migrations VALUES('legacy-group-import')")
+        columns = {r[1] for r in self.db.execute('PRAGMA table_info(chat_groups)')}
+        if 'dissolved' not in columns:
+            self.db.execute('ALTER TABLE chat_groups ADD COLUMN dissolved INTEGER NOT NULL DEFAULT 0')
+        self.db.execute('CREATE TABLE IF NOT EXISTS group_creations (creator TEXT NOT NULL, request_id TEXT NOT NULL, payload TEXT NOT NULL, group_id TEXT NOT NULL, PRIMARY KEY(creator,request_id))')
+        self.db.execute('CREATE TABLE IF NOT EXISTS group_audit (id INTEGER PRIMARY KEY, group_id TEXT NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, subject TEXT NOT NULL, created REAL NOT NULL)')
         self.db.execute('CREATE INDEX IF NOT EXISTS messages_group_scope ON messages(group_id,conversation,owner,id)')
         self.db.commit()
         self.lock = threading.Lock()
         self.online = set(AGENTS)
 
-    def create_group(self, name, creator, humans, group_id=None):
+    def audit(self, group_id, actor, action, subject):
+        self.db.execute('INSERT INTO group_audit(group_id,actor,action,subject,created) VALUES(?,?,?,?,?)', (group_id,actor,action,subject,time.time()))
+
+    def create_group(self, name, creator, humans, group_id=None, request_id=None):
         if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
             raise ValueError('group name must be 1..80 characters')
         if not isinstance(humans, list) or len(humans) > 100 or any(not isinstance(h, str) or not h for h in humans):
             raise ValueError('invalid human members')
-        group_id = group_id or uuid.uuid4().hex
+        if request_id is not None and (not isinstance(request_id,str) or not 1 <= len(request_id) <= 128):
+            raise ValueError('invalid creation request id')
+        canonical=json.dumps({'name':name.strip(),'humans':sorted(set(humans+[creator]))},sort_keys=True)
         with self.lock, self.db:
-            self.db.execute('INSERT INTO chat_groups VALUES(?,?,?,?)', (group_id,name.strip(),creator,time.time()))
+            self.db.execute('BEGIN IMMEDIATE')
+            if request_id is not None:
+                previous=self.db.execute('SELECT payload,group_id FROM group_creations WHERE creator=? AND request_id=?',(creator,request_id)).fetchone()
+                if previous:
+                    if previous[0]!=canonical:
+                        raise FileExistsError('creation request id reused with changed payload')
+                    return {'id':previous[1],'name':name.strip(),'creator':creator}
+            group_id=group_id or uuid.uuid4().hex
+            self.db.execute('INSERT INTO chat_groups(id,name,creator,created) VALUES(?,?,?,?)', (group_id,name.strip(),creator,time.time()))
             self.db.executemany('INSERT INTO group_humans VALUES(?,?)', [(group_id,h) for h in sorted(set(humans+[creator]))])
+            if request_id is not None:
+                self.db.execute('INSERT INTO group_creations VALUES(?,?,?,?)',(creator,request_id,canonical,group_id))
+            self.audit(group_id,creator,'create',group_id)
         return {'id':group_id,'name':name.strip(),'creator':creator}
 
     def groups(self, principal):
         with self.lock:
-            rows = self.db.execute('SELECT g.id,g.name,g.creator FROM chat_groups g JOIN group_humans h ON h.group_id=g.id WHERE h.principal=? ORDER BY g.created,g.id', (principal,)).fetchall()
-        return [{'id':r[0],'name':r[1],'creator':r[2]} for r in rows]
+            rows=self.db.execute('SELECT g.id,g.name,g.creator,g.dissolved FROM chat_groups g JOIN group_humans h ON h.group_id=g.id WHERE h.principal=? ORDER BY g.created,g.id',(principal,)).fetchall()
+        return [{'id':r[0],'name':r[1],'creator':r[2],'dissolved':bool(r[3])} for r in rows]
 
-    def require_group(self, principal, group_id):
+    def _require_group(self, principal, group_id, active=False):
+        row=self.db.execute('SELECT g.creator,g.name,g.dissolved FROM chat_groups g JOIN group_humans h ON h.group_id=g.id WHERE h.principal=? AND g.id=?',(principal,group_id)).fetchone()
+        if row is None or (active and row[2]):
+            raise PermissionError('group access denied or dissolved')
+        return row
+
+    def require_group(self, principal, group_id, active=False):
         with self.lock:
-            exists = self.db.execute('SELECT 1 FROM group_humans WHERE group_id=? AND principal=?', (group_id,principal)).fetchone()
-        if not exists:
-            raise PermissionError('group access denied')
+            return self._require_group(principal,group_id,active)
+
+    def group_info(self, principal, group_id):
+        with self.lock:
+            creator,name,dissolved=self._require_group(principal,group_id)
+            humans=[r[0] for r in self.db.execute('SELECT principal FROM group_humans WHERE group_id=? ORDER BY principal',(group_id,))]
+            events=self.db.execute('SELECT actor,action,subject,created FROM group_audit WHERE group_id=? ORDER BY id DESC LIMIT 50',(group_id,)).fetchall()
+            return {'id':group_id,'name':name,'creator':creator,'dissolved':bool(dissolved),'humans':humans,
+                    'audit':[dict(zip(('actor','action','subject','created'),r)) for r in reversed(events)]}
+
+    def update_member(self, actor, group_id, subject, operation):
+        if operation not in ('add','remove'):
+            raise ValueError('invalid membership operation')
+        with self.lock,self.db:
+            self.db.execute('BEGIN IMMEDIATE')
+            creator,_,_=self._require_group(actor,group_id,active=True)
+            if actor!=creator:
+                raise PermissionError('group creator required')
+            if operation=='remove' and subject==creator:
+                raise ValueError('creator cannot be removed')
+            if operation=='add':
+                self.db.execute('INSERT OR IGNORE INTO group_humans VALUES(?,?)',(group_id,subject))
+            else:
+                self.db.execute('DELETE FROM group_humans WHERE group_id=? AND principal=?',(group_id,subject))
+            self.audit(group_id,actor,operation,subject)
+        return {'updated':True}
+
+    def dissolve_group(self, actor, group_id, confirm_name):
+        with self.lock,self.db:
+            self.db.execute('BEGIN IMMEDIATE')
+            creator,name,dissolved=self._require_group(actor,group_id)
+            if actor!=creator:
+                raise PermissionError('group creator required')
+            if confirm_name!=name:
+                raise ValueError('group name confirmation does not match')
+            if not dissolved:
+                self.db.execute('UPDATE chat_groups SET dissolved=1 WHERE id=?',(group_id,))
+                self.audit(group_id,actor,'dissolve',group_id)
+        return {'dissolved':True}
 
     @staticmethod
     def conversation(value):
@@ -71,7 +137,7 @@ class ChatStore:
             raise ValueError('unknown conversation')
         return value
 
-    def page(self, conversation, principal="demo-owner", *, after=None, before=None, limit=100, group_id="legacy"):
+    def page(self, conversation, principal="demo-owner", *, after=None, before=None, limit=100, group_id="legacy", enforce_access=False):
         self.conversation(conversation)
         if after is not None and before is not None:
             raise ValueError('after and before are mutually exclusive')
@@ -93,6 +159,8 @@ class ChatStore:
         order = 'ASC' if after is not None else 'DESC'
         values.append(limit + 1)
         with self.lock:
+            if enforce_access:
+                self._require_group(principal,group_id)
             rows = self.db.execute('SELECT id,sender,text,created,owner FROM messages WHERE '
                                    + ' AND '.join(clauses) + ' ORDER BY id ' + order + ' LIMIT ?', values).fetchall()
         has_more = len(rows) > limit
@@ -119,7 +187,7 @@ class ChatStore:
             else:
                 self.online.discard(agent)
 
-    def send(self, payload, principal="demo-owner", group_id="legacy"):
+    def send(self, payload, principal="demo-owner", group_id="legacy", enforce_access=False):
         if set(payload) - {'conversation', 'text', 'request_id', 'targets'}:
             raise ValueError('unknown message fields')
         conversation = self.conversation(payload.get('conversation'))
@@ -138,6 +206,8 @@ class ChatStore:
         canonical = json.dumps({'conversation': conversation, 'text': text, 'targets': targets}, sort_keys=True)
         with self.lock, self.db:
             self.db.execute('BEGIN IMMEDIATE')
+            if enforce_access:
+                self._require_group(principal,group_id,active=True)
             old = self.db.execute('SELECT payload,result FROM group_submissions WHERE group_id=? AND owner=? AND request_id=?', (group_id, principal, request_id)).fetchone()
             if old:
                 if old[0] != canonical:

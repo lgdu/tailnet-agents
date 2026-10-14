@@ -1,6 +1,6 @@
 'use strict';
 let me = null, token = '', conversation = 'group', members = [], pending = null, busy = false;
-let groups=[], activeGroup=null;
+let groups=[], activeGroup=null, creationKey=null;
 let session = 0, view = 0, loading = false, history = new Map(), moreOlder = false;
 const $ = id => document.getElementById(id);
 function node(tag, text, className) { const n = document.createElement(tag); if(text !== undefined) n.textContent = text; if(className) n.className = className; return n; }
@@ -23,7 +23,7 @@ function renderMembers() {
     const info=node('div'); info.append(node('strong',m.name),node('small',m.online?'模拟 Echo · 在线':'模拟 Echo · 离线')); top.append(info,node('span',undefined,'presence'+(m.online?'':' offline')));
     const toggle=node('button',m.online?'模拟离线':'恢复在线');
     toggle.onclick=async()=>{const current=session; try {const result=await api('/api/presence',{agent:m.id,online:!m.online}); if(current!==session||!me)return; members=result.members; renderMembers();}catch(e){if(current===session)$('network-error').textContent=e.message;}};
-    card.append(top); if(me?.role==='admin')card.append(toggle); $('member-list').append(card);
+    card.append(top); if(me?.role==='admin'&&!groups.find(g=>g.id===activeGroup)?.dissolved)card.append(toggle); $('member-list').append(card);
   }
 }
 function renderRecipients() {
@@ -64,7 +64,7 @@ async function refreshMessages(mode='new',forceBottom=false) {
     if(mode!=='new')moreOlder=data.has_more;
     $('older').hidden=!moreOlder;
     if(changed||mode==='initial')renderMessages(mode,forceBottom);
-    $('sync-status').textContent=data.has_more&&mode==='new'?'正在追赶新消息…':'已同步 · 每 2 秒检查';
+    $('sync-status').textContent=groups.find(g=>g.id===activeGroup)?.dissolved?'群组已解散 · 历史只读':(data.has_more&&mode==='new'?'正在追赶新消息…':'已同步 · 每 2 秒检查');
     $('network-error').textContent='';
   }catch(error){if(current===view&&currentSession===session){$('sync-status').textContent='连接中断，自动重试';$('network-error').textContent=error.message;}}
   finally{if(current===view&&currentSession===session){loading=false;$('older').disabled=false;}}
@@ -79,10 +79,13 @@ async function select(value) {
 function renderGroups(){
   $('group-select').replaceChildren();
   if(!groups.length){const option=node('option','暂无获准访问的群组');option.value='';$('group-select').append(option);}
-  for(const group of groups){const option=node('option',group.name);option.value=group.id;option.selected=group.id===activeGroup;$('group-select').append(option);}
+  for(const group of groups){const option=node('option',group.name+(group.dissolved?' · 已解散':''));option.value=group.id;option.selected=group.id===activeGroup;$('group-select').append(option);}
   $('space-name').textContent=groups.find(g=>g.id===activeGroup)?.name||'尚未加入群组';
   $('create-group').hidden=me?.role!=='admin';
-  $('compose').hidden=!activeGroup||me?.role==='observer';
+  const selected=groups.find(g=>g.id===activeGroup);
+  $('compose').hidden=!activeGroup||!!selected?.dissolved||me?.role==='observer';
+  $('manage-group').hidden=!selected||me?.role!=='admin'||selected.creator!==me.id;
+  if(selected?.dissolved)$('sync-status').textContent='群组已解散 · 历史只读';
 }
 async function chooseGroup(id){
   if(busy||pending){$('group-select').value=activeGroup||'';$('delivery-status').textContent='请先处理待确认消息。';return;}
@@ -94,14 +97,14 @@ async function chooseGroup(id){
 }
 $('group-select').onchange=()=>chooseGroup($('group-select').value);
 $('create-group').onclick=async()=>{
-  const current=session;$('group-error').textContent='';$('human-choices').replaceChildren();
+  const current=session;creationKey=crypto.randomUUID();$('group-error').textContent='';$('human-choices').replaceChildren();
   try{const result=await api('/api/humans');if(current!==session)return;for(const human of result.humans){if(human.id===me.id)continue;const label=node('label'),check=node('input');check.type='checkbox';check.name='group-human';check.value=human.id;label.append(check,node('span',human.id+' · '+human.role));$('human-choices').append(label);}$('group-dialog').showModal();}
   catch(error){if(current===session)$('network-error').textContent=error.message;}
 };
 $('cancel-group').onclick=()=>$('group-dialog').close();
 $('group-form').onsubmit=async e=>{
   e.preventDefault();const current=session,button=$('group-form').querySelector('button[type="submit"]');button.disabled=true;
-  try{const created=await api('/api/groups',{name:$('group-name').value,humans:[...document.querySelectorAll('input[name="group-human"]:checked')].map(i=>i.value)});if(current!==session)return;groups=(await api('/api/groups')).groups;if(current!==session)return;$('group-dialog').close();$('group-name').value='';await chooseGroup(created.id);}
+  try{const created=await api('/api/groups',{name:$('group-name').value,humans:[...document.querySelectorAll('input[name="group-human"]:checked')].map(i=>i.value),request_id:creationKey});if(current!==session)return;groups=(await api('/api/groups')).groups;if(current!==session)return;$('group-dialog').close();$('group-name').value='';await chooseGroup(created.id);}
   catch(error){if(current===session)$('group-error').textContent=error.message;}
   finally{button.disabled=false;}
 };
@@ -112,7 +115,7 @@ $('login-form').onsubmit=async e=>{
     $('human-name').textContent=me.id;$('human-role').textContent={admin:'管理员',participant:'参与者',observer:'观察者'}[me.role];$('login').hidden=true;$('workspace').hidden=false;$('token').value='';await chooseGroup(groups[0]?.id||null);
   }catch(error){if(current!==session)return;token='';me=null;$('workspace').hidden=true;$('login').hidden=false;$('login-error').textContent=error.message;}
 };
-$('logout').onclick=()=>{session++;view++;activeGroup=null;groups=[];$('group-dialog').close();token='';me=null;pending=null;busy=false;loading=false;history=new Map();conversation='group';$('workspace').hidden=true;$('login').hidden=false;$('message').value='';$('message').disabled=false;$('send-button').disabled=false;$('send-button').textContent='发送 ↑';$('messages').replaceChildren();$('group-button').classList.add('active');$('conversation-title').textContent='群组讨论';$('conversation-kind').textContent='GROUP CONVERSATION';};
+$('logout').onclick=()=>{session++;view++;activeGroup=null;groups=[];$('group-dialog').close();$('manage-dialog').close();token='';me=null;pending=null;busy=false;loading=false;history=new Map();conversation='group';$('workspace').hidden=true;$('login').hidden=false;$('message').value='';$('message').disabled=false;$('send-button').disabled=false;$('send-button').textContent='发送 ↑';$('messages').replaceChildren();$('group-button').classList.add('active');$('conversation-title').textContent='群组讨论';$('conversation-kind').textContent='GROUP CONVERSATION';};
 $('group-button').onclick=()=>select('group');$('older').onclick=()=>refreshMessages('older');
 $('compose').onsubmit=async e=>{
   e.preventDefault();if(busy||!me||!activeGroup||me.role==='observer')return;if(!pending&&!$('message').value.trim())return;
@@ -129,10 +132,26 @@ setInterval(async()=>{
   polling=true;const current=session;
   try{
     const discovered=await api('/api/groups');if(current!==session||!me)return;
-    if(JSON.stringify(discovered.groups)!==JSON.stringify(groups)){groups=discovered.groups;renderGroups();if(!activeGroup&&groups.length)await chooseGroup(groups[0].id);}
+    if(JSON.stringify(discovered.groups)!==JSON.stringify(groups)){groups=discovered.groups;if(activeGroup&&!groups.some(g=>g.id===activeGroup)){pending=null;busy=false;await chooseGroup(null);$('network-error').textContent='群组访问资格已撤销。';}renderGroups();if(!activeGroup&&groups.length)await chooseGroup(groups[0].id);}
     if(!activeGroup)return;await refreshMessages();if(current!==session||!me)return;
     const selected=activeGroup;const result=await api('/api/members');if(current!==session||!me||selected!==activeGroup)return;
     if(JSON.stringify(result.members)!==JSON.stringify(members)){members=result.members;renderMembers();}
   }catch(error){if(current===session)$('network-error').textContent=error.message;}
   finally{polling=false;}
 },2000);
+
+async function refreshManagement(){
+  const current=session,selected=activeGroup;
+  const info=await api('/api/group-info?group_id='+encodeURIComponent(selected));
+  const people=await api('/api/humans');if(current!==session||selected!==activeGroup)return;
+  $('human-members').replaceChildren();$('add-human').replaceChildren();
+  for(const id of info.humans){const row=node('div');row.append(node('span',id+(id===info.creator?' · 创建者':'')));
+    if(id!==info.creator&&!info.dissolved){const remove=node('button','撤销访问');remove.type='button';remove.onclick=async()=>{try{await api('/api/group-members',{group_id:selected,subject:id,operation:'remove'});if(current===session&&selected===activeGroup)await refreshManagement();}catch(error){if(current===session)$('manage-error').textContent=error.message;}};row.append(remove);}$('human-members').append(row);}
+  for(const human of people.humans){if(info.humans.includes(human.id))continue;const option=node('option',human.id+' · '+human.role);option.value=human.id;$('add-human').append(option);}
+  $('add-member').disabled=info.dissolved||!$('add-human').options.length;$('dissolve-group').disabled=info.dissolved;
+  if(info.dissolved)$('manage-error').textContent='已解散：历史保留，不能重新开放这个群组。';
+}
+$('manage-group').onclick=async()=>{try{$('manage-error').textContent='';$('dissolve-name').value='';await refreshManagement();if(me)$('manage-dialog').showModal();}catch(error){$('network-error').textContent=error.message;}};
+$('close-manage').onclick=()=>$('manage-dialog').close();
+$('add-member').onclick=async()=>{const current=session;try{await api('/api/group-members',{group_id:activeGroup,subject:$('add-human').value,operation:'add'});if(current===session)await refreshManagement();}catch(error){if(current===session)$('manage-error').textContent=error.message;}};
+$('dissolve-group').onclick=async()=>{const current=session;try{await api('/api/group-dissolve',{group_id:activeGroup,confirm_name:$('dissolve-name').value});if(current!==session)return;groups=(await api('/api/groups')).groups;if(current!==session)return;renderGroups();renderMembers();await refreshManagement();}catch(error){if(current===session)$('manage-error').textContent=error.message;}};
