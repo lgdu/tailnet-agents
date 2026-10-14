@@ -2,9 +2,9 @@
 
 Discover heterogeneous agents across regions on a shared Tailscale network.
 
-Status: **early prototype**. The registry works; automatic bridge registration,
-MCP discovery tools, execution adapters and A2A task transport are planned.
-This is not yet an installation that connects every agent product.
+Status: **v0.2 prototype**. Automatic bridge registration/renewal, discovery,
+Echo task submission and result polling work. MCP tools, real product adapters
+and A2A transport are planned. The custom task API is not A2A.
 
 ## 项目目标
 
@@ -21,7 +21,12 @@ Agent Bridge 将具体产品接入网络；任务最终在伙伴之间直接传�
 - Python 3.11+ 标准库实现的 HTTP 注册目录，无运行时第三方依赖。
 - 注册与续租、按技能查找、到期过滤。
 - 每个节点独立 Bearer token，防止覆盖其他节点的 Agent ID。
-- 认证、租约、元数据和 HTTP 集成测试。
+- Bridge 启动后自动注册、20 秒续租，目录故障后自动重试。
+- CLI 发现伙伴、提交 Echo 任务、查询异步结果。
+- 按调用方隔离结果、幂等键去重、冲突检测和任务容量限制。
+- 认证、租约、元数据与双 Bridge 端到端集成测试。
+
+双节点部署步骤见 [Quickstart](docs/quickstart.md)。
 
 ## 本地启动
 
@@ -57,10 +62,11 @@ python3 -m unittest discover -s tests -v
 ## 限制与路线
 
 原型使用内存存储，重启清空所有记录和 ID 所有权，需要重新注册。
-没有配额、持久化、订阅推送或生产级 HTTP 服务，暂不适合不可信客户端。
+目录没有配额、持久化、订阅推送或生产级 HTTP 服务，暂不适合不可信客户端。
+任务及幂等记录也在内存中，重启丢失；任务容量默认 256，达到后拒绝新增。
 登记的 URL 需要调用端在执行前验证允许的主机与权限。
 
-1. Bridge 自动注册、续租、伙伴缓存和离线重连。
+1. 已实现 Bridge 自动注册、续租与目录重试；伙伴缓存待实现。
 2. MCP `discover_agents` / `delegate_task`，让交互式 Agent 能主动使用网络。
 3. A2A 收发与异步任务状态、幂等、超时、取消语义。
 4. OpenClaw、Claude Code、Codex、Qoder 适配器；逐个验证真实开放接口。

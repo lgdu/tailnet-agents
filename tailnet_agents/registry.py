@@ -19,7 +19,7 @@ class Registry:
 
     def authenticate(self, token):
         for owner, secret in self.credentials.items():
-            if hmac.compare_digest(token, secret):
+            if hmac.compare_digest(token.encode(), secret.encode()):
                 return owner
         raise PermissionError("invalid credential")
 
@@ -63,6 +63,10 @@ class Registry:
 
 def make_handler(registry):
     class Handler(BaseHTTPRequestHandler):
+        def setup(self):
+            super().setup()
+            self.connection.settimeout(10)
+
         def log_message(self, *_):
             pass  # Avoid logging credentials or request data.
 

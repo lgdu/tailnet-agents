@@ -36,3 +36,23 @@ execution provenance and product permission boundaries. Network discovery does
 not imply access to another agent's memory, filesystem or user approvals.
 Future bridges must bound delegation depth and deduplicate retries to prevent
 agent loops and duplicate side effects.
+
+## Custom task transport v0.1 (implemented in v0.2)
+
+Registration declares `protocol: "tailnet-task-v0.1"` and an HTTPS origin.
+This API does not claim compatibility with A2A.
+
+| Method | Path | Behavior |
+|---|---|---|
+| POST | `/v1/tasks` | Submit `message` and `idempotency_key`; return 202 and task |
+| GET | `/v1/tasks/{id}` | Return caller-owned task; unknown or other-owner IDs return 404 |
+
+Both requests require a bridge-specific Bearer token. Task fields are `id`,
+`status` (`queued`, `running`, `completed`, `failed`), `result` and `error`.
+Repeated keys with identical messages return the same task. Changed messages
+return 409. New tasks at capacity return 429. There is no cancellation endpoint.
+Task IDs and deduplication keys are process-local and disappear on restart.
+
+Bridges renew registration every TTL/3 and retry registry connection failures.
+The CLI polls discovery; there is no watch/subscription API or peer cache yet.
+Only the Echo adapter is implemented. A2A and product execution remain planned.
