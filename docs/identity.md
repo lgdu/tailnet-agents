@@ -1,4 +1,4 @@
-# Agent identity and admission primitives (v0.15)
+# Agent identity and admission primitives (v0.16)
 
 This optional library component uses Ed25519 through `cryptography`.
 [VerifiedDirectory](verified-directory.md) integrates it with registration through
@@ -81,7 +81,8 @@ noncanonical base64url are rejected.
   distributed propagation or immediate partition-wide revocation exists yet. Tests do not imply that existing services enforce it.
 - Verified admission has TLS and opt-in [signed group policy](group-policy.md),
   including terminal dissolution. TLS exporter binding, relay-resistant network
-  handshakes, admission rate limits and peer policy propagation remain pending.
+  handshakes, admission rate limits and per-credential revocation propagation
+  remain pending. Configured-peer signed policy propagation is available.
   A signed response alone does not authenticate a channel.
 - Signature serialization has tests, but no external JWT/JWS conformance suite
   or independent security audit has been run.

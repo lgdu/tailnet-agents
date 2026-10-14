@@ -12,9 +12,11 @@ from urllib.parse import parse_qs,urlparse
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from .identity import AdmissionError,decode
 from .verified_directory import VerifiedDirectory
+from .client import Client
+from .policy_sync import PolicySynchronizer
 
 
-def handler(directory,read_token,allowed_hosts=None,scheme="http"):
+def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=None):
     allowed_hosts=allowed_hosts or ("127.0.0.1","localhost")
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
@@ -52,6 +54,13 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http"):
                 parsed=urlparse(self.path)
                 if parsed.path=='/healthz':
                     return self.respond(200,{'status':'ok','mode':'verified-'+scheme})
+                if parsed.path in ('/v1/policies','/v1/policy-sync'):
+                    self.read_auth()
+                    if parsed.query:
+                        raise ValueError('policy routes do not accept query parameters')
+                    if parsed.path=='/v1/policies':
+                        return self.respond(200,directory.export_policy())
+                    return self.respond(200,{'state':'disabled'} if synchronizer is None else synchronizer.status())
                 if parsed.path!='/v1/agents':
                     return self.respond(404,{'error':'not found'})
                 self.read_auth()
@@ -59,7 +68,7 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http"):
                 if set(query)-{'skill'} or any(len(v)!=1 for v in query.values()):
                     raise ValueError('invalid discovery query')
                 self.respond(200,{'agents':directory.discover(query.get('skill',[None])[0])})
-            except PermissionError:
+            except (PermissionError,AdmissionError):
                 self.respond(403,{'error':'request not authorized'})
             except ValueError:
                 self.respond(400,{'error':'invalid request'})
@@ -166,31 +175,46 @@ def main():
     parser.add_argument('--database',default='state/verified-directory.sqlite3')
     parser.add_argument('--require-policy',action='store_true',help='fail closed without an active signed member policy; persisted across restart')
     parser.add_argument('--policy-file',help='initial signed policy; implies --require-policy')
+    parser.add_argument('--policy-peer',help='explicit source directory URL; requires policy mode and TAILNET_POLICY_PEER_TOKEN')
+    parser.add_argument('--policy-peer-ca',help='trusted CA certificate PEM for the configured source')
+    parser.add_argument('--policy-sync-interval',type=float,default=10,help='policy pull interval, 1..3600 seconds')
     args=parser.parse_args()
     token=os.environ.get('TAILNET_VERIFIED_READ_TOKEN','')
     if len(token)<32 or not token.isascii():
         parser.error('TAILNET_VERIFIED_READ_TOKEN needs at least 32 ASCII characters')
+    peer_token=os.environ.get('TAILNET_POLICY_PEER_TOKEN','')
+    if args.policy_peer and (not (args.require_policy or args.policy_file) or len(peer_token)<32 or not peer_token.isascii()):
+        parser.error('policy peer requires policy mode and a 32+ character ASCII peer read token')
+    if args.policy_peer_ca and not args.policy_peer:
+        parser.error('--policy-peer-ca requires --policy-peer')
+    directory=None
+    synchronizer=None
     try:
         allowed,context=transport_config(args.host,args.tls_cert,args.tls_key,args.allow_host)
         authority=Ed25519PublicKey.from_public_bytes(decode(Path(args.authority_public_key).read_text().strip()))
         directory=VerifiedDirectory(authority,args.group_id,args.audience,database=args.database,require_policy=args.require_policy or bool(args.policy_file))
         if args.policy_file:
-            try:
-                directory.apply_policy(Path(args.policy_file).read_text().strip())
-            except Exception:
-                directory.close()
-                raise
+            directory.apply_policy(Path(args.policy_file).read_text().strip())
+        if args.policy_peer:
+            peer=Client(args.policy_peer,peer_token,ca_file=args.policy_peer_ca)
+            synchronizer=PolicySynchronizer(directory,peer,args.policy_sync_interval)
     except (ValueError,OSError):
+        if directory is not None:
+            directory.close()
         parser.error('authority/group/database setup failed; see docs/admission-http.md')
     scheme='https' if context else 'http'
-    server=AdmissionHTTPServer((args.host,args.port),handler(directory,token,allowed,scheme),context)
+    server=AdmissionHTTPServer((args.host,args.port),handler(directory,token,allowed,scheme,synchronizer),context)
     print(f'Verified directory: {scheme}://{allowed[0]}:{server.server_port}',flush=True)
     try:
+        if synchronizer is not None:
+            synchronizer.start()
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
         server.server_close()
+        if synchronizer is not None:
+            synchronizer.stop()
         directory.close()
 
 

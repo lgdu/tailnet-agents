@@ -1,4 +1,4 @@
-# Verified admission HTTP/TLS — prototype (v0.15)
+# Verified admission HTTP/TLS — prototype (v0.16)
 
 This separate optional service exposes VerifiedDirectory over HTTP/TLS. Default
 binding is loopback HTTP. Non-loopback binds require server certificate/key and
@@ -92,6 +92,8 @@ endpoint is metadata and is not contacted by this service.
 | POST `/v1/challenges` | Allowed Host/Origin | `{record}` → `{nonce, context}` |
 | POST `/v1/registrations` | Signed grant and subject proof | `{record, grant, public_key, proof, nonce}` → ID/TTL |
 | GET `/v1/agents?skill=echo` | Read bearer token | Verified, leased, non-revoked records |
+| GET `/v1/policies` | Read bearer token, policy mode enabled | `{policy}` signed snapshot or null |
+| GET `/v1/policy-sync` | Read bearer token | Local synchronizer state/timestamps/revision or disabled |
 | POST `/v1/policies` | Read token AND authority signature, policy mode enabled | `{policy}` → group ID/revision/state |
 | POST `/v1/revocations` | Read token AND authority signature | `{revocation}` → acknowledgment |
 
@@ -114,3 +116,6 @@ TLS transport is now tested on loopback, including CA and hostname validation.
 Actual cross-machine LAN/tailnet deployment, TLS channel binding, UI grant issuance and distributed revocation remain unvalidated or pending.
 Signed group policy updates and enforcement are tested locally, including
 member removal, rollback rejection and terminal dissolution.
+[Policy sync](policy-sync.md) adds optional periodic pull from an explicitly
+configured source; registration leases, tasks/chat and credential revocations
+are not replicated.

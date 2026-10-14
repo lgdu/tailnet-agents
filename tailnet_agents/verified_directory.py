@@ -1,4 +1,4 @@
-"""In-process credential-enforced directory, no HTTP endpoint or mesh transport."""
+"""Credential-enforced directory used by the separate admission HTTP service."""
 import json
 import hashlib
 import math
@@ -53,6 +53,15 @@ class VerifiedDirectory:
                 raise AdmissionError('policy enforcement must be explicitly enabled')
             claims=self._policy.apply(signed_policy)
             return {'group_id':claims['group_id'],'revision':claims['revision'],'state':claims['state']}
+
+    def export_policy(self):
+        with self.lock:
+            if not self.require_policy:
+                raise AdmissionError('policy enforcement must be explicitly enabled')
+            # Validate persisted data before sending it to another pinned verifier.
+            self._policy.current()
+            row=self._registry.db.execute('SELECT token FROM group_policy WHERE id=1').fetchone()
+            return {'policy':None if row is None else row[0]}
 
     @staticmethod
     def record_context(record):

@@ -1,4 +1,4 @@
-# Verified admission over TLS (v0.15)
+# Verified admission over TLS (v0.16)
 
 The verified admission service can now bind an IPv4 LAN or tailnet address when
 TLS and explicit HTTP host names are configured. Default remains loopback HTTP.
@@ -20,6 +20,9 @@ and agreed audience. For persistent member-policy enforcement, also configure
 `--require-policy` and an administrator-signed snapshot as described in
 [group policy](group-policy.md). This remains separate from the UI group table.
 No automatic Agent group creation is added.
+For periodic signed snapshot pull, configure a peer URL and its trusted CA as
+described in [policy sync](policy-sync.md). Peer URLs also require HTTPS outside
+loopback; the source token never follows redirects.
 
 ## LAN example
 

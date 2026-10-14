@@ -1,4 +1,4 @@
-# Implementation status — v0.15
+# Implementation status — v0.16
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -10,9 +10,10 @@ its future requirements must not be read as implemented security guarantees.
 | MCP | Local tools subset | Real client interoperability verification |
 | Human UI | Configured people/roles, explicit groups, private scopes, paging/polling | Browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
-| Agent identity | Optional Ed25519 keys, scoped grants and possession proofs | Human policy issuance and peer propagation |
+| Agent identity | Optional Ed25519 keys, scoped grants and possession proofs | Human policy issuance and credential-revocation propagation |
 | Verified directory | Library + HTTP/TLS admission, read token, durable signed revocation | Real LAN/tailnet trial, human policy issuance and mesh replication |
-| Signed group policy | Durable signed snapshots, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | UI integration and authenticated peer propagation |
+| Signed group policy | Durable signed snapshots, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | UI integration, peer discovery and policy freshness |
+| Policy replication | Periodic configured-peer HTTP/TLS pull and read-protected status | Multi-source reconciliation, credential revocations and discovery |
 | Mesh | State simulator only | Cryptographic admission, LAN/seed/tailnet providers |
 | Product agents | None | OpenClaw/Claude Code/Codex/Qoder/Grok interface validation |
 
@@ -31,6 +32,10 @@ The UI's three Echo participants are not real authorized network agents.
 Verification: local core/identity tests, HTTP integration tests, simulated group
 fault scenarios and JS syntax checks. Browser interaction, real tailnet/LAN,
 external JWS interoperability and product Agent integration are not validated.
+Policy propagation is tested between actual loopback HTTP/TLS services. Each
+service still has independent registration leases and task/chat state. Peer
+outages retain the last accepted policy; no freshness or immediate global
+revocation guarantee is provided.
 
 ## Documentation maintenance rule
 

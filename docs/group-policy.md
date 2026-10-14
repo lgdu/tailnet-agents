@@ -1,8 +1,8 @@
-# Signed group policy — v0.15
+# Signed group policy — v0.16
 
 This optional layer connects persistent signed membership to the verified
-admission directory. It does **not** connect the human UI or implement mesh
-replication. A trusted administrator explicitly creates and signs snapshots;
+admission directory. It does **not** connect the human UI or implement a full
+mesh. [Configured-peer policy replication](policy-sync.md) is available. A trusted administrator explicitly creates and signs snapshots;
 an Agent must never call creation on startup or discovery timeout.
 
 ## Human administration example
@@ -116,9 +116,9 @@ successful update affects subsequent checks. Previously returned records and
 already dispatched tasks are not cancelled. Registration leases still expire
 and require fresh possession proof after directory restart.
 
-This is a single-directory prototype. No automatic distribution, global ordering,
-owner-key rotation, policy freshness lease or partition-wide immediate revocation
-exists. A partitioned receiver cannot learn a removal until it receives the update.
+Configured directory peers can now pull full signed snapshots periodically.
+No automatic peer discovery, global ordering, owner-key rotation, policy freshness
+lease or partition-wide immediate revocation exists. A partitioned receiver cannot learn a removal until it receives the update.
 Two owner-signed snapshots at the same revision cause a conflict requiring human
 resolution via a higher revision; terminal dissolution remains irreversible at
 receivers that learned it. Restoring an older database backup can lose learned

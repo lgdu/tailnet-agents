@@ -155,7 +155,9 @@ necessary; network membership never grants filesystem or secret access.
   real LAN/tailnet trials and signed group-policy integration remain pending.
 - v0.15: durable signed group policy, explicitly approved credential IDs,
   rollback/conflict rejection and terminal dissolution in opt-in verified admission.
-- Next: human UI signing workflow and authenticated peer policy propagation.
+- v0.16: configured-peer full signed-policy pull over HTTP/TLS, periodic
+  synchronization, manual CLI and read-protected status. No automatic mesh discovery.
+- Next: human UI signing workflow, credential revocation propagation and peer discovery.
 - Next: network discovery and mesh transport with cryptographic admission.
 - Then: validated agent adapters, durable tasks and real LAN/tailnet trials.
 
@@ -192,7 +194,9 @@ network groups. v0.9 implements a local human group-creation form and database m
 Its human UI signing flow and mesh propagation remain to be implemented. The old automatic-creation proposal is superseded.
 
 Current implementation boundaries are tracked in [status.md](status.md); signed group
-policy issuance from the human UI and lifecycle replication remain future work.
+policy issuance from the human UI and full lifecycle replication remain future work.
 v0.15 implements durable owner-signed group snapshots and opt-in enforcement
 in verified admission, including member removal and terminal dissolution.
+v0.16 adds configured-peer policy replication, including removals and dissolution.
+Presence, per-credential revocations, chat and tasks are not replicated.
 The human UI and mesh simulator remain separate from these snapshots.

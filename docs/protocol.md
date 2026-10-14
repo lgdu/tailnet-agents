@@ -93,3 +93,14 @@ dissolved groups. Stale/conflicting snapshots are rejected; enforcement mode
 and learned dissolution persist across restart. Existing grant-only mode stays
 compatible. See [group policy](group-policy.md) for schema, migration and
 partition/backup limits. No task receiver or UI signing flow is added.
+
+## Configured-peer policy pull (v0.16)
+
+GET `/v1/policies` on the separate verified service requires its read token and
+policy mode, and returns `{policy}` with a signed snapshot or null. An explicitly
+configured receiver verifies pinned owner/group, then applies its existing
+revision/conflict/dissolution checks. Periodic pull and one-shot HTTP/TLS relay
+are available; GET `/v1/policy-sync` exposes read-protected synchronization status.
+Null/errors never create groups or clear accepted policy. This replicates policy
+only, not presence, credential-revocation records, conversations or tasks.
+See [policy synchronization](policy-sync.md) for deployment and freshness limits.
