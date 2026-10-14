@@ -83,3 +83,30 @@ VerifiedDirectory uses an additional, separate database with pinned authority an
 credential records. Back up it consistently using SQLite backup, and protect it
 as credential material. It is currently a library API; ordinary registry startup
 does not enable its checks. See [verified-directory](verified-directory.md).
+
+## Policy-age operations and migration
+
+The separate verified service's policy mode now bounds active signed age to 300
+seconds by default, persisting the limit in SQLite. Back up before upgrading
+v0.17 state. Prepare a fresh human-authorized revision if the stored snapshot is
+expired. Retain its original group ID and Agent keys. Do not recreate groups,
+delete revocations or downgrade the executable to restore availability.
+A smaller `--policy-max-age` is allowed; increasing a saved limit is rejected.
+Monitor `/v1/policy-sync` policy expiry rather than liveness or historical sync
+success, and keep verifier clocks synchronized. See [policy sync](policy-sync.md)
+for independently authenticated primary/backup sources and CA configuration.
+
+## Version and GitHub tag
+
+v0.18.0 in this PR is unreleased. Merge and validate main before publishing it.
+At release, verify `pyproject.toml`, MCP serverInfo and README/docs describe the
+same version, run both CI modes and the mesh simulator, then create an annotated
+GitHub tag on that exact release commit:
+
+```bash
+git tag -a v0.18.0 -m 'Tailnet Agents v0.18.0'
+git push origin refs/tags/v0.18.0
+```
+
+Run these from the verified release commit on main; do not tag a different
+checkout or move an existing published tag. Creating a PR is not publishing a release.

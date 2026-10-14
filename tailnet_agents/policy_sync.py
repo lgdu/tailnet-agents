@@ -1,5 +1,6 @@
-"""Pull owner-signed policy from an explicitly configured HTTP/TLS peer."""
+"""Pull signed policy and revocations from ordered, explicitly trusted peers."""
 import argparse
+import json
 import os
 import re
 from pathlib import Path
@@ -10,6 +11,33 @@ from .client import Client
 from .group_policy import verify_policy
 from .verified_directory import REVOCATION_TYPE
 from .identity import AdmissionError, decode, verify
+
+
+def load_policy_sources(path):
+    """Read trusted routing configuration; credential values remain in the environment."""
+    entries = json.loads(Path(path).read_text())
+    if not isinstance(entries, list) or not 1 <= len(entries) <= 8:
+        raise ValueError('configure 1..8 policy sources')
+    clients = []
+    for entry in entries:
+        if (not isinstance(entry, dict) or not {'url', 'token_env'} <= set(entry) or
+                set(entry) - {'url', 'token_env', 'ca_cert'} or
+                not isinstance(entry['url'], str) or not isinstance(entry['token_env'], str) or
+                not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', entry['token_env'])):
+            raise ValueError('invalid policy source configuration')
+        token = os.environ.get(entry['token_env'], '')
+        if len(token) < 32 or not token.isascii():
+            raise ValueError('policy source read credential required')
+        ca = entry.get('ca_cert')
+        if ca is not None:
+            if not isinstance(ca, str) or not ca:
+                raise ValueError('invalid policy source CA path')
+            ca = str(Path(path).parent / ca)
+        client = Client(entry['url'], token, ca_file=ca)
+        if any(client.url == previous.url for previous in clients):
+            raise ValueError('duplicate policy source')
+        clients.append(client)
+    return clients
 
 
 def fetch_policy(client, owner_key, group_id):
@@ -84,61 +112,92 @@ def sync_remote(source, target, owner_key, group_id):
 
 
 class PolicySynchronizer:
-    """Single configured source, periodic full snapshots, no discovery/election.
+    """Ordered configured sources, independent cursors, no discovery/election.
 
-    Failures retain the last accepted policy. No policy-freshness guarantee exists.
+    Failures retain accepted policy and revocations. Signed policy age still
+    limits admission; contact with a source never extends that authorization.
     Never hold a directory lock during network I/O. stop() blocks future applies.
     """
-    def __init__(self, directory, client, interval=10, clock=time.time):
+    def __init__(self, directory, client, interval=10, clock=time.time, *, fallback_clients=()):
         if not directory.require_policy:
             raise AdmissionError('policy mode required for synchronization')
         if type(interval) not in (int, float) or not 1 <= interval <= 3600:
             raise ValueError('policy interval must be 1..3600 seconds')
         self.directory, self.client, self.interval, self.clock = directory, client, interval, clock
+        self.fallback_clients = tuple(fallback_clients)
+        if len(self.fallback_clients) > 7:
+            raise ValueError('configure at most eight policy sources')
         self._stopped = threading.Event()
         self._apply_lock = threading.Lock()
         self._attempt_lock = threading.Lock()
         self._thread = None
-        self._revocations = {'generation': None, 'after': 0}
-        self._status = {'state': 'idle', 'last_attempt': None, 'last_success': None, 'revision': None, 'revocation_cursor': 0}
+        self._checkpoints = [{'generation': None, 'after': 0} for _ in range(1 + len(self.fallback_clients))]
+        self._source_status = [{'state': 'idle', 'revocation_cursor': 0} for _ in self._checkpoints]
+        self._status = {'state': 'idle', 'last_attempt': None, 'last_success': None,
+                        'revision': None, 'revocation_cursor': 0, 'active_source': None}
+
+    def _snapshot(self):
+        # Caller holds _apply_lock; never expose mutable internal status objects.
+        return self._status | {'sources': [dict(source) for source in self._source_status]}
 
     def status(self):
         with self._apply_lock:
-            return dict(self._status)
+            return self._snapshot()
 
     def sync_once(self):
         with self._attempt_lock:
             with self._apply_lock:
                 if self._stopped.is_set():
-                    return dict(self._status)
+                    return self._snapshot()
                 self._status['last_attempt'] = self.clock()
-            try:
-                token = fetch_policy(self.client, self.directory.owner_key, self.directory.group_id)
-                with self._apply_lock:
-                    if self._stopped.is_set():
-                        return dict(self._status)
-                    if token is not None:
-                        result = self.directory.apply_policy(token)
-                        self._status['revision'] = result['revision']
-                def apply_revocation(proof):
+                self._status['active_source'] = None
+            outcomes, errors = [], []
+            for index, client in enumerate((self.client,) + self.fallback_clients):
+                try:
                     with self._apply_lock:
                         if self._stopped.is_set():
-                            return False
-                        self.directory.revoke(proof)
-                complete = pull_revocations(self.client, self.directory.owner_key,
-                    self.directory.group_id, apply_revocation, self._revocations)
-                with self._apply_lock:
-                    if not self._stopped.is_set():
-                        self._status['revocation_cursor'] = self._revocations['after']
-                        self._status['state'] = 'catching_up' if not complete else ('waiting' if token is None else 'synced')
-                        if complete and token is not None:
-                            self._status['last_success'] = self.clock()
-                    return dict(self._status)
-            except Exception:
-                with self._apply_lock:
-                    if not self._stopped.is_set():
-                        self._status['state'] = 'error'
-                raise
+                            return self._snapshot()
+                    token = fetch_policy(client, self.directory.owner_key, self.directory.group_id)
+                    with self._apply_lock:
+                        if self._stopped.is_set():
+                            return self._snapshot()
+                        if token is not None:
+                            result = self.directory.apply_policy(token)
+                            self._status['revision'] = result['revision']
+                    def apply_revocation(proof):
+                        with self._apply_lock:
+                            if self._stopped.is_set():
+                                return False
+                            self.directory.revoke(proof)
+                    checkpoint = self._checkpoints[index]
+                    complete = pull_revocations(client, self.directory.owner_key,
+                        self.directory.group_id, apply_revocation, checkpoint)
+                    with self._apply_lock:
+                        if self._stopped.is_set():
+                            return self._snapshot()
+                        freshness = self.directory.policy_status()['state']
+                        state = ('catching_up' if not complete else 'waiting' if token is None else
+                                 'stale' if freshness in ('stale', 'future') else 'synced')
+                        self._source_status[index].update(state=state, revocation_cursor=checkpoint['after'])
+                        self._status['revocation_cursor'] = checkpoint['after']
+                        if state == 'synced':
+                            self._status.update(state=state, last_success=self.clock(), active_source=index)
+                            return self._snapshot()
+                        outcomes.append(state)
+                except Exception as error:
+                    with self._apply_lock:
+                        if self._stopped.is_set():
+                            return self._snapshot()
+                        self._source_status[index].update(state='error', revocation_cursor=self._checkpoints[index]['after'])
+                    errors.append(error)
+            with self._apply_lock:
+                if self._stopped.is_set():
+                    return self._snapshot()
+                self._status['state'] = next((state for state in ('catching_up', 'stale', 'waiting') if state in outcomes), 'error')
+                result = self._snapshot()
+            if len(errors) == len(self._checkpoints):
+                raise errors[-1]
+            return result
 
     def _run(self):
         while not self._stopped.is_set():
@@ -189,7 +248,6 @@ def main():
             parser.exit(1, 'Source has no policy; no target changes made.\n')
     except (ValueError, OSError):
         parser.exit(1, 'Policy sync failed; check pinned authority, group, credentials and connectivity.\n')
-    import json
     print(json.dumps(result, indent=2))
 
 

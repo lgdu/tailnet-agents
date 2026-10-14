@@ -1,4 +1,4 @@
-# Implementation status — v0.17
+# Implementation status — v0.18 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -12,8 +12,8 @@ its future requirements must not be read as implemented security guarantees.
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
 | Agent identity | Optional Ed25519 keys, scoped grants and possession proofs | Human policy issuance and key renewal |
 | Verified directory | Library + HTTP/TLS admission, read token, durable signed revocation | Real LAN/tailnet trial, human policy issuance and mesh replication |
-| Signed group policy | Durable signed snapshots, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | UI integration, peer discovery and policy freshness |
-| Policy replication | Configured-peer policy/credential-revocation pull and read-protected status | Multi-source reconciliation, freshness and discovery |
+| Signed group policy | Durable snapshots, bounded signed age, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | Human policy renewal UX, UI integration and peer discovery |
+| Policy replication | Ordered source failover, independent revocation cursors, HTTP/TLS pull and read-protected status | Multi-source reconciliation/quorum and discovery |
 | Mesh | State simulator only | Cryptographic admission, LAN/seed/tailnet providers |
 | Product agents | None | OpenClaw/Claude Code/Codex/Qoder/Grok interface validation |
 
@@ -34,8 +34,25 @@ fault scenarios and JS syntax checks. Browser interaction, real tailnet/LAN,
 external JWS interoperability and product Agent integration are not validated.
 Policy propagation is tested between actual loopback HTTP/TLS services. Each
 service still has independent registration leases and task/chat state. Peer
-outages retain the last accepted policy; no freshness or immediate global
-revocation guarantee is provided.
+outages retain the last accepted policy and revocations but cannot extend its
+signed authorization deadline. Active policies expire after 300 seconds by
+default; the persisted maximum age can be tightened but not increased on restart.
+Expired registration/renewal is denied and discovery hides affected records.
+Leases cannot outlive policy or grant expiry. The same identity/group resumes
+after a valid newer owner-signed policy; no group is created during recovery.
+
+Source failover tries up to eight explicitly configured endpoints in order on
+transport, authorization, signature, revision, freshness or scan-completion
+failure. Each has a separate credential, CA and revocation cursor. Every poll
+retries the primary. This is not newest-of-all-sources reconciliation: a healthy
+primary can hide an unseen newer policy until its signed age expires. There is
+no immediate partition-wide revocation, automatic policy re-signing or running
+task cancellation. Signed tombstones and learned revocations remain durable.
+
+Migration from v0.17 adds a policy-age setting; an old active snapshot may already
+be expired at upgrade. Back up the database and prepare a fresh owner revision.
+The policy wire format is unchanged. Versions before v0.18 do not enforce this
+age limit. v0.18.0 is prepared in the PR, not yet published or tagged.
 
 ## Documentation maintenance rule
 

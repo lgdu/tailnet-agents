@@ -20,7 +20,11 @@ def issue_revocation(owner_key,group_id,credential_id):
 
 
 class VerifiedDirectory:
-    def __init__(self,owner_key,group_id,audience,*,database=':memory:',clock=time.time,require_policy=False):
+    def __init__(self,owner_key,group_id,audience,*,database=':memory:',clock=time.time,require_policy=False,policy_max_age=None):
+        if policy_max_age is not None and (type(policy_max_age) is not int or not 1<=policy_max_age<=86400):
+            raise ValueError('policy maximum age must be 1..86400 seconds')
+        if policy_max_age is not None and not require_policy:
+            raise AdmissionError('policy maximum age requires policy mode')
         self.owner_key,self.group_id,self.clock=owner_key,group_id,clock
         self.lock=threading.Lock()
         self._registry=Registry({},clock=clock,database=database)
@@ -43,7 +47,14 @@ class VerifiedDirectory:
                     raise AdmissionError('cannot disable persisted policy enforcement')
                 db.execute('INSERT INTO admission_policy_mode VALUES(1,?) ON CONFLICT(id) DO UPDATE SET required=MAX(required,excluded.required)',(int(require_policy),))
                 self.require_policy=bool(require_policy)
-                self._policy=PolicyStore(db,owner_key,group_id)
+                db.execute('CREATE TABLE IF NOT EXISTS admission_policy_freshness (id INTEGER PRIMARY KEY CHECK(id=1),max_age INTEGER NOT NULL)')
+                saved=db.execute('SELECT max_age FROM admission_policy_freshness WHERE id=1').fetchone()
+                self.policy_max_age=policy_max_age if policy_max_age is not None else (saved[0] if saved else 300)
+                if saved and self.policy_max_age>saved[0]:
+                    raise AdmissionError('cannot weaken persisted policy freshness')
+                if self.require_policy:
+                    db.execute('INSERT INTO admission_policy_freshness VALUES(1,?) ON CONFLICT(id) DO UPDATE SET max_age=excluded.max_age',(self.policy_max_age,))
+                self._policy=PolicyStore(db,owner_key,group_id,clock=clock,max_age=self.policy_max_age)
             revoked=[row[0] for row in db.execute('SELECT jti FROM admission_revocations')]
             self._admission=Admission(owner_key,group_id,audience,clock=clock,revoked=revoked)
         except Exception:
@@ -66,6 +77,10 @@ class VerifiedDirectory:
             row=self._registry.db.execute('SELECT token FROM group_policy WHERE id=1').fetchone()
             return {'policy':None if row is None else row[0]}
 
+    def policy_status(self):
+        with self.lock:
+            return self._policy.status() if self.require_policy else {'state':'disabled'}
+
     @staticmethod
     def record_context(record):
         if not isinstance(record,dict) or 'id' in record:
@@ -86,13 +101,16 @@ class VerifiedDirectory:
                 raise AdmissionError('identity is derived from the verified subject, not caller input')
             agent_id='agent-'+identity_id(subject_key).split(':')[1]
             metadata=Registry.normalize_record(record|{'id':agent_id})
+            policy=None
             if self.require_policy:
                 grant=verify_grant(grant_token,self.owner_key,self.group_id,now=self.clock(),revoked=self._admission.revoked)
-                self._policy.authorize(grant)
+                policy=self._policy.authorize(grant)
             grant=self._admission.admit(grant_token,subject_key,proof,nonce,context=self.record_context(record))
             remaining=math.floor(grant['exp']-self.clock())
+            if policy is not None:
+                remaining=min(remaining,math.floor(policy['issued_at']+self.policy_max_age-self.clock()))
             if remaining<10:
-                raise AdmissionError('credential too close to expiry for a directory lease')
+                raise AdmissionError('authorization too close to expiry for a directory lease')
             metadata['ttl_seconds']=min(metadata['ttl_seconds'],remaining)
             registry=self._registry
             with registry.lock,registry.db:
