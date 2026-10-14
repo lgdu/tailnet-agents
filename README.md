@@ -2,9 +2,9 @@
 
 Discover heterogeneous agents across regions on a shared Tailscale network.
 
-Status: **v0.2 prototype**. Automatic bridge registration/renewal, discovery,
-Echo task submission and result polling work. MCP tools, real product adapters
-and A2A transport are planned. The custom task API is not A2A.
+Status: **v0.3 prototype**. Automatic bridge registration/renewal, discovery,
+Echo task submission, result polling and MCP stdio tools work. Real product
+adapters and A2A transport are planned. The custom task API is not A2A.
 
 ## 项目目标
 
@@ -26,7 +26,7 @@ Agent Bridge 将具体产品接入网络；任务最终在伙伴之间直接传�
 - 按调用方隔离结果、幂等键去重、冲突检测和任务容量限制。
 - 认证、租约、元数据与双 Bridge 端到端集成测试。
 
-双节点部署步骤见 [Quickstart](docs/quickstart.md)。
+双节点部署步骤见 [Quickstart](docs/quickstart.md)，MCP 接入见 [MCP guide](docs/mcp.md)。
 
 ## 本地启动
 
@@ -67,7 +67,7 @@ python3 -m unittest discover -s tests -v
 登记的 URL 需要调用端在执行前验证允许的主机与权限。
 
 1. 已实现 Bridge 自动注册、续租与目录重试；伙伴缓存待实现。
-2. MCP `discover_agents` / `delegate_task`，让交互式 Agent 能主动使用网络。
+2. 已实现 MCP stdio `discover_agents` / `delegate_task` / `get_task_result`；产品实测待完成。
 3. A2A 收发与异步任务状态、幂等、超时、取消语义。
 4. OpenClaw、Claude Code、Codex、Qoder 适配器；逐个验证真实开放接口。
 5. Grok 产品能力调查与自研 HTTP/CLI 适配器。

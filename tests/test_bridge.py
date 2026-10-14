@@ -6,6 +6,7 @@ from urllib.error import HTTPError
 from tailnet_agents.bridge import Lease, PROTOCOL, TaskConflict, TaskStore, task_handler
 from tailnet_agents.client import Client, validate_url
 from tailnet_agents.cli import select_peer
+from tailnet_agents.mcp import Backend, Server
 from tailnet_agents.registry import Registry, make_handler
 
 
@@ -74,6 +75,37 @@ class BridgeTests(unittest.TestCase):
                 if time.monotonic() > deadline:
                     self.fail('automatic registration did not finish')
                 time.sleep(0.01)
+            class LocalRegistryView:
+                def request(self, path):
+                    result = client.request(path)
+                    for agent in result['agents']:
+                        agent['endpoint'] = agent['endpoint'].replace('https:', 'http:')
+                    return result
+            local_agents = LocalRegistryView().request('/v1/agents')['agents']
+            backend = Backend(LocalRegistryView(), {a['id']: {'url': a['endpoint'], 'token': 'p'*32}
+                                                    for a in local_agents})
+            mcp = Server(backend)
+            mcp.handle({'jsonrpc': '2.0', 'id': 1, 'method': 'initialize',
+                        'params': {'protocolVersion': '2025-11-25', 'capabilities': {},
+                                   'clientInfo': {'name': 'integration', 'version': '1'}}})
+            mcp.handle({'jsonrpc': '2.0', 'method': 'notifications/initialized'})
+            def call_tool(name, args):
+                return mcp.handle({'jsonrpc': '2.0', 'id': 2, 'method': 'tools/call',
+                                   'params': {'name': name, 'arguments': args}})['result']
+            self.assertEqual(len(call_tool('discover_agents', {})['structuredContent']['agents']), 2)
+            submitted = call_tool('delegate_task', {'agent_id': 'b', 'message': 'MCP hello',
+                                                    'idempotency_key': 'mcp-1'})
+            self.assertFalse(submitted['isError'])
+            task_id = submitted['structuredContent']['id']
+            deadline = time.monotonic() + 3
+            while True:
+                result = call_tool('get_task_result', {'agent_id': 'b', 'task_id': task_id})
+                self.assertFalse(result['isError'])
+                if result['structuredContent']['status'] == 'completed':
+                    break
+                if time.monotonic() > deadline:
+                    self.fail('MCP task did not complete')
+            self.assertEqual(result['structuredContent']['result'], 'Echo: MCP hello')
             for agent_id in ['a', 'b']:
                 with self.assertRaises(ValueError):
                     select_peer(client, agent_id, ['unexpected-host'])
