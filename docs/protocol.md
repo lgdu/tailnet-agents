@@ -65,3 +65,9 @@ Only the Echo adapter is implemented. A2A and product execution remain planned.
 [Identity primitives](identity.md) implement scoped signed grants and possession
 proofs offline. They do not change the registry/task API above; bearer
 authentication remains in place until an explicit transport integration revision.
+
+## Verified directory library integration (v0.12)
+
+[VerifiedDirectory](verified-directory.md) enforces signed admission for its
+in-process registration path. It does not replace or expose the HTTP endpoints
+above. Network admission and verified read authorization remain future work.

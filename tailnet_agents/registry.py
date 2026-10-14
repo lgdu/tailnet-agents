@@ -36,7 +36,8 @@ class Registry:
                 return owner
         raise PermissionError("invalid credential")
 
-    def register(self, owner, record):
+    @staticmethod
+    def normalize_record(record):
         agent_id = record.get("id", "")
         if not isinstance(agent_id, str) or not re.fullmatch(r"[a-zA-Z0-9_.-]{1,128}", agent_id):
             raise ValueError("invalid id")
@@ -59,6 +60,11 @@ class Registry:
             raise ValueError("invalid name or protocol")
         metadata = {"id": agent_id, "name": name, "endpoint": endpoint,
                     "protocol": protocol, "skills": skills, "ttl_seconds": ttl}
+        return metadata
+
+    def register(self, owner, record):
+        metadata = self.normalize_record(record)
+        agent_id, ttl = metadata["id"], metadata["ttl_seconds"]
         with self.lock, self.db:
             self.db.execute("BEGIN IMMEDIATE")
             existing = self.db.execute("SELECT owner FROM agents WHERE id = ?", (agent_id,)).fetchone()

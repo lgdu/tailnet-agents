@@ -1,4 +1,4 @@
-# Implementation status — v0.11
+# Implementation status — v0.12
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -10,7 +10,8 @@ its future requirements must not be read as implemented security guarantees.
 | MCP | Local tools subset | Real client interoperability verification |
 | Human UI | Configured people/roles, explicit groups, private scopes, paging/polling | Browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
-| Agent identity | Optional Ed25519 keys, scoped grants and possession proofs | Integrate verifier with group engine and transport |
+| Agent identity | Optional Ed25519 keys, scoped grants and possession proofs | Signed group policy and transport integration |
+| Verified directory | In-process credential enforcement and durable signed revocation | Network routes, read authorization, verified channels |
 | Mesh | State simulator only | Cryptographic admission, LAN/seed/tailnet providers |
 | Product agents | None | OpenClaw/Claude Code/Codex/Qoder/Grok interface validation |
 
@@ -18,8 +19,9 @@ New groups are human-created. Agent restart recovery retains an existing group
 ID and valid qualification; failure to discover peers must not create a new group.
 All-node downtime is sleep, not destruction. Local UI dissolution retains history.
 
-UI human membership and cryptographic Agent credentials are separate components
-at present. The mesh simulator's static IDs are not cryptographic identities.
+UI human membership and cryptographic Agent credentials remain separate. The
+verified directory integrates credentials into a library registration path, but
+existing registry/Bridge HTTP routes have not changed authentication. The mesh simulator's static IDs are not cryptographic identities.
 The UI's three Echo participants are not real authorized network agents.
 
 Verification: local core/identity tests, HTTP integration tests, simulated group

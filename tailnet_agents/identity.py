@@ -138,9 +138,12 @@ def verify_grant(token,owner_key,group_id,permission='join',*,now=None,revoked=(
     return grant
 
 
-def prove_possession(agent_key,grant_token,nonce,audience):
-    return sign(agent_key,{'sub':identity_id(agent_key.public_key()),'nonce':nonce,'aud':audience,
-                           'grant_hash':hashlib.sha256(grant_token.encode()).hexdigest()},PROOF_TYPE)
+def prove_possession(agent_key,grant_token,nonce,audience,context=None):
+    payload={'sub':identity_id(agent_key.public_key()),'nonce':nonce,'aud':audience,
+             'grant_hash':hashlib.sha256(grant_token.encode()).hexdigest()}
+    if context is not None:
+        payload['context']=context
+    return sign(agent_key,payload,PROOF_TYPE)
 
 
 class Admission:
@@ -154,25 +157,30 @@ class Admission:
         self.clock,self.revoked=clock,set(revoked)
         self.challenges={}
 
-    def challenge(self):
+    def challenge(self,context=None):
         now=self.clock()
-        self.challenges={n:exp for n,exp in self.challenges.items() if exp>now}
+        self.challenges={n:item for n,item in self.challenges.items() if item[0]>now}
         if len(self.challenges)>=256:
             raise AdmissionError('challenge capacity reached')
         nonce=secrets.token_urlsafe(32)
-        self.challenges[nonce]=now+30
+        self.challenges[nonce]=(now+30,context)
         return nonce
 
-    def admit(self,grant_token,subject_key,proof,nonce,permission='join'):
-        expiry=self.challenges.get(nonce)
-        if expiry is None or expiry<=self.clock():
+    def admit(self,grant_token,subject_key,proof,nonce,permission='join',context=None):
+        challenge=self.challenges.get(nonce)
+        if challenge is None or challenge[0]<=self.clock():
             raise AdmissionError('unknown, expired or consumed challenge')
+        if challenge[1]!=context:
+            raise AdmissionError('challenge context mismatch')
         grant=verify_grant(grant_token,self.owner_key,self.group_id,permission,now=self.clock(),revoked=self.revoked)
         if grant['sub']!=identity_id(subject_key):
             raise AdmissionError('wrong subject key')
         claim=verify(proof,subject_key,PROOF_TYPE)
-        if claim!={'sub':grant['sub'],'nonce':nonce,'aud':self.audience,
-                    'grant_hash':hashlib.sha256(grant_token.encode()).hexdigest()}:
+        expected={'sub':grant['sub'],'nonce':nonce,'aud':self.audience,
+                  'grant_hash':hashlib.sha256(grant_token.encode()).hexdigest()}
+        if context is not None:
+            expected['context']=context
+        if claim!=expected:
             raise AdmissionError('proof scope mismatch')
         del self.challenges[nonce]
         return grant

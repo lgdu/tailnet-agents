@@ -1,7 +1,9 @@
-# Agent identity and admission primitives (v0.11)
+# Agent identity and admission primitives (v0.12)
 
-This optional library component uses Ed25519 through `cryptography`. It is **not
-wired into** the registry, Bridge, UI or mesh simulator. Existing services still
+This optional library component uses Ed25519 through `cryptography`.
+[VerifiedDirectory](verified-directory.md) integrates it with registration through
+an in-process API. It is not wired into existing registry HTTP routes, Bridge,
+UI or mesh simulator. Existing services still
 use their documented bearer-token authentication. No new network admission
 endpoint or human grant-signing UI is provided yet.
 
@@ -60,7 +62,8 @@ permission is supported. Current allowlist: `join`, `discover`, `chat.group`,
 
 The verifier checks issuer, group, requested permission, expiry and the supplied
 revocation set. Possession proof binds the subject key to the credential hash,
-challenge nonce and verifier audience. Challenges expire in 30 seconds, are
+challenge nonce and verifier audience. An optional context digest binds
+application request content; VerifiedDirectory requires it for metadata integrity. Challenges expire in 30 seconds, are
 single-use on successful admission, and are limited to 256 live entries.
 Invalid claims, unsupported algorithms/types, duplicate JSON fields and
 noncanonical base64url are rejected.
@@ -73,8 +76,8 @@ noncanonical base64url are rejected.
 - `Admission` is single-threaded and in-memory. Wrap it with synchronization
   before using it in concurrent handlers. Restart drops outstanding challenges.
 - Revocation is a caller-supplied set of credential IDs. The caller must persist
-  and refresh it. No signed revocation distribution or immediate partition-wide
-  revocation exists yet. Tests do not imply that existing services enforce it.
+  and refresh it. VerifiedDirectory persists verified owner-signed revocations locally, but no
+  distributed propagation or immediate partition-wide revocation exists yet. Tests do not imply that existing services enforce it.
 - TLS/channel binding, relay-resistant network handshakes, admission rate limits,
   group policy signatures and dissolution proofs are still needed before exposing
   this over a network. A signed response alone does not authenticate a channel.

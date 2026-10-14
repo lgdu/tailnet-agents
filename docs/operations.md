@@ -78,3 +78,8 @@ leases are invalidated on startup and bridges must renew.
 - MCP: configured peers only, sequential calls and fixed network timeouts.
 - Runtime: Echo only; real tailnet deployment and product interoperability untested.
 - No role-based visibility, quotas, metrics exporter or HA failover yet.
+
+VerifiedDirectory uses an additional, separate database with pinned authority and
+credential records. Back up it consistently using SQLite backup, and protect it
+as credential material. It is currently a library API; ordinary registry startup
+does not enable its checks. See [verified-directory](verified-directory.md).

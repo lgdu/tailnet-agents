@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.11 prototype.** Working components are listed below. The network mesh and
+**v0.12 prototype.** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -17,7 +17,8 @@ action; agents may only discover or restore previously authorized groups.
 | Human UI | Explicit groups, human roles, scoped group/private chat, polling, pagination | Loopback-only, simulated agents, no E2E encryption |
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
 | Mesh simulator | Restart, partition reconciliation, stale claims, dissolution rules | Deterministic state model, no network or cryptographic admission |
-| Agent identity | Ed25519 identities, signed scoped grants, expiry/revocation checks, possession proof | Optional component; not connected to UI, bridge or simulator |
+| Agent identity | Ed25519 identities, signed scoped grants, expiry/revocation checks, possession proof | Optional component; no network admission endpoint |
+| Verified directory | Proof-based registration, metadata binding, durable signed revocation | In-process API; separate from existing HTTP services and UI |
 
 Different product agents will connect through adapters. Grok model API access
 and Grok's product Agent are separate integration targets. No claim is made that
@@ -65,6 +66,8 @@ python3 -m pip install -e '.[identity]'
 The optional identity component uses `cryptography`; other services retain
 standard-library runtime dependencies. [Identity guide](docs/identity.md)
 describes scoped signing and admission examples, including current limits.
+[Verified directory](docs/verified-directory.md) connects these checks to registration
+through a trusted in-process API.
 
 ## Verification
 
