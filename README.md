@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.20 prototype.** Working components are listed below. The network mesh and
+**v0.21 prototype (unreleased).** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -14,14 +14,14 @@ action; agents may only discover or restore previously authorized groups.
 | Directory | SQLite registration, leases, ownership, removal, status | Central registry; not distributed mesh |
 | Bridge | Automatic renewal, discovery CLI, authenticated Echo tasks | Custom task API; task state is in memory |
 | MCP | Stdio discovery, delegation, result tools | 2025 handshake family; real client compatibility unvalidated |
-| Human UI | Explicit groups, scoped chat, opt-in owner-signed creation/approval/removal/renewal/dissolution and policy export | Trusted loopback gateway; manual credential provisioning and policy delivery; simulated agents |
+| Human UI | Explicit groups, scoped chat, opt-in owner-signed creation/approval/removal/renewal/dissolution, policy export and explicit recipient delivery | Trusted loopback gateway; manual credential provisioning; simulated agents |
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
 | Policy replication | Ordered HTTP/TLS source failover, independent revocation cursors, periodic pull and status | Configured sources only; no quorum, presence/chat/task replication |
 | Candidate discovery | Signed UDP multicast with ingress filtering, HTTP/TLS seeds, sticky conflicts, synchronized policy/revocation checks | Existing directory/key required; Linux LAN receiver; candidates only, no auto-enrollment or policy-source promotion |
 | Mesh simulator | Restart, partition reconciliation, stale claims, dissolution rules | Deterministic state model, no network or cryptographic admission |
-| Signed group policy | Owner-signed snapshots, bounded signed age, approved grant IDs, rollback rejection, terminal dissolution | Opt-in verified admission; owner must renew policy, explicit UI signing/export; manual grant issuance and policy delivery |
+| Signed group policy | Owner-signed snapshots, bounded signed age, approved grant IDs, rollback rejection, terminal dissolution | Opt-in verified admission; owner must renew policy, explicit UI signing/delivery; manual grant issuance |
 | Agent identity | Ed25519 identities, signed scoped grants, expiry/revocation checks, possession proof | Verified admission integrated; human policy approval integrated; runtime/mesh integration pending |
-| Verified directory | Proof-based registration, metadata binding, durable signed revocation | TLS service with optional durable signed member policy; manual UI policy handoff; mesh integration pending |
+| Verified directory | Proof-based registration, metadata binding, durable signed revocation | TLS service with optional durable signed member policy; human-confirmed policy delivery; mesh integration pending |
 
 Different product agents will connect through adapters. Grok model API access
 and Grok's product Agent are separate integration targets. No claim is made that
@@ -32,7 +32,7 @@ OpenClaw, Claude Code, Codex or Qoder already interoperate through this project.
 ### Current prototype / 当前已实现
 
 Chat and task runtimes remain separate. The opt-in human signing gateway exports
-policies for explicit application to verified directories. Solid arrows show
+policies for manual application or human-confirmed delivery to configured directories. Solid arrows show
 implemented calls and the labeled human-operated policy handoff.
 
 ```mermaid
@@ -46,6 +46,8 @@ flowchart TB
     UI --> SIGN["Local owner signer / 既有密钥、指定人类管理员"]
     SIGN --> DB
     SIGN --> EXPORT["Download signed policy / 明确导出"]
+    UI --> DELIVERY["Explicit recipient + snapshot consent / 接收方与快照确认"]
+    DB --> DELIVERY
   end
   subgraph TASK["Directory and tasks / 目录与任务"]
     direction TB
@@ -62,6 +64,7 @@ flowchart TB
     SYNC -->|"Verify same owner and group / 验证与持久化"| VD
     EXPORT --> APPLY["Human-operated client / 手动应用到已配置目录"]
     APPLY -->|"Read token + signed policy"| API
+    DELIVERY -->|"Configured TLS + signed readback / 明确送达与确认"| API
     API --> VD["Verified directory / 身份与授权校验"]
     VD --> GP["Signed group policy / 成员、凭证、解散"]
     GP --> AGE["Signed age gate / 过期拒绝准入与发现"]
@@ -213,12 +216,36 @@ The UI can create an empty signed group, preview and approve pre-issued scoped
 grants, remove identities, explicitly renew policy and sign terminal dissolution.
 Startup restores the same key/group/policy without creating or renewing anything.
 
-Download snapshots and explicitly apply them to a configured verified directory;
-normal policy replication can then carry them over LAN/Tailscale. The UI does
-not issue grants, contact discovered endpoints or register Agents. Human chat
+Download snapshots for manual application, or explicitly configure recipients
+and preview/confirm delivery in the UI. Signed readback and a timestamped age
+receipt verify copying; normal replication can then carry accepted policies over
+LAN/Tailscale. The UI does not issue grants, contact discovered endpoints or register Agents. Human chat
 membership and the three Echo participants remain separate from signed Agent
 membership. See [human policy signing](docs/human-policy.md) for key handling,
 manual delivery, retry semantics and remaining work.
+
+## Explicit policy delivery (v0.21, unreleased)
+
+Set `--policy-targets-file` on the trusted human gateway to enable up to eight
+configured origins/groups with separate read credentials from environment names.
+The admin previews the exact recipient and snapshot, then explicitly confirms.
+The gateway checks signatures, reads back the exact copy and records recipient
+revision, age bound and check time. A historical receipt is not live membership
+or execution authority. Startup, discovery, approval and previews send nothing.
+See [policy delivery](docs/policy-delivery.md) for consent, retries and limitations.
+
+## Multiple Agents on one machine
+
+One machine can host multiple independently approved Agents on LAN or Tailscale.
+Each Agent keeps its own persistent private key, scoped grant and original group
+reference. Membership is keyed by the Agent's public key, never its IP, hostname,
+Tailscale device or display name. Give listeners distinct ports (or configure an
+explicit routing gateway); sharing a host does not approve another Agent.
+Removal/revocation targets the selected identity/credential, not every Agent on
+the machine. Reusing one private key represents the same Agent and renews that
+identity; use separate keys for separate Agents. Restart loads each original key
+instead of generating replacements. These paths currently use simulated identities;
+real product adapters and runtime enrollment remain future work.
 
 ## Verification
 
@@ -232,8 +259,8 @@ are explicitly skipped. CI runs both core and identity installations. The new si
 visual/accessibility coverage and real-agent compatibility remain outstanding.
 The dedicated CI browser job also delays policy reads and checks that download
 never uses a pre-mutation snapshot; failed refreshes keep exports disabled.
-v0.20 includes 179 tests: the 155-test v0.19 baseline plus 24 human-policy/core
-checks. Existing discovery coverage includes signed/expired/foreign records, credential isolation, conflicts,
+v0.21 includes 208 tests: the 179-test v0.20 baseline plus 24 policy-delivery
+and five same-machine multi-Agent checks. Existing discovery coverage includes signed/expired/foreign records, credential isolation, conflicts,
 real multicast and HTTP/TLS, ingress filtering, learned revocations, read-only
 state/lease preservation, mid-scan updates, service shutdown and restart recovery.
 
@@ -245,13 +272,13 @@ state/lease preservation, mid-scan updates, service shutdown and restart recover
 - [Current status and next work](docs/status.md)
 - [Prioritized remaining work](docs/roadmap.md)
 
-Next: complete credential issuance and explicit policy-delivery UX,
+Next: complete credential issuance/provisioning UX,
 add signed presence propagation and runtime enrollment, connect verified
 identity and candidate discovery to the mesh engine, broaden browser QA,
 and then add real product adapters and durable tasks.
 The working registry mode remains available during mesh development.
 v0.20.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.20.0)
-with a matching version tag. Release checks and tag synchronization are described
+with a matching version tag. v0.21.0 is prepared in this PR, not published or tagged. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 
 No open-source license has been selected yet. Public release requires an owner

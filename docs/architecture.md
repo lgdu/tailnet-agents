@@ -37,6 +37,26 @@ Human principals and agents are distinct. A restarted process retains the agent
 identity and group instance, but starts a fresh runtime incarnation. IP addresses,
 DNS names and display names are locators, not identity. Private keys never gossip.
 
+Multiple Agents on one machine are independent subjects, including when they
+share an IP, hostname, Tailscale device or display name. Each uses its own durable
+key and scoped grants, with independent human approval, removal and revocation.
+Separate listeners use different ports; an explicitly configured gateway can
+route multiple identities through one origin. Neither admission nor candidate
+deduplication uses the host as a uniqueness constraint. Reusing the same key
+represents the same Agent, not another member; conflicting locators for that
+subject remain subject to clone/conflict handling. Runtime fencing is future work.
+
+```mermaid
+flowchart LR
+  MACHINE["One machine / Shared LAN IP or Tailscale device"] --> A["Agent A / Persisted key A + scoped grant A / Port 8901"]
+  MACHINE --> B["Agent B / Persisted key B + scoped grant B / Port 8902"]
+  HUMAN["Human creates group and separately approves each subject"] --> POLICY["Original group / Signed membership by public-key identity"]
+  A --> VERIFY["Independent grant + possession + fresh policy checks"]
+  B --> VERIFY
+  POLICY --> VERIFY
+  VERIFY --> MEMBERS["Two distinct Agent IDs / No machine-wide permission"]
+```
+
 ## Components
 
 1. Discovery providers: opt-in IPv4 multicast and explicit HTTP/TLS seeds produce
@@ -240,15 +260,51 @@ refreshes invalidate the previous cached export. Download-ready feedback and
 exports stay blocked until a read reaches the acknowledged revision. Failed
 post-commit reads retry without repeating the mutation; older overlapping reads
 cannot overwrite the newest refresh. Dissolution also waits for its terminal
-snapshot before enabling export. The UI does not contact
-directories or discovered endpoints; a human explicitly applies the export to a
+snapshot before enabling export. Signing and export alone do not contact
+directories. A human explicitly applies the export or confirms delivery to a
 configured recipient, which can use existing LAN/Tailscale replication. Approval
 has no remote effect until delivery, and never registers an Agent or proves live
 possession. Receivers still apply expiry and learned revocations. Credential
-issuance/provisioning, receiver freshness feedback and policy-delivery UX remain
-manual. Owner rotation/recovery, hardware keys, remote human sessions and runtime
+issuance/provisioning remains manual. Owner rotation/recovery, hardware keys, remote human sessions and runtime
 enrollment are future work. Local audit/backups are not tamper-proof. See
 [human policy signing](human-policy.md) for recovery and retry limits.
+
+### Explicit policy delivery (v0.21, unreleased)
+
+```mermaid
+flowchart TD
+  CONFIG["Trusted startup config / Existing group + fixed recipient + read token"] --> PREVIEW["Local preview / No remote requests"]
+  PREVIEW --> HUMAN["Human confirms URL, revision and policy hash"]
+  HUMAN --> GUARD["Check current snapshot + recipient fingerprint / Persist intent"]
+  GUARD --> REMOTE["Read and verify recipient's signed policy"]
+  REMOTE -->|"Older or empty"| POST["Send exact signed snapshot"]
+  REMOTE -->|"Identical"| READ["Read back signed snapshot + age limit"]
+  POST --> READ
+  READ --> CHECK["Verify owner, group, hash and current local consent"]
+  CHECK --> RECEIPT["Persist historical receipt / No enrollment"]
+  GUARD -->|"Snapshot or recipient changed"| CONFLICT["Conflict / New human preview required"]
+  CHECK -->|"Local policy changed during I/O"| CONFLICT
+```
+
+Recipient configuration is optional, fixed at startup and bound to an existing
+human-created signed group. Discovery cannot add recipients. Opening the UI,
+signing, previewing and restarting never contact them. Delivery does not sign,
+renew, issue grants or register Agents. TLS, pinned owner/group verification,
+direct connections and redirect rejection apply to LAN and Tailscale recipients.
+
+The SQLite intent and original receipt survive restart. An unknown attempt can
+be retried explicitly; an identical remote snapshot is read back without another
+POST. Completed identical requests return their original timestamped receipt.
+Receipts report the receiver's age bound and conservatively evaluated state at
+that time, not continuing freshness, live membership or possession. Expired
+snapshots can be copied without renewal. Higher, conflicting or terminal remote
+policies are not overwritten.
+
+Network I/O does not hold the local policy database lock. Local changes during
+delivery invalidate the final acknowledgment, though the older copy may already
+have arrived; a human must preview and deliver the latest revision. There is no
+distributed atomic update, background retry or automatic revocation broadcast.
+See [policy delivery](policy-delivery.md).
 
 ## Human interaction
 
@@ -306,7 +362,9 @@ necessary; network membership never grants filesystem or secret access.
   multicast and configured HTTP/TLS seeds; no automatic enrollment.
 - v0.20: opt-in local human policy signing and export, grant preview/
   approval, removal, manual renewal and terminal dissolution with transactional audit.
-- Next: credential issuance, explicit delivery UX and candidate runtime enrollment.
+- v0.21 (unreleased): explicit configured-recipient delivery, signed readback,
+  historical age receipts and restart-safe human retry.
+- Next: credential issuance UX and candidate runtime enrollment.
 - Next: mesh transport with cryptographic admission and signed presence.
 - Then: validated agent adapters, durable tasks and real LAN/tailnet trials.
 
@@ -340,11 +398,12 @@ The current chat demo requires human creation for fresh groups; existing legacy
 group history is preserved on upgrade. The simulator receives its policy from
 the test harness. Runtime network group formation remains future work.
 v0.9 implements a local human group-creation form and database membership checks.
-v0.20 adds optional human policy signing/export; runtime mesh integration remains
+v0.20 adds optional human policy signing/export and v0.21 adds explicit delivery;
+runtime mesh integration remains
 future work. The old automatic-creation proposal is superseded.
 
 Current implementation boundaries are tracked in [status.md](status.md); signed group
-policy issuance from the human UI is opt-in with explicit export/manual delivery;
+policy issuance from the human UI is opt-in with explicit export or confirmed delivery;
 full lifecycle runtime replication remains future work.
 v0.15 implements durable owner-signed group snapshots and opt-in enforcement
 in verified admission, including member removal and terminal dissolution.

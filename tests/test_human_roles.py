@@ -76,7 +76,8 @@ class HumanRoleTests(unittest.TestCase):
         owner = self.clients['owner']
         self.assertEqual(owner.request('/api/policy-config'), {'enabled': False, 'can_sign': False})
         for path, body in [('/api/groups', {'name': 'No signer', 'humans': [], 'request_id': 'signed', 'signed_policy': True}),
-                           ('/api/policy-renew', {'group_id': 'legacy', 'expected_revision': 1, 'request_id': 'renew'})]:
+                           ('/api/policy-renew', {'group_id': 'legacy', 'expected_revision': 1, 'request_id': 'renew'}),
+                           ('/api/policy-deliver', {'group_id': 'legacy', 'request_id': 'deliver'})]:
             with self.subTest(path=path), self.assertRaises(HTTPError) as error: owner.request(path, body)
             self.assertEqual(error.exception.code, 403)
             error.exception.close()

@@ -14,6 +14,9 @@ from tailnet_agents.chat import ChatStore
 from tailnet_agents.ui import handler
 from tailnet_agents.policy_admin import PolicyAuthority
 from tailnet_agents.identity import issue_grant
+from tailnet_agents.policy_delivery import PolicyTarget
+from tailnet_agents.verified_directory import VerifiedDirectory
+from tailnet_agents.admission_server import handler as admission_handler
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--browser', default=shutil.which('chromium') or shutil.which('google-chrome'), help='existing Chromium/Chrome binary; otherwise Playwright installation')
@@ -29,6 +32,7 @@ with tempfile.TemporaryDirectory() as folder:
     server = ThreadingHTTPServer(('127.0.0.1', 0), handler(store, {'owner': {'role': 'admin', 'token': 'b'*32}}))
     worker = threading.Thread(target=server.serve_forever)
     worker.start()
+    recipient_server = recipient_worker = recipient = None
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(executable_path=args.browser, headless=True)
@@ -47,8 +51,27 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#group-form button[type=submit]').click()
             expect(page.locator('#group-dialog')).not_to_be_visible()
             group=store.groups('owner')[0]['id']
+            recipient=VerifiedDirectory(owner.public_key(),group,'browser-directory',require_policy=True)
+            network=[]
+            class Recipient(admission_handler(recipient,'d'*32)):
+                def do_GET(inner):
+                    network.append(('GET',inner.path));super().do_GET()
+                def do_POST(inner):
+                    network.append(('POST',inner.path));super().do_POST()
+            recipient_server=ThreadingHTTPServer(('127.0.0.1',0),Recipient)
+            recipient_worker=threading.Thread(target=recipient_server.serve_forever)
+            recipient_worker.start()
+            target=PolicyTarget('browser-recipient',f'http://127.0.0.1:{recipient_server.server_port}',group,'d'*32)
+            store.configure_policy_targets([target])
             page.locator('#manage-group').click()
             expect(page.locator('#policy-status')).to_contain_text('第 1 版')
+            page.locator('#delivery-preview').click()
+            expect(page.locator('#delivery-consent')).to_contain_text(target.url)
+            assert network==[]  # Opening the UI and previewing never contact the recipient.
+            assert recipient.export_policy()['policy'] is None
+            page.locator('#delivery-confirm').click()
+            expect(page.locator('#delivery-error')).to_contain_text('接收第 1 版')
+            assert recipient.export_policy()['policy']==store.policy_export('owner',group)['policy']
             grant=issue_grant(owner, agent.public_key(), group, ['join','discover'])
             held_reads=[]
             def hold_policy_read(route):
@@ -105,6 +128,24 @@ with tempfile.TemporaryDirectory() as folder:
             with page.expect_download() as transfer:
                 page.locator('#policy-export').click()
             assert Path(transfer.value.path()).read_text().strip()==store.policy_export('owner',group)['policy']
+            # Lose the UI acknowledgment after the recipient and receipt have committed.
+            delivery_dropped=[False]
+            def lose_delivery_ack(route):
+                if not delivery_dropped[0]:
+                    delivery_dropped[0]=True
+                    route.fetch();route.abort()
+                else: route.continue_()
+            page.route('**/api/policy-deliver',lose_delivery_ack)
+            page.locator('#delivery-preview').click()
+            expect(page.locator('#delivery-consent')).to_contain_text('第 2 版')
+            page.locator('#delivery-confirm').click()
+            expect(page.locator('#delivery-retry')).to_be_enabled()
+            posts=network.count(('POST','/v1/policies'))
+            assert recipient.export_policy()['policy']==store.policy_export('owner',group)['policy']
+            page.locator('#delivery-retry').click()
+            expect(page.locator('#delivery-error')).to_contain_text('接收第 2 版')
+            assert network.count(('POST','/v1/policies'))==posts
+            page.unroute('**/api/policy-deliver',lose_delivery_ack)
             # Lose the response AFTER the server commits. Retry must not sign twice.
             async_dropped=[False]
             def lose_response(route):
@@ -131,6 +172,12 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('#policy-status')).to_contain_text('已签名终止')
             assert store.policy_export('owner',group)['claims']['revision']==6
             expect(page.locator('#policy-renew')).to_be_disabled()
+            page.locator('#delivery-preview').click()
+            expect(page.locator('#delivery-consent')).to_contain_text('dissolved')
+            page.locator('#delivery-confirm').click()
+            expect(page.locator('#delivery-error')).to_contain_text('终止策略')
+            assert recipient.policy_status()['state']=='dissolved'
+            assert 'd'*32 not in page.content()
             if args.artifacts:
                 page.screenshot(path=str(args.artifacts/'policy-desktop.png'))
             page.set_viewport_size({'width':375,'height':812})
@@ -141,6 +188,8 @@ with tempfile.TemporaryDirectory() as folder:
                 page.screenshot(path=str(args.artifacts/'policy-mobile.png'))
             assert not errors, errors
             browser.close()
-            print('Browser PASS: creation, approval, renewal, removal, dissolution; delayed reads block exports/success hints, failed reads retry without POST, downloads match latest server policy, lost-response retries sign once; no page errors.')
+            print('Browser PASS: signing, gated fresh exports, failed/lost response recovery; recipient preview sends no requests, explicit delivery reads back signed copies, lost delivery ACK retries without remote POST, terminal delivery succeeds; no page errors.')
     finally:
+        if recipient_server is not None:
+            recipient_server.shutdown();recipient_server.server_close();recipient_worker.join();recipient.close()
         server.shutdown(); server.server_close(); worker.join(); store.close()

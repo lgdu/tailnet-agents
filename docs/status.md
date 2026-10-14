@@ -1,4 +1,4 @@
-# Implementation status — v0.20
+# Implementation status — v0.21 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -8,11 +8,11 @@ its future requirements must not be read as implemented security guarantees.
 | Registry | Durable central directory | Distributed discovery/anti-entropy |
 | Task transport | Echo, bearer authentication, in-memory deduplication | Durable state and real adapters |
 | MCP | Local tools subset | Real client interoperability verification |
-| Human UI | Local roles/chat and opt-in signed policy creation/approval/removal/renewal/dissolution/export | Credential issuance/delivery UX, broader browser QA, durable outbox, sessions |
+| Human UI | Local roles/chat and opt-in signed policy creation/approval/removal/renewal/dissolution/export and explicit recipient delivery | Credential issuance/provisioning UX, broader browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
 | Agent identity | Optional Ed25519 keys, scoped grants and possession proofs | Manual grant provisioning, owner rotation and key renewal |
-| Verified directory | Library + HTTP/TLS admission, read token, durable signed revocation | Real LAN/tailnet trial, explicit UI-to-directory delivery UX and mesh replication |
-| Signed group policy | Durable snapshots, bounded signed age, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | Directory freshness feedback, explicit delivery and runtime enrollment |
+| Verified directory | Library + HTTP/TLS admission, read token, durable signed revocation | Real LAN/tailnet trial, physical transport trials and mesh replication |
+| Signed group policy | Durable snapshots, bounded signed age, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | Live receiver monitoring and runtime enrollment |
 | Policy replication | Ordered source failover, independent revocation cursors, HTTP/TLS pull and read-protected status | Multi-source reconciliation/quorum and explicit source enrollment |
 | Candidate discovery | Opt-in signed IPv4 multicast, credential-free HTTP/TLS seeds, local-policy checks, expiry and identity merging | Physical LAN/tailnet trials, mDNS/peer enumeration and explicit runtime enrollment |
 | Mesh | State simulator; candidate discovery is separate | Integrated cryptographic admission, signed presence and network group engine |
@@ -28,7 +28,7 @@ approve pre-issued grants, remove identities, explicitly renew policy and sign
 terminal dissolution. A configured admin and the original private key/public pin
 are required, persisted and checked on restart. Private keys are never accepted
 or returned by HTTP. The default local UI works without the identity extra.
-Exported policies require explicit application to a configured verified directory;
+Policies require manual application or explicit preview/confirmation to a configured recipient;
 reading, polling and discovery neither renew nor deliver them. The three Echo
 participants remain unauthenticated chat simulations. Existing registry/Bridge
 HTTP authentication is unchanged; the mesh simulator's IDs are not cryptographic.
@@ -103,9 +103,27 @@ terminal dissolution; backend tests exercise real UI/directory HTTP and restart.
 Browser regressions defer policy reads after mutations, verify export stays
 disabled until the latest revision is read, and cover read failure/retry without
 repeating an acknowledged mutation. A dedicated CI browser job runs these checks.
-Credential issuance/provisioning, automatic delivery, remote sessions, owner
+Credential issuance/provisioning, background delivery, remote sessions, owner
 recovery/rotation and full runtime enrollment remain unimplemented. See
 [human policy signing](human-policy.md). v0.20.0 is published as a GitHub prerelease with a matching version tag.
+
+v0.21 (unreleased) adds explicit recipient configuration and human-confirmed policy
+delivery with signed readback and historical revision/freshness receipts. Recipient
+URLs/groups/CA and credential environment names are configured only on the trusted
+human machine. Startup, preview, policy signing and discovery do not contact them.
+A lost response can recover from persistent intent/history without renewing or
+registering anything. Local policy changes proceed during network I/O; a changed
+snapshot returns conflict, and old copies may already have arrived. There is no
+atomic multi-recipient revocation or automatic replacement.
+Multiple Agents on one host remain independent public-key identities, with
+separate human approval, leases and removal/revocation. Same-host discovery does
+not merge subjects. Restart reloads each original key and group; shared IP,
+hostname, display name or Tailscale device is never a membership uniqueness key.
+The suite now contains 208 tests (24 new delivery checks and five same-machine
+multi-Agent checks), plus Chromium UI delivery
+and lost-acknowledgment regression in CI. Real Agents and physical LAN/tailnet/WAN
+remain unvalidated. Grant issuance UX remains manual. See
+[policy delivery](policy-delivery.md). v0.21.0 is not yet published or tagged.
 
 ## Documentation maintenance rule
 

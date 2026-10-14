@@ -1,4 +1,4 @@
-# Human UI v0.20: local chat and opt-in policy signing
+# Human UI v0.21 (unreleased): signing and explicit policy delivery
 
 The UI is a local demonstration of the interaction model. It does
 not integrate the mesh simulator, registry, MCP tools or real agent adapters.
@@ -189,12 +189,18 @@ solely because that person's old messages remain stored.
 
 Local human membership remains a UI ACL. For explicitly created signed groups,
 dissolution also commits a signed terminal policy; Agent removal uses a separate
-signed-policy action. Distribution requires explicit policy export/application.
+signed-policy action. Distribution requires explicit policy export/application
+or confirmed delivery to a recipient fixed by trusted startup configuration.
 No owner transfer or recovery is implemented: preserve the creator's identity,
 credentials/configuration and database backup. Lifecycle records are plaintext
 local audit data, not tamper-proof evidence against a database operator.
 
 The optional [signing workflow](human-policy.md) connects this UI to existing
 Agent grants and signed policies through explicit human actions. Grant creation,
-Agent runtime enrollment and automatic directory delivery remain separate. Human
+Agent runtime enrollment and background directory delivery remain separate. The
+optional [delivery workflow](policy-delivery.md) previews locally, requires human
+confirmation of the recipient and exact snapshot, and persists point-in-time
+receiver revision/age receipts. It never registers an Agent or renews policy.
+Recipient configuration is off by default; grant issuance still uses manual
+provisioning. Human
 role configuration and local group membership use the checks documented above. See [status](status.md) for the current integration boundary.

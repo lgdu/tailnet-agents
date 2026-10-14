@@ -1,5 +1,6 @@
 """Persistent multi-human chat demo with simulated agents, not a mesh chat service."""
 import json
+import hashlib
 import sqlite3
 import threading
 import time
@@ -9,8 +10,12 @@ from pathlib import Path
 AGENTS = {'moderator': 'Moderator', 'coder': 'Coder', 'researcher': 'Researcher'}
 
 
+class PolicyDeliveryError(ValueError):
+    """Remote acceptance is unconfirmed; do not expose transport exception details."""
+
+
 class ChatStore:
-    def __init__(self, database=':memory:', *, policy_authority=None):
+    def __init__(self, database=':memory:', *, policy_authority=None, policy_targets=()):
         if database != ':memory:':
             Path(database).parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.db = sqlite3.connect(database, check_same_thread=False)
@@ -60,6 +65,13 @@ class ChatStore:
             self.db.close()
             raise
         self.lock = threading.Lock()
+        self._delivery_lock = threading.Lock()
+        self.policy_targets = {}
+        try:
+            self.configure_policy_targets(policy_targets)
+        except Exception:
+            self.db.close()
+            raise
         self.online = set(AGENTS)
 
     def audit(self, group_id, actor, action, subject):
@@ -176,6 +188,107 @@ class ChatStore:
             self._require_policy_admin(actor, group_id)
             self._require_group(actor, group_id, active=True)
             return self.policy_authority.change(self.db, group_id, operation, payload)
+
+    def configure_policy_targets(self, targets):
+        targets = tuple(targets)
+        if len(targets) > 8:
+            raise ValueError('configure at most eight policy recipients')
+        with self.lock:
+            configured = {}
+            urls = set()
+            for target in targets:
+                if self.policy_authority is None or target.id in configured or target.url in urls:
+                    raise ValueError('invalid or duplicate policy recipient')
+                self._require_policy_admin(self.policy_authority.principal, target.group_id)
+                self.policy_authority.current(self.db, target.group_id)
+                configured[target.id] = target
+                urls.add(target.url)
+            self.policy_targets = configured
+
+    def policy_recipients(self, actor, group_id):
+        with self.lock:
+            self._require_policy_admin(actor, group_id)
+            self.policy_authority.current(self.db, group_id)
+            return {'targets': [target.public() for target in self.policy_targets.values() if target.group_id == group_id]}
+
+    def _delivery_snapshot(self, actor, group_id, payload):
+        self._require_policy_admin(actor, group_id)
+        if (type(payload.get('expected_revision')) is not int or
+                not isinstance(payload.get('policy_hash'), str) or len(payload['policy_hash']) != 64 or
+                any(c not in '0123456789abcdef' for c in payload['policy_hash'])):
+            raise ValueError('valid expected revision and policy hash required')
+        target_id = payload.get('target_id')
+        if not isinstance(target_id, str) or target_id not in self.policy_targets:
+            raise ValueError('select a configured policy recipient')
+        target = self.policy_targets[target_id]
+        if target.group_id != group_id:
+            raise PermissionError('recipient group mismatch')
+        token, claims = self.policy_authority.current(self.db, group_id)
+        if (type(payload.get('expected_revision')) is not int or payload['expected_revision'] != claims['revision'] or
+                payload.get('policy_hash') != hashlib.sha256(token.encode()).hexdigest()):
+            raise FileExistsError('策略已变化，请刷新并重新预览；旧快照可能已送达。')
+        if 'target_fingerprint' in payload and payload['target_fingerprint'] != target.fingerprint:
+            raise FileExistsError('接收方配置已变化，请重新预览。')
+        return target, token, claims
+
+    def policy_delivery_preview(self, actor, group_id, payload):
+        if set(payload) != {'target_id', 'expected_revision', 'policy_hash'}:
+            raise ValueError('invalid delivery preview fields')
+        with self.lock:
+            target, _, claims = self._delivery_snapshot(actor, group_id, payload)
+            return {'target': target.public(), 'group_id': group_id, 'owner': claims['owner'],
+                    'revision': claims['revision'], 'policy_hash': payload['policy_hash'], 'state': claims['state']}
+
+    def policy_delivery_history(self, actor, group_id):
+        with self.lock:
+            self._require_policy_admin(actor, group_id)
+            rows = self.db.execute('SELECT request_id,target,revision,policy_hash,outcome,receipt,updated FROM ui_policy_deliveries WHERE group_id=? ORDER BY updated DESC,rowid DESC LIMIT 20', (group_id,)).fetchall()
+            return {'deliveries': [{'request_id': row[0], 'target': json.loads(row[1]), 'revision': row[2],
+                    'policy_hash': row[3], 'outcome': row[4], 'receipt': None if row[5] is None else json.loads(row[5]),
+                    'updated': row[6]} for row in rows]}
+
+    def _record_delivery(self, group_id, request_id, outcome):
+        with self.lock, self.db:
+            self.db.execute('UPDATE ui_policy_deliveries SET outcome=?,updated=? WHERE group_id=? AND request_id=?',
+                            (outcome, self.policy_authority.clock(), group_id, request_id))
+
+    def policy_deliver(self, actor, group_id, payload):
+        if (set(payload) != {'target_id', 'target_fingerprint', 'expected_revision', 'policy_hash', 'request_id'} or
+                not isinstance(payload['request_id'], str) or not 1 <= len(payload['request_id']) <= 128):
+            raise ValueError('invalid explicit delivery fields')
+        canonical = json.dumps(payload, sort_keys=True)
+        request_id = payload['request_id']
+        # Serialize deliveries, but allow local policy changes throughout network I/O.
+        with self._delivery_lock:
+            with self.lock, self.db:
+                self.db.execute('BEGIN IMMEDIATE')
+                target, token, claims = self._delivery_snapshot(actor, group_id, payload)
+                previous = self.db.execute('SELECT payload,outcome,receipt FROM ui_policy_deliveries WHERE group_id=? AND request_id=?', (group_id, request_id)).fetchone()
+                if previous:
+                    if previous[0] != canonical:
+                        raise FileExistsError('delivery request ID reused with changed payload')
+                    if previous[1] == 'acknowledged':
+                        return json.loads(previous[2])  # Historical receipt, with its original checked_at.
+                    self.db.execute("UPDATE ui_policy_deliveries SET outcome='pending',updated=? WHERE group_id=? AND request_id=?", (self.policy_authority.clock(), group_id, request_id))
+                else:
+                    self.db.execute('INSERT INTO ui_policy_deliveries VALUES(?,?,?,?,?,?,?,?,?)',
+                                    (group_id, request_id, canonical, json.dumps(target.public()), claims['revision'], payload['policy_hash'], 'pending', None, self.policy_authority.clock()))
+            def guard():
+                with self.lock:
+                    self._delivery_snapshot(actor, group_id, payload)
+            try:
+                receipt = target.deliver(token, self.policy_authority.key.public_key(), self.policy_authority.clock, guard)
+                with self.lock, self.db:
+                    self._delivery_snapshot(actor, group_id, payload)
+                    self.db.execute("UPDATE ui_policy_deliveries SET outcome='acknowledged',receipt=?,updated=? WHERE group_id=? AND request_id=?",
+                                    (json.dumps(receipt), self.policy_authority.clock(), group_id, request_id))
+                return receipt
+            except FileExistsError:
+                self._record_delivery(group_id, request_id, 'conflict')
+                raise
+            except (ValueError, OSError):
+                self._record_delivery(group_id, request_id, 'unknown')
+                raise PolicyDeliveryError('送达尚未确认；接收方可能已保存，请用同一请求重试。') from None
 
     @staticmethod
     def conversation(value):

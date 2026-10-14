@@ -1,4 +1,4 @@
-# Human policy signing — v0.20
+# Human policy signing — v0.21 (unreleased)
 
 The local UI can optionally act as a trusted human signing gateway. An explicitly
 configured admin can create a new signed group, preview and approve pre-issued
@@ -58,7 +58,8 @@ There is no implicit conversion or reassignment of their IDs.
 4. Download the current `.policy` file. Compare the displayed public pin with
    directory configuration, then explicitly deliver the file to the configured
    directory through its authenticated policy route or startup `--policy-file`.
-   The UI never contacts a directory, discovered URL or policy source.
+   Alternatively, explicitly configure and preview/confirm [recipient delivery](policy-delivery.md).
+   Signing alone does not contact a directory, discovered URL or policy source.
 5. Use **明确续期策略** before the directory's signed-age deadline. This explicitly
    signs a higher revision without changing members, even if the old policy has
    expired. Reading, polling, restart and discovery cannot renew policy. Grant
@@ -69,7 +70,7 @@ There is no implicit conversion or reassignment of their IDs.
    existing eight-ID limit and union the explicitly previewed permissions. To
    reduce a member's complete scope, remove it and approve a new restricted grant.
 7. Enter the exact group name to dissolve. Local read-only history, a terminal
-   signed policy and its audit record commit together. Download/apply that terminal
+   signed policy and its audit record commit together. Download/apply or explicitly deliver that terminal
    policy too. Repeated dissolution does not sign again; the group cannot reopen.
 
 For a running, already pinned directory, explicit application uses the existing
@@ -146,14 +147,14 @@ Install Playwright in a development environment, use an existing Chromium binary
 python3 scripts/check_policy_ui.py --browser /usr/bin/chromium
 ```
 
-It uses ephemeral synthetic keys, a temporary database and a random loopback port,
-then shuts its own server down. It is separate from unittest; GitHub Actions runs
+It uses ephemeral synthetic keys, temporary databases and random loopback UI/recipient
+ports, then shuts its own servers down. It is separate from unittest; GitHub Actions runs
 it as a dedicated `policy-ui` job using the runner's Chrome installation.
 `--artifacts /tmp/policy-ui-check` optionally saves desktop/narrow-screen images
 after credentials are cleared. Do not use production credentials for this check.
 
-No real product Agent is connected. Automated policy delivery, credential
-issuance UX, UI integration of directory freshness/revocation status, browser
+No real product Agent is connected. Background policy delivery, credential
+issuance UX, live directory/revocation monitoring, browser
 sessions, remote admin deployment, owner rotation/recovery, signed presence,
 mesh chat and durable tasks remain future work. Physical LAN/tailnet/WAN behavior
 is unvalidated; this change reuses the existing signed policy wire format.

@@ -84,6 +84,26 @@ credential records. Back up it consistently using SQLite backup, and protect it
 as credential material. It is currently a library API; ordinary registry startup
 does not enable its checks. See [verified-directory](verified-directory.md).
 
+## Multiple Agents on one host
+
+In verified mode, provision a separate identity file and scoped grant for each
+simulated Agent, for example `state/agent-a/agent.pem` and
+`state/agent-b/agent.pem`, both referencing the same existing human-created group.
+Explicitly approve each grant with the human signer and apply or confirm delivery
+of the resulting policy. Sharing a machine/IP/Tailscale device never grants the
+other Agent membership. Use separate listener ports such as 8901 and 8902, or an
+explicitly configured routing gateway. Display names may coincide.
+
+Invoke `tailnet-verified-register` for each Agent with its own `--agent-key`,
+`--grant-file` and `--record-file`, and the existing directory's `--url` and
+`--audience`. See [verified admission](admission-http.md) for the full command.
+On restart, reload each original key/grant and group reference; never regenerate
+the keys as a boot action. Directory restart clears leases and requires each
+Agent to prove possession again. Reusing a key renews that one identity rather
+than adding a second Agent. Removing or revoking one subject/credential leaves
+other authorized subjects on the same host intact. The UI's Echo actors remain
+simulated; automatic real product enrollment is not implemented.
+
 ## Policy-age operations and migration
 
 The separate verified service's policy mode now bounds active signed age to 300
@@ -152,7 +172,22 @@ revisions/retirements. Export current signed policies externally and do not run
 independent signers from diverged backups. This is not rollback-proof storage.
 
 New approval/removal/renewal/dissolution affects remote directories only after a
-human explicitly applies the latest exported policy. Recheck receiver revision
+human explicitly applies the latest exported policy or confirms delivery to a
+configured recipient. Recheck receiver revision
 and freshness via its existing authenticated routes; reads of the UI do not
 renew or deliver anything. Scope previews do not replace the receiver's learned
 revocation and possession checks. See [human policy signing](human-policy.md).
+
+v0.21 adds optional `--policy-targets-file` configuration on the signing UI.
+It refers only to already-created signed groups and fixed recipients; it never
+creates groups or sends on startup. Keep read tokens in the named environment
+variables and CA files locally. Preview, signing and UI refresh perform no remote
+I/O. Confirm the displayed URL, revision and policy hash before delivery.
+
+Backups now also contain delivery intents and historical acknowledgments. An
+unknown attempt may have reached the directory; retry the same request explicitly
+to read it back. A completed acknowledgment retains its original timestamp and
+does not establish current freshness. If local policy changed during delivery,
+the recipient may hold the older revision even when the UI reports conflict;
+preview and explicitly deliver the latest revision. There is no background retry
+or atomic multi-recipient revocation. See [policy delivery](policy-delivery.md).
