@@ -1,10 +1,11 @@
-# Verified admission HTTP — loopback prototype (v0.13)
+# Verified admission HTTP/TLS — prototype (v0.14)
 
-This separate optional service exposes VerifiedDirectory over HTTP. It binds
-**only** to `127.0.0.1`, validates local Host/Origin and logs no request bodies.
-It is not the existing bearer registry, not distributed mesh, and not integrated
-with the UI's human-created policy. Do not expose it via a proxy or change its
-network binding before TLS/receiver identity and group-policy validation exist.
+This separate optional service exposes VerifiedDirectory over HTTP/TLS. Default
+binding is loopback HTTP. Non-loopback binds require server certificate/key and
+explicit allowed host names; clients verify CA trust and hostname. See
+[TLS deployment](tls-deployment.md) for controlled LAN/tailnet trials.
+It is not the ordinary bearer registry, not distributed mesh and not integrated
+with the UI's signed human-created policy.
 
 ## Prepare keys and one scoped grant
 
@@ -103,5 +104,6 @@ and denies renewal, but does not stop tasks already dispatched elsewhere.
 Tests use two local simulated subjects over actual loopback HTTP. They cover
 registration, discovery, revocation, renewed stable IDs, nonce replay, foreign
 groups, metadata tampering, Origin checks, read authorization and body limits.
-TLS, cross-machine LAN/tailnet deployment, relay resistance, signed group policy,
-UI grant issuance and distributed revocation remain unimplemented/unvalidated.
+TLS transport is now tested on loopback, including CA and hostname validation.
+Actual cross-machine LAN/tailnet deployment, TLS channel binding, signed group
+policy, UI grant issuance and distributed revocation remain unvalidated or pending.

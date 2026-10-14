@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.13 prototype.** Working components are listed below. The network mesh and
+**v0.14 prototype.** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -18,7 +18,7 @@ action; agents may only discover or restore previously authorized groups.
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
 | Mesh simulator | Restart, partition reconciliation, stale claims, dissolution rules | Deterministic state model, no network or cryptographic admission |
 | Agent identity | Ed25519 identities, signed scoped grants, expiry/revocation checks, possession proof | Optional component; no signed group policy integration |
-| Verified directory | Proof-based registration, metadata binding, durable signed revocation | Separate library and loopback HTTP service, not mesh/UI integrated |
+| Verified directory | Proof-based registration, metadata binding, durable signed revocation | Separate library and TLS-capable service, not mesh/UI integrated |
 
 Different product agents will connect through adapters. Grok model API access
 and Grok's product Agent are separate integration targets. No claim is made that
@@ -68,7 +68,8 @@ standard-library runtime dependencies. [Identity guide](docs/identity.md)
 describes scoped signing and admission examples, including current limits.
 [Verified directory](docs/verified-directory.md) connects these checks to registration
 through a trusted in-process API. [Admission HTTP](docs/admission-http.md) adds
-a separate loopback service and registration client for local trials.
+a separate admission service and registration client. [TLS deployment](docs/tls-deployment.md)
+adds certificate-verified transport for controlled cross-machine trials.
 
 ## Verification
 

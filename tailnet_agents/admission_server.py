@@ -1,8 +1,11 @@
-"""Loopback-only HTTP transport for the optional verified directory."""
+"""TLS-capable HTTP transport for the optional verified directory."""
 import argparse
 import hmac
 import json
 import os
+import ipaddress
+import re
+import ssl
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs,urlparse
@@ -11,7 +14,8 @@ from .identity import AdmissionError,decode
 from .verified_directory import VerifiedDirectory
 
 
-def handler(directory,read_token):
+def handler(directory,read_token,allowed_hosts=None,scheme="http"):
+    allowed_hosts=allowed_hosts or ("127.0.0.1","localhost")
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
             super().setup()
@@ -31,11 +35,11 @@ def handler(directory,read_token):
             self.wfile.write(body)
 
         def local(self):
-            host=self.headers.get('Host','')
-            allowed={f'127.0.0.1:{self.server.server_port}',f'localhost:{self.server.server_port}'}
+            host=self.headers.get('Host','').lower()
+            allowed={f'{name.lower()}:{self.server.server_port}' for name in allowed_hosts}
             origin=self.headers.get('Origin')
-            if host not in allowed or (origin and origin!='http://'+host):
-                raise PermissionError('loopback origin required')
+            if host not in allowed or (origin and origin!=scheme+'://'+host):
+                raise PermissionError('allowed host/origin required')
 
         def read_auth(self):
             auth=self.headers.get('Authorization','')
@@ -47,7 +51,7 @@ def handler(directory,read_token):
                 self.local()
                 parsed=urlparse(self.path)
                 if parsed.path=='/healthz':
-                    return self.respond(200,{'status':'ok','mode':'verified-loopback'})
+                    return self.respond(200,{'status':'ok','mode':'verified-'+scheme})
                 if parsed.path!='/v1/agents':
                     return self.respond(404,{'error':'not found'})
                 self.read_auth()
@@ -102,24 +106,73 @@ def handler(directory,read_token):
     return Handler
 
 
+class AdmissionHTTPServer(ThreadingHTTPServer):
+    def __init__(self,address,request_handler,tls_context=None):
+        self.tls_context=tls_context
+        super().__init__(address,request_handler)
+
+    def get_request(self):
+        connection,address=super().get_request()
+        if self.tls_context is not None:
+            connection.settimeout(5)
+            try:
+                connection=self.tls_context.wrap_socket(connection,server_side=True)
+            except Exception:
+                connection.close()
+                raise
+        return connection,address
+
+
+def transport_config(host,cert_file=None,key_file=None,allowed_hosts=None):
+    try:
+        address=ipaddress.ip_address(host)
+        if address.version!=4:
+            raise ValueError('this prototype binds IPv4 only')
+        loopback=address.is_loopback
+    except ValueError:
+        if host!='localhost':
+            # Hostnames are not resolved here; arbitrary hostname binds are unsupported.
+            raise ValueError('bind host must be an IPv4 address or localhost')
+        loopback=True
+    if bool(cert_file)!=bool(key_file):
+        raise ValueError('both TLS certificate and key are required')
+    if not loopback and (not cert_file or not allowed_hosts):
+        raise ValueError('non-loopback requires TLS and explicit allowed hosts')
+    names=tuple(allowed_hosts or ('127.0.0.1','localhost'))
+    if any(not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.-]{0,252}',name) or name in ('0.0.0.0',) for name in names):
+        raise ValueError('allowed hosts must be explicit DNS names or IPv4 addresses, without ports')
+    context=None
+    if cert_file:
+        context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version=ssl.TLSVersion.TLSv1_2
+        context.load_cert_chain(cert_file,key_file)
+    return names,context
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--authority-public-key',required=True,help='file containing raw Ed25519 public key in base64url')
     parser.add_argument('--group-id',required=True,help='existing human-created group ID')
     parser.add_argument('--audience',required=True,help='trusted verifier identity agreed out of band')
     parser.add_argument('--port',type=int,default=8771)
+    parser.add_argument('--host',default='127.0.0.1')
+    parser.add_argument('--tls-cert')
+    parser.add_argument('--tls-key')
+    parser.add_argument('--allow-host',action='append',help='explicit DNS hostname or IPv4 address without port')
     parser.add_argument('--database',default='state/verified-directory.sqlite3')
     args=parser.parse_args()
     token=os.environ.get('TAILNET_VERIFIED_READ_TOKEN','')
     if len(token)<32 or not token.isascii():
         parser.error('TAILNET_VERIFIED_READ_TOKEN needs at least 32 ASCII characters')
     try:
+        allowed,context=transport_config(args.host,args.tls_cert,args.tls_key,args.allow_host)
         authority=Ed25519PublicKey.from_public_bytes(decode(Path(args.authority_public_key).read_text().strip()))
         directory=VerifiedDirectory(authority,args.group_id,args.audience,database=args.database)
     except (ValueError,OSError):
         parser.error('authority/group/database setup failed; see docs/admission-http.md')
-    server=ThreadingHTTPServer(('127.0.0.1',args.port),handler(directory,token))
-    print(f'Verified directory HTTP: http://127.0.0.1:{server.server_port}',flush=True)
+    scheme='https' if context else 'http'
+    server=AdmissionHTTPServer((args.host,args.port),handler(directory,token,allowed,scheme),context)
+    print(f'Verified directory: {scheme}://{allowed[0]}:{server.server_port}',flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

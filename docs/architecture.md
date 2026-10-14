@@ -146,6 +146,8 @@ necessary; network membership never grants filesystem or secret access.
   existing network services remain unchanged.
 - v0.13: separate loopback HTTP admission and signed registration client;
   no cross-machine mesh or UI policy integration.
+- v0.14: direct TLS admission transport with client CA/hostname validation;
+  real LAN/tailnet trials and signed group-policy integration remain pending.
 - Next: cryptographic identity/admission implementation and network mesh transport.
 - Next: trusted human gateway with simulated chat participants and durable history.
 - Then: validated agent adapters, durable tasks and real LAN/tailnet trials.

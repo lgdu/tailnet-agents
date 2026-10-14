@@ -1,8 +1,9 @@
 """Authenticated JSON client; credentials never follow redirects."""
 import ipaddress
 import json
+import ssl
 from urllib.parse import urlparse
-from urllib.request import Request, build_opener, HTTPRedirectHandler, ProxyHandler
+from urllib.request import Request, build_opener, HTTPRedirectHandler, ProxyHandler, HTTPSHandler
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -26,11 +27,13 @@ def validate_url(url):
 
 
 class Client:
-    def __init__(self, url, token, timeout=10):
+    def __init__(self, url, token, timeout=10, ca_file=None):
         validate_url(url)
         self.url, self.token, self.timeout = url.rstrip('/'), token, timeout
         # Tailnet calls must not leak credentials to ambient HTTP proxies.
-        self.opener = build_opener(ProxyHandler({}), NoRedirect())
+        context = ssl.create_default_context(cafile=ca_file)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        self.opener = build_opener(ProxyHandler({}), NoRedirect(), HTTPSHandler(context=context))
 
     def request(self, path, body=None, method=None):
         data = None if body is None else json.dumps(body).encode()

@@ -1,4 +1,4 @@
-# Credential-enforced directory (v0.13)
+# Credential-enforced directory (v0.14)
 
 `VerifiedDirectory` connects the optional identity component to SQLite directory
 registration. This module remains an **in-process API**. A separate
@@ -75,7 +75,7 @@ length; credentials with less than 10 seconds remaining cannot register.
 
 ## Limits
 
-- The separate loopback HTTP service/CLI is available; TLS/channel binding and
+- The separate loopback HTTP service/CLI is available; TLS transport is available and tested locally; TLS exporter/channel binding and
   decentralized discovery are not.
 - `discover()` is a trusted-caller library method, not an authenticated remote
   discovery endpoint. Network callers need explicit read authorization.

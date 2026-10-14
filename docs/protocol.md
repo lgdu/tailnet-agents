@@ -77,3 +77,9 @@ above. Network admission and verified read authorization remain future work.
 [Admission HTTP](admission-http.md) is a separate service with challenge/register/
 revoke routes. It does not change the bearer registry/task APIs above.
 Cross-machine channels and signed group-policy binding are not implemented.
+
+## Direct TLS admission transport (v0.14)
+
+The separate verified service supports explicit TLS binding and CA-verified
+clients. See [TLS deployment](tls-deployment.md). This does not change ordinary
+registry/Bridge APIs or implement automatic LAN/tailnet discovery.

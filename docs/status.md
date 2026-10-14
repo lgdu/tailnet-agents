@@ -1,4 +1,4 @@
-# Implementation status — v0.13
+# Implementation status — v0.14
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -11,7 +11,7 @@ its future requirements must not be read as implemented security guarantees.
 | Human UI | Configured people/roles, explicit groups, private scopes, paging/polling | Browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
 | Agent identity | Optional Ed25519 keys, scoped grants and possession proofs | Signed group policy and transport integration |
-| Verified directory | Library + loopback HTTP admission, read token, durable signed revocation | Verified TLS channels, signed group policy and mesh replication |
+| Verified directory | Library + HTTP/TLS admission, read token, durable signed revocation | Real LAN/tailnet trial, signed group policy and mesh replication |
 | Mesh | State simulator only | Cryptographic admission, LAN/seed/tailnet providers |
 | Product agents | None | OpenClaw/Claude Code/Codex/Qoder/Grok interface validation |
 
