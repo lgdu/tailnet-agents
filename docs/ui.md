@@ -1,4 +1,4 @@
-# Human UI v0.7: role-aware local chat simulation
+# Human UI v0.8: role-aware local chat simulation
 
 The UI is a standalone local demonstration of the interaction model. It does
 not integrate the mesh simulator, registry, MCP tools or real agent adapters.
@@ -35,8 +35,8 @@ port before implementing actual human sessions and deployment security.
 - Agent replies never trigger peer replies or execute commands.
 - SQLite persists chat and request deduplication across restart. Simulated
   presence resets to online on server restart; this is not network presence.
-- Each history request returns the latest 200 messages. Older messages remain
-  in SQLite, but pagination is not yet implemented.
+- Initial history loads the latest 100 messages. "加载更早消息" pages backward.
+  New messages are polled with an ID cursor every 2 seconds while the page is visible.
 - A failed send retains its request ID for retry in the current page. Do not
   change the pending payload. Reload/logout discards that pending retry state,
   so there is no durable browser outbox yet.
@@ -54,7 +54,7 @@ assets are packaged with the Python distribution. Browser/product interop
 and real mesh chat remain unvalidated.
 
 Next milestones: external human identity/session integration; authenticated group membership;
-message event delivery; browser outbox and history pagination; integration with
+push-based message delivery; durable browser outbox; integration with
 network bridges; actual private-chat cryptography if required by the trust model.
 
 ## Independent humans and roles
@@ -100,5 +100,19 @@ your configuration if you want to access those old private conversations.
 This is an additive migration; downgrading to v0.6 is not supported because
 its reads lack human isolation. Preserve the pre-upgrade backup for rollback.
 
-Group history updates are not pushed live yet. Re-select a conversation to
-refresh; the current UI has no WebSocket/SSE or background polling.
+Group history and simulated member presence update by polling every 2 seconds.
+There is no WebSocket/SSE push yet. Hidden tabs pause polling; visible tabs catch
+up on subsequent polls. Requests time out after 10 seconds and polling retries.
+Messages are deduplicated by ID. Older-page loads preserve scroll position;
+new messages do not force a reader at an older scroll position to the bottom.
+Login/logout and conversation switches invalidate stale UI request results.
+This browser behavior has not yet been visually tested with real clients.
+
+## Message page API
+
+`GET /api/messages?conversation=group&limit=100` returns the newest page.
+Use `before=<oldest-id>` for older history or `after=<newest-id>` for updates.
+Those cursors are exclusive and mutually exclusive; limit is 1..200.
+Returned messages are always ascending by ID. `has_more` refers to the selected
+direction. Private scope always comes from the authenticated identity, never
+query parameters. Observer restrictions apply to every page request.

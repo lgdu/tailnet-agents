@@ -85,10 +85,14 @@ def handler(store, users):
                 if parsed.path == '/api/members':
                     return self.response(200, {'members': store.members()})
                 if parsed.path == '/api/messages':
-                    conversation = parse_qs(parsed.query).get('conversation', ['group'])[0]
+                    query = parse_qs(parsed.query, keep_blank_values=True)
+                    if set(query) - {'conversation','after','before','limit'} or any(len(v) != 1 for v in query.values()):
+                        raise ValueError('invalid history query')
+                    conversation = query.get('conversation', ['group'])[0]
                     if role == 'observer' and conversation != 'group':
                         raise PermissionError('observer cannot access private conversations')
-                    return self.response(200, {'messages': store.history(conversation, principal)})
+                    options = {key: int(query[key][0]) for key in ('after','before','limit') if key in query}
+                    return self.response(200, store.page(conversation, principal, **options))
                 self.response(404, {'error': 'not found'})
             except PermissionError as exc:
                 self.response(403, {'error': str(exc)})

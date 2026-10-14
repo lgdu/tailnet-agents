@@ -6,7 +6,8 @@ mode remains usable. Mesh mode is not implemented on the network yet.
 
 ## Product contract
 
-A human owns a trust domain. Authorized agents form logical groups across LAN,
+A human owns a trust domain and explicitly creates each logical group.
+Authorized agents discover and resume those groups across LAN,
 Tailscale, or configured seed links. Machines need not belong to Tailscale on a
 LAN. Discovery grants no membership or execution authority. Agent products are
 executors behind bridges, not trusted permission engines.
@@ -58,7 +59,8 @@ candidates from providers by verified identity, not address.
 |---|---|
 | Authorized member finds an existing group | Verify identity, policy and grant; synchronize |
 | Authorized member has saved group but finds no peer | Resume same group provisionally; keep searching |
-| Authorized creator has no saved group | Create a new signed group instance |
+| Agent has no saved or authorized group | Remain unbound; show a join/create request to a human |
+| Authorized human confirms creation | Create a new signed group instance and issue scoped invitations |
 | Member disconnects | Locally mark unreachable; preserve member qualification |
 | Member restarts | Restore identity/group; authenticate; synchronize; announce fresh incarnation |
 | Member explicitly leaves | Publish signed leave with monotonically newer member revision |
@@ -67,7 +69,7 @@ candidates from providers by verified identity, not address.
 | Administrator dissolves | Publish durable signed terminal record; never revive this group ID |
 
 Two disconnected replicas of the SAME group reconcile later. Different group
-IDs do not automatically merge. If simultaneous first creation makes two groups,
+IDs do not automatically merge. If two humans independently confirm creation of two groups,
 the UI displays both; an authorized human chooses consolidation in a later phase.
 A network timeout never proves that a group does not exist.
 
@@ -91,7 +93,8 @@ NOT authentication. Gossip/SWIM alone is NOT the permission layer.
 
 Preconfigure the owner's public key. Credentials bind domain, group scope,
 subject key, role, allowed skills, expiry and issuer. Default members cannot
-issue grants. Creation permission and membership permission are separate.
+issue grants. New-group creation belongs to authorized HUMAN principals, not agent runtime
+policy. Membership and recovery permissions are separate from creation.
 Each task is authorized by the receiving bridge regardless of model output.
 
 During partition, immediate global revocation is unavailable. Ordinary grants
@@ -151,3 +154,23 @@ Foreign-domain/group claims and unauthorized admission are rejected. Stale leave
 or join messages cannot roll state back. All-node downtime is recoverable from
 saved state. Authorized dissolution is terminal once learned. Chat does not loop;
 private history is isolated; uncertain tasks are not silently executed twice.
+
+## ADR amendment: human-confirmed group creation
+
+New logical groups MUST be created by a human action with a concrete name,
+new unique ID, trust policy, selected initial members and history policy.
+Agent runtime cannot silently invent a group ID, clone a group from a display
+name, or expand membership when discovery times out. An agent can suggest
+creation/join and display candidates; an authorized human makes the decision.
+
+Previously authorized agents may automatically rejoin or resume a saved group
+instance, using the SAME group ID and still-valid qualification. That is recovery,
+not new creation. Show "restoring original group" or "waiting for peers" in the
+human interface. No timeout may turn restoration into new-group creation.
+If credential renewal, policy freshness or dissolution status cannot be established,
+apply the authorization rules above; do not silently bypass them.
+
+The current chat demo's group is predefined by the program, and the simulator
+receives its policy from the test harness. Neither currently creates dynamic
+network groups. A human group-creation form and its signed approval flow remain
+to be implemented. The old automatic-creation proposal is superseded.

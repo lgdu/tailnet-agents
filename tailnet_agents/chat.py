@@ -24,6 +24,7 @@ class ChatStore:
         self.db.execute('CREATE TABLE IF NOT EXISTS user_submissions (owner TEXT NOT NULL, request_id TEXT NOT NULL, payload TEXT NOT NULL, result TEXT NOT NULL, PRIMARY KEY(owner, request_id))')
         # Legacy single-user conversations belong exclusively to demo-owner.
         self.db.execute("INSERT OR IGNORE INTO user_submissions SELECT 'demo-owner',request_id,payload,result FROM submissions")
+        self.db.execute('CREATE INDEX IF NOT EXISTS messages_scope ON messages(conversation,owner,id)')
         self.db.commit()
         self.lock = threading.Lock()
         self.online = set(AGENTS)
@@ -34,14 +35,40 @@ class ChatStore:
             raise ValueError('unknown conversation')
         return value
 
-    def history(self, conversation, principal="demo-owner"):
+    def page(self, conversation, principal="demo-owner", *, after=None, before=None, limit=100):
         self.conversation(conversation)
+        if after is not None and before is not None:
+            raise ValueError('after and before are mutually exclusive')
+        if type(limit) is not int or not 1 <= limit <= 200:
+            raise ValueError('limit must be 1..200')
+        if any(value is not None and (type(value) is not int or not 0 <= value <= 2**63-1)
+               for value in (after, before)):
+            raise ValueError('invalid message cursor')
+        clauses, values = ['conversation=?'], [conversation]
+        if conversation != 'group':
+            clauses.append('owner=?')
+            values.append(principal)
+        if after is not None:
+            clauses.append('id > ?')
+            values.append(after)
+        if before is not None:
+            clauses.append('id < ?')
+            values.append(before)
+        order = 'ASC' if after is not None else 'DESC'
+        values.append(limit + 1)
         with self.lock:
-            if conversation == 'group':
-                rows = self.db.execute('SELECT id,sender,text,created,owner FROM messages WHERE conversation=? ORDER BY id DESC LIMIT 200', (conversation,)).fetchall()
-            else:
-                rows = self.db.execute('SELECT id,sender,text,created,owner FROM messages WHERE conversation=? AND owner=? ORDER BY id DESC LIMIT 200', (conversation, principal)).fetchall()
-        return [{'id': r[0], 'sender': r[1], 'text': r[2], 'created': r[3], 'author': r[4] if r[1] == 'human' else r[1]} for r in reversed(rows)]
+            rows = self.db.execute('SELECT id,sender,text,created,owner FROM messages WHERE '
+                                   + ' AND '.join(clauses) + ' ORDER BY id ' + order + ' LIMIT ?', values).fetchall()
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+        if after is None:
+            rows.reverse()
+        return {'messages': [{'id': r[0], 'sender': r[1], 'text': r[2], 'created': r[3],
+                              'author': r[4] if r[1] == 'human' else r[1]} for r in rows],
+                'has_more': has_more}
+
+    def history(self, conversation, principal="demo-owner"):
+        return self.page(conversation, principal, limit=200)['messages']
 
     def members(self):
         with self.lock:

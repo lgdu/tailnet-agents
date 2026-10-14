@@ -2,7 +2,7 @@
 
 Discover heterogeneous agents across regions on a shared Tailscale network.
 
-Status: **v0.7 prototype**. Automatic bridge registration/renewal, discovery,
+Status: **v0.8 prototype**. Automatic bridge registration/renewal, discovery,
 Echo task submission, result polling and MCP stdio tools work. Real product
 adapters and A2A transport are planned. The custom task API is not A2A.
 
@@ -106,3 +106,6 @@ python3 -m tailnet_agents.ui
 
 v0.7 支持独立人类 token、管理员/参与者/观察者角色，以及后端按人隔离私聊。
 角色和多用户配置见 [Human UI](docs/ui.md)。
+
+v0.8 增加每 2 秒增量更新、旧历史分页与断线提示。设计规则已调整为：
+新群组由人明确创建，Agent 仅自动恢复已授权的原群组；创建表单仍待实现。
