@@ -192,7 +192,7 @@ the recipient may hold the older revision even when the UI reports conflict;
 preview and explicitly deliver the latest revision. There is no background retry
 or atomic multi-recipient revocation. See [policy delivery](policy-delivery.md).
 
-## Human-issued credentials and recipient files (v0.22, unreleased)
+## Human-issued credentials and recipient files (v0.22)
 
 Back up the UI database consistently with its original owner key/public pin and
 human identity. It now records public issuance claims, scope, fixed expiry,

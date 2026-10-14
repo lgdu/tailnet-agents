@@ -307,7 +307,7 @@ have arrived; a human must preview and deliver the latest revision. There is no
 distributed atomic update, background retry or automatic revocation broadcast.
 See [policy delivery](policy-delivery.md).
 
-### Human credential issuance and recipient installation (v0.22, unreleased)
+### Human credential issuance and recipient installation (v0.22)
 
 ```mermaid
 flowchart TD
@@ -406,7 +406,7 @@ necessary; network membership never grants filesystem or secret access.
   approval, removal, manual renewal and terminal dissolution with transactional audit.
 - v0.21: explicit configured-recipient delivery, signed readback,
   historical age receipts and restart-safe human retry.
-- v0.22 (unreleased): separate human credential issuance/download and stable
+- v0.22: separate human credential issuance/download and stable
   recovery, recipient identity validation and exclusive private-file installation.
 - Next: candidate runtime enrollment and signed presence.
 - Next: mesh transport with cryptographic admission and signed presence.

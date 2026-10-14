@@ -1,4 +1,4 @@
-# Human UI v0.22 (unreleased): credential issuance, signing and explicit delivery
+# Human UI v0.22: credential issuance, signing and explicit delivery
 
 The UI is a local demonstration of the interaction model. It does
 not integrate the mesh simulator, registry, MCP tools or real agent adapters.

@@ -237,7 +237,7 @@ Receipts are point-in-time evidence, not live receiver status. Local changes
 during I/O can leave an older remote copy and require new human consent. See
 [policy delivery](policy-delivery.md) for configuration and recovery.
 
-## Human credential issuance (v0.22, unreleased)
+## Human credential issuance (v0.22)
 
 These loopback UI routes require the configured signer admin and group creator,
 retaining Host/Origin and `no-store` response protection. They accept an existing

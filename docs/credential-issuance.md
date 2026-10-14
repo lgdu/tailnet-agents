@@ -1,4 +1,4 @@
-# Human credential issuance and installation — v0.22 (unreleased)
+# Human credential issuance and installation — v0.22
 
 The optional trusted loopback signer can issue a scoped grant to an existing
 simulation Agent public key after explicit human preview and confirmation.

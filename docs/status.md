@@ -1,4 +1,4 @@
-# Implementation status — v0.22 (unreleased)
+# Implementation status — v0.22
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -141,7 +141,7 @@ The suite contains 234 tests (26 new issuance/installation tests), plus Chromium
 preview-race, issuance/download/retry and separate-approval checks. Secure remote
 transfer remains a human operation; real Agent runtime enrollment, live revocation
 monitoring, key rotation/recovery and physical LAN/tailnet validation remain open.
-See [credential issuance](credential-issuance.md). v0.22.0 is not published or tagged.
+See [credential issuance](credential-issuance.md). v0.22.0 is published as a GitHub prerelease with a matching annotated tag.
 
 ## Documentation maintenance rule
 

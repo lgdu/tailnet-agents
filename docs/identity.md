@@ -1,4 +1,4 @@
-# Agent identity and admission primitives (v0.22, unreleased)
+# Agent identity and admission primitives (v0.22)
 
 This optional library component uses Ed25519 through `cryptography`.
 [VerifiedDirectory](verified-directory.md) integrates it with registration through
