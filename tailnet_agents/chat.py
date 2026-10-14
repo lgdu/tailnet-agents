@@ -10,7 +10,7 @@ AGENTS = {'moderator': 'Moderator', 'coder': 'Coder', 'researcher': 'Researcher'
 
 
 class ChatStore:
-    def __init__(self, database=':memory:'):
+    def __init__(self, database=':memory:', *, policy_authority=None):
         if database != ':memory:':
             Path(database).parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.db = sqlite3.connect(database, check_same_thread=False)
@@ -47,14 +47,25 @@ class ChatStore:
         self.db.execute('CREATE TABLE IF NOT EXISTS group_creations (creator TEXT NOT NULL, request_id TEXT NOT NULL, payload TEXT NOT NULL, group_id TEXT NOT NULL, PRIMARY KEY(creator,request_id))')
         self.db.execute('CREATE TABLE IF NOT EXISTS group_audit (id INTEGER PRIMARY KEY, group_id TEXT NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, subject TEXT NOT NULL, created REAL NOT NULL)')
         self.db.execute('CREATE INDEX IF NOT EXISTS messages_group_scope ON messages(group_id,conversation,owner,id)')
-        self.db.commit()
+        self.policy_authority = policy_authority
+        try:
+            configured = self.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ui_policy_authority'").fetchone()
+            if configured and self.db.execute('SELECT 1 FROM ui_policy_authority').fetchone() and policy_authority is None:
+                raise ValueError('restart requires the original policy authority configuration')
+            if policy_authority is not None:
+                policy_authority.bind(self.db)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            self.db.close()
+            raise
         self.lock = threading.Lock()
         self.online = set(AGENTS)
 
     def audit(self, group_id, actor, action, subject):
         self.db.execute('INSERT INTO group_audit(group_id,actor,action,subject,created) VALUES(?,?,?,?,?)', (group_id,actor,action,subject,time.time()))
 
-    def create_group(self, name, creator, humans, group_id=None, request_id=None):
+    def create_group(self, name, creator, humans, group_id=None, request_id=None, *, signed_policy=False):
         if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
             raise ValueError('group name must be 1..80 characters')
         if not isinstance(humans, list) or len(humans) > 100 or any(not isinstance(h, str) or not h for h in humans):
@@ -62,6 +73,15 @@ class ChatStore:
         if request_id is not None and (not isinstance(request_id,str) or not 1 <= len(request_id) <= 128):
             raise ValueError('invalid creation request id')
         canonical=json.dumps({'name':name.strip(),'humans':sorted(set(humans+[creator]))},sort_keys=True)
+        if type(signed_policy) is not bool:
+            raise ValueError('signed_policy must be boolean')
+        if signed_policy:
+            if self.policy_authority is None:
+                raise PermissionError('policy signing is disabled')
+            self.policy_authority.require_actor(creator)
+            if group_id is not None:
+                raise ValueError('signed creation requires a new group instance')
+            canonical = json.dumps({'creation': canonical, 'signed_policy': True}, sort_keys=True)
         with self.lock, self.db:
             self.db.execute('BEGIN IMMEDIATE')
             if request_id is not None:
@@ -70,7 +90,7 @@ class ChatStore:
                     if previous[0]!=canonical:
                         raise FileExistsError('creation request id reused with changed payload')
                     return {'id':previous[1],'name':name.strip(),'creator':creator}
-            group_id=group_id or uuid.uuid4().hex
+            group_id = self.policy_authority.create(self.db, name.strip()) if signed_policy else group_id or uuid.uuid4().hex
             self.db.execute('INSERT INTO chat_groups(id,name,creator,created) VALUES(?,?,?,?)', (group_id,name.strip(),creator,time.time()))
             self.db.executemany('INSERT INTO group_humans VALUES(?,?)', [(group_id,h) for h in sorted(set(humans+[creator]))])
             if request_id is not None:
@@ -127,9 +147,35 @@ class ChatStore:
             if confirm_name!=name:
                 raise ValueError('group name confirmation does not match')
             if not dissolved:
+                if self.policy_authority is not None and self.db.execute('SELECT 1 FROM ui_group_policies WHERE group_id=?', (group_id,)).fetchone():
+                    self.policy_authority.require_actor(actor)
+                    self.policy_authority.dissolve(self.db, group_id)
                 self.db.execute('UPDATE chat_groups SET dissolved=1 WHERE id=?',(group_id,))
                 self.audit(group_id,actor,'dissolve',group_id)
         return {'dissolved':True}
+
+    def _require_policy_admin(self, actor, group_id):
+        creator, _, _ = self._require_group(actor, group_id)
+        if actor != creator or self.policy_authority is None:
+            raise PermissionError('group creator and policy authority required')
+        self.policy_authority.require_actor(actor)
+
+    def policy_export(self, actor, group_id):
+        with self.lock:
+            self._require_policy_admin(actor, group_id)
+            return self.policy_authority.export(self.db, group_id)
+
+    def policy_preview(self, actor, group_id, grant):
+        with self.lock:
+            self._require_policy_admin(actor, group_id)
+            return self.policy_authority.preview(self.db, group_id, grant)
+
+    def policy_change(self, actor, group_id, operation, payload):
+        with self.lock, self.db:
+            self.db.execute('BEGIN IMMEDIATE')
+            self._require_policy_admin(actor, group_id)
+            self._require_group(actor, group_id, active=True)
+            return self.policy_authority.change(self.db, group_id, operation, payload)
 
     @staticmethod
     def conversation(value):

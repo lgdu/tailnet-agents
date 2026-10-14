@@ -5,7 +5,7 @@ Status: accepted direction; implementation staged. This document supersedes
 mode remains usable. Mesh mode is not implemented on the network yet.
 
 The [README architecture diagrams](../README.md#architecture) show the current
-independent implementation paths and the planned integrated peer network.
+components, explicit human policy handoff and planned integrated peer network.
 Solid arrows describe implemented calls; dashed arrows describe future
 integration. Discovery, authorization and product adapters remain distinct.
 
@@ -200,6 +200,56 @@ source. The signed policy/grant/proof path remains mandatory for admission.
 Cloned-key fencing, mDNS, tailnet enumeration, actual cross-machine trials and
 the integrated group runtime remain future work. See [discovery](discovery.md).
 
+### Implemented human signing gateway (v0.20, unreleased)
+
+The trusted human's loopback UI can optionally load an existing owner private
+key, a separately pinned public key and one configured admin principal. POSIX
+file checks reject symlinks, other owners and group/world access. The authority
+and human principal persist in SQLite; restart cannot silently replace them or
+disable signing. No startup key/group generation or automatic policy renewal occurs.
+Directories continue to hold only the owner public key and signed public policy.
+
+```mermaid
+flowchart LR
+  HUMAN["Configured human admin / Explicit confirmation"] --> UI["Loopback UI / Role + Host + Origin checks"]
+  KEY["Existing local owner key + public pin"] --> SIGN["Local policy authority"]
+  UI --> SIGN
+  GRANT["Manually pre-issued scoped grant"] --> PREVIEW["Verified identity, expiry and complete proposed permissions"]
+  UI --> PREVIEW
+  PREVIEW -->|"Human approves current revision"| SIGN
+  SIGN --> DB[("Same group ID / Policy + audit + retry acknowledgment transaction")]
+  DB --> SNAPSHOT["Read acknowledged revision / Block export while refreshing"]
+  SNAPSHOT --> EXPORT["Human downloads current signed snapshot"]
+  EXPORT --> APPLY["Explicit admin client / Configured directory only"]
+  APPLY --> DIRECTORY["Existing pinned admission + policy replication"]
+  DIRECTORY --> PROOF["Separate Agent grant + fresh possession proof"]
+```
+
+Explicit signed creation commits one empty policy and local group with the same
+ID. Human membership and simulated Echo actors convey no cryptographic Agent
+membership. Previews are read-only. Approval, removal and renewal use expected
+revision checks and persistent request deduplication. Raw grants are not stored;
+retry records contain a hash. Signatures, policy changes, retired grant IDs and
+audit commit together. Removing an identity retires its current IDs locally;
+reapproval requires a newly issued grant. Confirmed dissolution atomically commits
+local read-only history state and signed terminal policy. No failed signature can
+partially change either side. Existing local-only groups are never converted.
+
+Exports require the configured admin and group creator. Mutations and management
+refreshes invalidate the previous cached export. Download-ready feedback and
+exports stay blocked until a read reaches the acknowledged revision. Failed
+post-commit reads retry without repeating the mutation; older overlapping reads
+cannot overwrite the newest refresh. Dissolution also waits for its terminal
+snapshot before enabling export. The UI does not contact
+directories or discovered endpoints; a human explicitly applies the export to a
+configured recipient, which can use existing LAN/Tailscale replication. Approval
+has no remote effect until delivery, and never registers an Agent or proves live
+possession. Receivers still apply expiry and learned revocations. Credential
+issuance/provisioning, receiver freshness feedback and policy-delivery UX remain
+manual. Owner rotation/recovery, hardware keys, remote human sessions and runtime
+enrollment are future work. Local audit/backups are not tamper-proof. See
+[human policy signing](human-policy.md) for recovery and retry limits.
+
 ## Human interaction
 
 The human UI shows groups, verified members, local reachability, capabilities,
@@ -254,7 +304,9 @@ necessary; network membership never grants filesystem or secret access.
   lease expiry caps and ordered configured-source failover with separate cursors.
 - v0.19: existing-identity candidate beacons over explicit-interface
   multicast and configured HTTP/TLS seeds; no automatic enrollment.
-- Next: human UI signing/renewal workflow and explicit candidate enrollment.
+- v0.20 (unreleased): opt-in local human policy signing and export, grant preview/
+  approval, removal, manual renewal and terminal dissolution with transactional audit.
+- Next: credential issuance, explicit delivery UX and candidate runtime enrollment.
 - Next: mesh transport with cryptographic admission and signed presence.
 - Then: validated agent adapters, durable tasks and real LAN/tailnet trials.
 
@@ -286,17 +338,20 @@ apply the authorization rules above; do not silently bypass them.
 
 The current chat demo requires human creation for fresh groups; existing legacy
 group history is preserved on upgrade. The simulator receives its policy from
-the test harness. Neither currently creates dynamic
-network groups. v0.9 implements a local human group-creation form and database membership checks.
-Its human UI signing flow and mesh propagation remain to be implemented. The old automatic-creation proposal is superseded.
+the test harness. Runtime network group formation remains future work.
+v0.9 implements a local human group-creation form and database membership checks.
+v0.20 adds optional human policy signing/export; runtime mesh integration remains
+future work. The old automatic-creation proposal is superseded.
 
 Current implementation boundaries are tracked in [status.md](status.md); signed group
-policy issuance from the human UI and full lifecycle replication remain future work.
+policy issuance from the human UI is opt-in with explicit export/manual delivery;
+full lifecycle runtime replication remains future work.
 v0.15 implements durable owner-signed group snapshots and opt-in enforcement
 in verified admission, including member removal and terminal dissolution.
 v0.16 adds configured-peer policy replication, including removals and dissolution.
 v0.17 also replicates signed credential revocations. Presence, chat and tasks
 are not replicated.
-The human UI and mesh simulator remain separate from these snapshots.
+The mesh simulator remains separate. The UI can now sign/export these snapshots
+with an existing local authority; runtime enrollment remains separate.
 v0.18 bounds active-policy age and adds source failover; it does not connect those
 independent paths or grant membership through discovery.

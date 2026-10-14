@@ -72,6 +72,15 @@ class HumanRoleTests(unittest.TestCase):
         history = self.clients['bob'].request('/api/messages?conversation=group')['messages']
         self.assertEqual(history[0]['author'], 'alice')
 
+    def test_policy_signing_is_disabled_in_the_default_core_ui(self):
+        owner = self.clients['owner']
+        self.assertEqual(owner.request('/api/policy-config'), {'enabled': False, 'can_sign': False})
+        for path, body in [('/api/groups', {'name': 'No signer', 'humans': [], 'request_id': 'signed', 'signed_policy': True}),
+                           ('/api/policy-renew', {'group_id': 'legacy', 'expected_revision': 1, 'request_id': 'renew'})]:
+            with self.subTest(path=path), self.assertRaises(HTTPError) as error: owner.request(path, body)
+            self.assertEqual(error.exception.code, 403)
+            error.exception.close()
+
 
 class HumanMigrationTests(unittest.TestCase):
     def test_legacy_private_messages_remain_exclusively_demo_owner(self):

@@ -178,3 +178,31 @@ Results include `admission: not_checked`; no route makes a candidate an admitted
 member, execution authority or trusted policy source. Registration still requires
 the existing valid grant and fresh bound possession proof. See [discovery](discovery.md)
 for configuration, synchronized policy checks, replay and validation limits.
+
+## Human policy administration (v0.20, unreleased)
+
+These routes belong only to the loopback UI, retaining its human bearer role,
+Host and Origin checks. The directory wire format and HTTP routes are unchanged.
+No route accepts a private key, issues a grant, selects a remote recipient or
+registers an Agent. Signer configuration loads only from trusted startup flags.
+
+| Route | Behavior |
+|---|---|
+| GET `/api/policy-config` | Authenticated enabled/can_sign flags; no key material |
+| POST `/api/groups` | Optional boolean `signed_policy`; true requires configured signer admin; creates an empty signed policy with the local group's exact ID |
+| GET `/api/group-policy?group_id=...` | Signer admin + creator only; signed policy, claims, owner public pin and latest 50 policy audit records |
+| POST `/api/policy-preview` | `group_id`, `grant`; verifies pre-issued grant and returns subject, expiry, grant permissions, proposed complete membership scope and current revision without mutation |
+| POST `/api/policy-approve` | `group_id`, `grant`, `expected_revision`, `request_id`; approve its scoped identity/grant ID |
+| POST `/api/policy-remove` | `group_id`, `subject`, `expected_revision`, `request_id`; remove all that identity's approved IDs and retire them locally |
+| POST `/api/policy-renew` | `group_id`, `expected_revision`, `request_id`; explicitly sign a higher revision with unchanged membership |
+| POST `/api/group-dissolve` | Existing exact-name confirmation also signs terminal policy when this is a signed group |
+
+All policy operations require the configured signer admin and group creator.
+Only active groups can change or retry policy operations. Expected revision and changed retry-payload
+conflicts return 409; identical committed retries return the original acknowledgment
+without signing again. Invalid schema/grants return 400 and unauthorized access
+returns 403. Removal retires IDs within this UI database, not a new distributed
+credential-revocation proof. A new grant ID is needed for UI readmission.
+Downloads carry the existing signed policy JWS and must be explicitly applied
+through the directory's protected policy route. No received/advertised URL becomes
+trusted automatically. See [human policy signing](human-policy.md).

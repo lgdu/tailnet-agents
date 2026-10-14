@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.19 prototype.** Working components are listed below. The network mesh and
+**v0.20 prototype (unreleased).** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -14,14 +14,14 @@ action; agents may only discover or restore previously authorized groups.
 | Directory | SQLite registration, leases, ownership, removal, status | Central registry; not distributed mesh |
 | Bridge | Automatic renewal, discovery CLI, authenticated Echo tasks | Custom task API; task state is in memory |
 | MCP | Stdio discovery, delegation, result tools | 2025 handshake family; real client compatibility unvalidated |
-| Human UI | Explicit groups, human roles, scoped group/private chat, polling, pagination | Loopback-only, simulated agents, no E2E encryption |
+| Human UI | Explicit groups, scoped chat, opt-in owner-signed creation/approval/removal/renewal/dissolution and policy export | Trusted loopback gateway; manual credential provisioning and policy delivery; simulated agents |
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
 | Policy replication | Ordered HTTP/TLS source failover, independent revocation cursors, periodic pull and status | Configured sources only; no quorum, presence/chat/task replication |
 | Candidate discovery | Signed UDP multicast with ingress filtering, HTTP/TLS seeds, sticky conflicts, synchronized policy/revocation checks | Existing directory/key required; Linux LAN receiver; candidates only, no auto-enrollment or policy-source promotion |
 | Mesh simulator | Restart, partition reconciliation, stale claims, dissolution rules | Deterministic state model, no network or cryptographic admission |
-| Signed group policy | Owner-signed snapshots, bounded signed age, approved grant IDs, rollback rejection, terminal dissolution | Opt-in verified admission; owner must renew policy, no UI issuance or automatic enrollment |
-| Agent identity | Ed25519 identities, signed scoped grants, expiry/revocation checks, possession proof | Verified admission integrated; no UI/mesh identity integration |
-| Verified directory | Proof-based registration, metadata binding, durable signed revocation | TLS service with optional durable signed member policy; not mesh/UI integrated |
+| Signed group policy | Owner-signed snapshots, bounded signed age, approved grant IDs, rollback rejection, terminal dissolution | Opt-in verified admission; owner must renew policy, explicit UI signing/export; manual grant issuance and policy delivery |
+| Agent identity | Ed25519 identities, signed scoped grants, expiry/revocation checks, possession proof | Verified admission integrated; human policy approval integrated; runtime/mesh integration pending |
+| Verified directory | Proof-based registration, metadata binding, durable signed revocation | TLS service with optional durable signed member policy; manual UI policy handoff; mesh integration pending |
 
 Different product agents will connect through adapters. Grok model API access
 and Grok's product Agent are separate integration targets. No claim is made that
@@ -31,8 +31,9 @@ OpenClaw, Claude Code, Codex or Qoder already interoperate through this project.
 
 ### Current prototype / 当前已实现
 
-These are three independent paths. The human UI does not yet issue signed
-grants or connect to either directory. Solid arrows show implemented calls.
+Chat and task runtimes remain separate. The opt-in human signing gateway exports
+policies for explicit application to verified directories. Solid arrows show
+implemented calls and the labeled human-operated policy handoff.
 
 ```mermaid
 flowchart TB
@@ -42,6 +43,9 @@ flowchart TB
     UI --> CS["Chat service / 人类角色与成员权限"]
     CS --> DB[("SQLite / 群组、消息、审计")]
     CS --> SIM["Simulated agents / 模拟回复"]
+    UI --> SIGN["Local owner signer / 既有密钥、指定人类管理员"]
+    SIGN --> DB
+    SIGN --> EXPORT["Download signed policy / 明确导出"]
   end
   subgraph TASK["Directory and tasks / 目录与任务"]
     direction TB
@@ -56,6 +60,8 @@ flowchart TB
     SYNC -->|"Policy + revocation pull / 主来源"| PEER["Primary admission service / 主策略副本"]
     SYNC -->|"Fallback / 备用来源"| BACKUP["Backup admission services / 备用策略副本"]
     SYNC -->|"Verify same owner and group / 验证与持久化"| VD
+    EXPORT --> APPLY["Human-operated client / 手动应用到已配置目录"]
+    APPLY -->|"Read token + signed policy"| API
     API --> VD["Verified directory / 身份与授权校验"]
     VD --> GP["Signed group policy / 成员、凭证、解散"]
     GP --> AGE["Signed age gate / 过期拒绝准入与发现"]
@@ -199,6 +205,21 @@ Results explicitly say `admission: not_checked`; a signature does not prove a
 currently valid grant, endpoint ownership or permission to execute tasks. No
 discovered endpoint is automatically contacted, registered or made a policy source.
 
+## Human-approved signed policies (v0.20, unreleased)
+
+On the trusted human's loopback gateway, explicitly configure an existing
+`--policy-owner-key`, its `--policy-owner-public-key` pin and one `--policy-admin`.
+The UI can create an empty signed group, preview and approve pre-issued scoped
+grants, remove identities, explicitly renew policy and sign terminal dissolution.
+Startup restores the same key/group/policy without creating or renewing anything.
+
+Download snapshots and explicitly apply them to a configured verified directory;
+normal policy replication can then carry them over LAN/Tailscale. The UI does
+not issue grants, contact discovered endpoints or register Agents. Human chat
+membership and the three Echo participants remain separate from signed Agent
+membership. See [human policy signing](docs/human-policy.md) for key handling,
+manual delivery, retry semantics and remaining work.
+
 ## Verification
 
 ```bash
@@ -207,10 +228,12 @@ python3 -m tailnet_agents.mesh_sim
 ```
 
 Install the identity extra to run cryptographic tests; without it, those tests
-are explicitly skipped. CI runs both core and identity installations. Browser
-visual/interaction validation and real-agent compatibility remain outstanding.
-v0.19 includes 155 tests: the 117-test v0.18 baseline plus 38 candidate-discovery
-checks covering signed/expired/foreign records, credential isolation, conflicts,
+are explicitly skipped. CI runs both core and identity installations. The new signing workflow has a Chromium functional check; broader browser
+visual/accessibility coverage and real-agent compatibility remain outstanding.
+The dedicated CI browser job also delays policy reads and checks that download
+never uses a pre-mutation snapshot; failed refreshes keep exports disabled.
+v0.20 includes 179 tests: the 155-test v0.19 baseline plus 24 human-policy/core
+checks. Existing discovery coverage includes signed/expired/foreign records, credential isolation, conflicts,
 real multicast and HTTP/TLS, ingress filtering, learned revocations, read-only
 state/lease preservation, mid-scan updates, service shutdown and restart recovery.
 
@@ -222,13 +245,13 @@ state/lease preservation, mid-scan updates, service shutdown and restart recover
 - [Current status and next work](docs/status.md)
 - [Prioritized remaining work](docs/roadmap.md)
 
-Next: connect human group creation to signed policies and explicit enrollment,
-add signed presence propagation, connect verified
-identity and candidate discovery to the mesh engine, validate the
-human UI in a browser, and then add real product adapters and durable tasks.
+Next: complete credential issuance and explicit policy-delivery UX,
+add signed presence propagation and runtime enrollment, connect verified
+identity and candidate discovery to the mesh engine, broaden browser QA,
+and then add real product adapters and durable tasks.
 The working registry mode remains available during mesh development.
 v0.19.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.19.0)
-with a matching version tag. Release checks and tag synchronization are described
+with a matching version tag. v0.20.0 is prepared in this PR, not published or tagged. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 
 No open-source license has been selected yet. Public release requires an owner

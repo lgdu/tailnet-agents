@@ -82,6 +82,19 @@ def handler(store, users):
                 principal, role = self.authorize()
                 if parsed.path == '/api/me':
                     return self.response(200, {'id': principal, 'role': role})
+                if parsed.path == '/api/policy-config':
+                    if parsed.query:
+                        raise ValueError('policy config takes no query')
+                    authority = store.policy_authority
+                    return self.response(200, {'enabled': authority is not None,
+                        'can_sign': authority is not None and role == 'admin' and principal == authority.principal})
+                if parsed.path == '/api/group-policy':
+                    if role != 'admin':
+                        raise PermissionError('admin role required')
+                    query = parse_qs(parsed.query, keep_blank_values=True)
+                    if set(query) != {'group_id'} or len(query['group_id']) != 1:
+                        raise ValueError('one explicit group ID required')
+                    return self.response(200, store.policy_export(principal, query['group_id'][0]))
                 if parsed.path == '/api/groups':
                     return self.response(200, {'groups':store.groups(principal)})
                 if parsed.path == '/api/humans':
@@ -124,13 +137,24 @@ def handler(store, users):
                 if self.path == '/api/groups':
                     if role != 'admin':
                         raise PermissionError('admin role required')
-                    if set(payload) != {'name','humans','request_id'} or not isinstance(payload.get('request_id'),str) or not 1<=len(payload['request_id'])<=128 or not isinstance(payload['humans'],list) or any(not isinstance(p,str) or p not in users for p in payload['humans']):
+                    if (not {'name','humans','request_id'} <= set(payload) or set(payload) - {'name','humans','request_id','signed_policy'} or
+                        not isinstance(payload.get('request_id'),str) or not 1<=len(payload['request_id'])<=128 or not isinstance(payload['humans'],list) or any(not isinstance(p,str) or p not in users for p in payload['humans'])):
                         raise ValueError('select configured human members')
-                    return self.response(201,store.create_group(payload['name'],principal,payload['humans'],request_id=payload['request_id']))
+                    return self.response(201,store.create_group(payload['name'],principal,payload['humans'],request_id=payload['request_id'], signed_policy=payload.get('signed_policy', False)))
                 group_id = payload.pop('group_id','legacy')
                 if not isinstance(group_id,str):
                     raise ValueError('invalid group id')
                 store.require_group(principal,group_id)
+                if self.path in ('/api/policy-preview', '/api/policy-approve', '/api/policy-remove', '/api/policy-renew'):
+                    authority = store.policy_authority
+                    if role != 'admin' or authority is None or principal != authority.principal:
+                        raise PermissionError('configured policy administrator required')
+                    if self.path == '/api/policy-preview':
+                        if set(payload) != {'grant'}:
+                            raise ValueError('signed grant required')
+                        return self.response(200, store.policy_preview(principal, group_id, payload['grant']))
+                    operation = self.path.removeprefix('/api/policy-')
+                    return self.response(200, store.policy_change(principal, group_id, operation, payload))
                 if self.path == '/api/group-members':
                     if role!='admin':
                         raise PermissionError('admin role required')
@@ -167,16 +191,32 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=8770)
     parser.add_argument('--database', default='state/chat.sqlite3')
+    parser.add_argument('--policy-owner-key', help='existing private owner PEM on this trusted local gateway')
+    parser.add_argument('--policy-owner-public-key', help='separate pinned owner public key file')
+    parser.add_argument('--policy-admin', help='configured admin human allowed to sign group policies')
     args = parser.parse_args()
     try:
         configured = os.environ.get('TAILNET_UI_USERS')
         users = json.loads(configured) if configured else {
             'demo-owner': {'token': os.environ.get('TAILNET_UI_TOKEN', ''), 'role': 'admin'}}
         validate_users(users)
-    except (ValueError, TypeError):
-        parser.error('Invalid human credentials; see docs/ui.md')
-    store = ChatStore(args.database)
-    server = ThreadingHTTPServer(('127.0.0.1', args.port), handler(store, users))
+        signing = (args.policy_owner_key, args.policy_owner_public_key, args.policy_admin)
+        authority = None
+        if any(signing):
+            if not all(signing) or users.get(args.policy_admin, {}).get('role') != 'admin':
+                raise ValueError('complete policy authority configuration and admin role required')
+            from .policy_admin import PolicyAuthority
+            authority = PolicyAuthority.from_files(*signing)
+        store = ChatStore(args.database, policy_authority=authority)
+    except (ImportError, ValueError, TypeError, OSError):
+        parser.error('Invalid human credentials or policy authority configuration; see docs/ui.md')
+    class UIServer(ThreadingHTTPServer):
+        daemon_threads = False  # Finish authorized transactions before closing SQLite.
+    try:
+        server = UIServer(('127.0.0.1', args.port), handler(store, users))
+    except Exception:
+        store.close()
+        raise
     print(f'Simulated chat UI: http://127.0.0.1:{server.server_port}', flush=True)
     try:
         server.serve_forever()
