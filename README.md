@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.22 prototype.** Working components are listed below. The network mesh and
+**v0.23 prototype (unreleased).** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -18,10 +18,11 @@ action; agents may only discover or restore previously authorized groups.
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
 | Policy replication | Ordered HTTP/TLS source failover, independent revocation cursors, periodic pull and status | Configured sources only; no quorum, presence/chat/task replication |
 | Candidate discovery | Signed UDP multicast with ingress filtering, HTTP/TLS seeds, sticky conflicts, synchronized policy/revocation checks | Existing directory/key required; Linux LAN receiver; candidates only, no auto-enrollment or policy-source promotion |
+| Simulation runtime | Original key/group recovery, signed heartbeat leases, persisted instance ordering and authenticated presence pages | Explicit configured directory; POSIX state file; no executor or peer presence replication |
 | Mesh simulator | Restart, partition reconciliation, stale claims, dissolution rules | Deterministic state model, no network or cryptographic admission |
 | Signed group policy | Owner-signed snapshots, bounded signed age, approved grant IDs, rollback rejection, terminal dissolution | Opt-in verified admission; owner must renew policy, explicit UI signing/delivery and grant issuance |
-| Agent identity | Ed25519 identities, signed scoped grants, expiry/revocation checks, possession proof | Verified admission integrated; human policy approval integrated; runtime/mesh integration pending |
-| Verified directory | Proof-based registration, metadata binding, durable signed revocation | TLS service with optional durable signed member policy; human-confirmed policy delivery; mesh integration pending |
+| Agent identity | Ed25519 identities, signed scoped grants, expiry/revocation checks, possession proof | Verified admission integrated; human policy approval and simulation heartbeat runtime integrated; mesh/product integration pending |
+| Verified directory | Proof-based registration, metadata binding, durable signed revocation | TLS service with optional durable signed member policy; human-confirmed policy delivery and signed-runtime presence; peer presence replication pending |
 
 Different product agents will connect through adapters. Grok model API access
 and Grok's product Agent are separate integration targets. No claim is made that
@@ -70,6 +71,9 @@ flowchart TB
     EXPORT --> APPLY["Human-operated client / 手动应用到已配置目录"]
     APPLY -->|"Read token + signed policy"| API
     DELIVERY -->|"Configured TLS + signed readback / 明确送达与确认"| API
+    RUNTIME["Explicit simulation runtime / 原身份、原群组、持久运行序号"] -->|"Signed heartbeat + fresh proof"| API
+    API --> OBS["Signed presence + bounded live lease / 目录观测"]
+    OBS --> VIEW["Authenticated presence CLI / 在线、离线、过期、未授权"]
     API --> VD["Verified directory / 身份与授权校验"]
     VD --> GP["Signed group policy / 成员、凭证、解散"]
     GP --> AGE["Signed age gate / 过期拒绝准入与发现"]
@@ -260,7 +264,19 @@ Removal/revocation targets the selected identity/credential, not every Agent on
 the machine. Reusing one private key represents the same Agent and renews that
 identity; use separate keys for separate Agents. Restart loads each original key
 instead of generating replacements. These paths currently use simulated identities;
-real product adapters and runtime enrollment remain future work.
+real product adapters and automatic candidate-to-runtime enrollment remain future work.
+
+## Simulated runtime and signed presence (v0.23, unreleased)
+
+Explicitly run `tailnet-agent-runtime` with an existing Agent key, approved grant,
+original group and private runtime state file. It sends signed online/offline
+heartbeats with fresh possession proofs to one configured directory. Restart
+preserves identity/group and advances the durable runtime generation; old instances
+and replayed sequences cannot overwrite newer observations. Each Agent on the
+same host uses its own key and state. `tailnet-presence` reads authenticated,
+paginated observations; online means a recent authorized heartbeat. No executor
+is started. See [runtime operations](docs/agent-runtime.md) for migration, expiry,
+TLS, shutdown, backup and ordering limits.
 
 ## Verification
 
@@ -274,8 +290,8 @@ are explicitly skipped. CI runs both core and identity installations. The new si
 visual/accessibility coverage and real-agent compatibility remain outstanding.
 The dedicated CI browser job also delays policy reads and checks that download
 never uses a pre-mutation snapshot; failed refreshes keep exports disabled.
-v0.22 includes 234 tests: the 208-test v0.21 baseline plus 26 credential issuance
-and installation checks. Existing discovery coverage includes signed/expired/foreign records, credential isolation, conflicts,
+v0.23 includes 270 tests: the 234-test v0.22 baseline plus 36 simulation-runtime
+and signed-presence checks. Existing discovery coverage includes signed/expired/foreign records, credential isolation, conflicts,
 real multicast and HTTP/TLS, ingress filtering, learned revocations, read-only
 state/lease preservation, mid-scan updates, service shutdown and restart recovery.
 
@@ -287,12 +303,13 @@ state/lease preservation, mid-scan updates, service shutdown and restart recover
 - [Current status and next work](docs/status.md)
 - [Prioritized remaining work](docs/roadmap.md)
 
-Next: add signed presence propagation and runtime enrollment, connect verified
+Next: replicate signed presence between peers, integrate authenticated runtime monitoring
+and explicit candidate enrollment, connect verified
 identity and candidate discovery to the mesh engine, broaden browser QA,
 and then add real product adapters and durable tasks.
 The working registry mode remains available during mesh development.
 v0.22.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.22.0)
-with a matching annotated version tag. Release checks and tag synchronization are described
+with a matching annotated version tag. v0.23.0 remains unpublished/untagged in this PR. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 
 No open-source license has been selected yet. Public release requires an owner

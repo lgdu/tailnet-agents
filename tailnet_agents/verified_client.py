@@ -9,16 +9,24 @@ from .identity import encode,load_identity,prove_possession,public_bytes
 
 
 class VerifiedClient:
-    def __init__(self,url,agent_key,grant,audience,read_token='',ca_file=None):
-        self.client=Client(url,read_token,ca_file=ca_file)
+    def __init__(self,url,agent_key,grant,audience,read_token='',ca_file=None,timeout=10):
+        self.client=Client(url,read_token,ca_file=ca_file,timeout=timeout)
         self.agent_key,self.grant,self.audience=agent_key,grant,audience
 
-    def register(self,record):
-        challenge=self.client.request('/v1/challenges',{'record':record})
+    def register(self,record,*,presence=None,guard=None):
+        extension={} if presence is None else {'presence':presence}
+        challenge=self.client.request('/v1/challenges',{'record':record}|extension)
+        if presence is not None:
+            from .presence import presence_context
+            if (not isinstance(challenge,dict) or set(challenge)!={'nonce','context'} or
+                    not isinstance(challenge['nonce'],str) or not 1<=len(challenge['nonce'])<=128 or
+                    challenge['context']!=presence_context(record,presence)):
+                raise ValueError('challenge does not bind this signed presence and record')
+        if guard is not None:guard()
         proof=prove_possession(self.agent_key,self.grant,challenge['nonce'],self.audience,context=challenge['context'])
         return self.client.request('/v1/registrations',{
             'record':record,'grant':self.grant,'public_key':encode(public_bytes(self.agent_key.public_key())),
-            'proof':proof,'nonce':challenge['nonce']})
+            'proof':proof,'nonce':challenge['nonce']}|extension)
 
     def discover(self):
         return self.client.request('/v1/agents')

@@ -1,11 +1,12 @@
-# Verified admission HTTP/TLS — prototype (v0.19)
+# Verified admission HTTP/TLS — prototype (v0.23, unreleased)
 
 This separate optional service exposes VerifiedDirectory over HTTP/TLS. Default
 binding is loopback HTTP. Non-loopback binds require server certificate/key and
 explicit allowed host names; clients verify CA trust and hostname. See
 [TLS deployment](tls-deployment.md) for controlled LAN/tailnet trials.
-It is not the ordinary bearer registry, not distributed mesh and not integrated
-with the UI's signed human-created policy.
+The ordinary bearer registry remains separate. Human-created signed policy can
+be explicitly exported/applied or delivered by the optional UI signer. This is
+a configured directory service, not a distributed mesh.
 
 ## Prepare keys and one scoped grant
 
@@ -143,3 +144,14 @@ on that exact interface. The optional `--discovery-lan-port` defaults to 8773.
 Shutdown joins the publisher before closing the directory database. Seed scans
 and multicast reception are a separate [discovery CLI](discovery.md), and produce
 unadmitted candidates without changing existing registration/policy routes.
+
+## Explicit simulation runtime and presence (v0.23, unreleased)
+
+Policy-mode directories also accept the extended signed-heartbeat challenge and
+registration flow described in [protocol](protocol.md#signed-simulation-runtime-presence-v023-unreleased).
+The [runtime and reader CLIs](agent-runtime.md) use only configured HTTP/TLS
+origins, original Agent identities and existing approved groups. Read-protected
+GET `/v1/presence` pages expose signed observations and effective lease state,
+without exporting grants. Existing unsigned registration stays compatible until
+that identity's first successful signed heartbeat; afterward downgrade is denied.
+Directory restart preserves ordering/history but invalidates old live leases.

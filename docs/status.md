@@ -1,4 +1,4 @@
-# Implementation status — v0.22
+# Implementation status — v0.23 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -11,11 +11,12 @@ its future requirements must not be read as implemented security guarantees.
 | Human UI | Local roles/chat and opt-in signed policy creation/approval/removal/renewal/dissolution/export and explicit recipient delivery; separate grant issuance/download | Automatic secure provisioning, broader browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
 | Agent identity | Optional Ed25519 keys, human-issued scoped grants, verified private-file installation and possession proofs | Trusted manual transfer, owner rotation and key renewal |
-| Verified directory | Library + HTTP/TLS admission, read token, durable signed revocation | Real LAN/tailnet trial, physical transport trials and mesh replication |
-| Signed group policy | Durable snapshots, bounded signed age, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | Live receiver monitoring and runtime enrollment |
+| Simulation runtime | Existing identity/group, signed heartbeat leases, durable boot/sequence ordering, graceful offline and paginated observations | POSIX; configured directory; authenticated UI/peer presence integration pending |
+| Verified directory | Library + HTTP/TLS admission, read token, durable signed revocation and signed-runtime presence | Real LAN/tailnet trial, physical transport trials and mesh replication |
+| Signed group policy | Durable snapshots, bounded signed age, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | Live receiver monitoring and candidate-to-runtime trust handoff |
 | Policy replication | Ordered source failover, independent revocation cursors, HTTP/TLS pull and read-protected status | Multi-source reconciliation/quorum and explicit source enrollment |
 | Candidate discovery | Opt-in signed IPv4 multicast, credential-free HTTP/TLS seeds, local-policy checks, expiry and identity merging | Physical LAN/tailnet trials, mDNS/peer enumeration and explicit runtime enrollment |
-| Mesh | State simulator; candidate discovery is separate | Integrated cryptographic admission, signed presence and network group engine |
+| Mesh | State simulator; candidate discovery is separate | Peer presence replication and integrated network group engine |
 | Product agents | None | OpenClaw/Claude Code/Codex/Qoder/Grok interface validation |
 
 New groups are human-created. Agent restart recovery retains an existing group
@@ -125,7 +126,7 @@ and lost-acknowledgment regression in CI. Real Agents and physical LAN/tailnet/W
 remain unvalidated. In v0.21 grant issuance UX remained manual. See
 [policy delivery](policy-delivery.md). v0.21.0 is published as a GitHub prerelease with a matching annotated tag.
 
-## v0.22 credential issuance (unreleased)
+## v0.22 credential issuance
 
 The configured human signer can preview an existing Agent public key, scope and
 fixed lifetime, explicitly issue a credential, download it and separately preview
@@ -137,11 +138,30 @@ The recipient installer validates owner/group/expiry/its own original identity
 and creates a new 0600 file, refusing overwrite, symlinks and wrong recipients.
 Multiple Agents on one host receive distinct credentials and approvals.
 
-The suite contains 234 tests (26 new issuance/installation tests), plus Chromium
+The v0.22 suite contains 234 tests (26 new issuance/installation tests), plus Chromium
 preview-race, issuance/download/retry and separate-approval checks. Secure remote
 transfer remains a human operation; real Agent runtime enrollment, live revocation
 monitoring, key rotation/recovery and physical LAN/tailnet validation remain open.
 See [credential issuance](credential-issuance.md). v0.22.0 is published as a GitHub prerelease with a matching annotated tag.
+
+## v0.23 simulation runtime and signed presence (unreleased)
+
+The opt-in runtime loads an existing approved simulation key/grant/group and uses
+a private, exclusively locked state file. Startup advances a durable generation
+and creates a new boot ID while keeping the original Agent identity. Signed
+heartbeats bind metadata, state, sequence and expiry into fresh possession proofs.
+The directory enforces ordering, authorization age/expiry/revocation and persists
+observations; restart invalidates live leases without losing membership/history.
+Explicit offline, expired leases and unauthorized observations remain distinct.
+Signed-runtime identities cannot fall back to legacy registration on that directory.
+
+Authenticated presence pages/CLI verify signatures and report point-in-time
+directory observations. Two live processes on one host renew independently;
+stopping one preserves the other. The suite contains 270 tests (36 new runtime/
+presence cases). Online is an authorized heartbeat, not verified executor health.
+Peer presence replication, authenticated UI integration, real product adapters,
+strong distributed fencing and physical LAN/tailnet trials remain unimplemented.
+See [runtime operations](agent-runtime.md). v0.23.0 is not published or tagged.
 
 ## Documentation maintenance rule
 

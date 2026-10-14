@@ -272,3 +272,62 @@ Recovery after restart is explicit POST with the original request from history;
 GET/startup never reconstructs credentials. Browser memory and download files
 must be handled as credential material. See [credential issuance](credential-issuance.md)
 for the separate stdin installer, transfer and remaining operational limits.
+
+## Signed simulation-runtime presence (v0.23, unreleased)
+
+Policy-mode directories accept optional `presence` in the existing challenge
+and registration POST bodies. When omitted, legacy schemas/responses stay the
+same for identities that have never opted into signed presence. A supplied value
+must be a string, never JSON null. After the first successful signed heartbeat,
+that subject cannot use legacy registration on this directory, including after
+restart/lease expiry. This prevents bypassing durable instance ordering.
+
+The presence token is Agent-signed typed Ed25519 JWS,
+`typ: tailnet-agent-presence+jwt`. Its exact claims are:
+
+| Field | Meaning |
+|---|---|
+| `version` | Integer 1 |
+| `owner`, `group_id`, `subject` | Pinned owner fingerprint, original group and Agent key fingerprint; owner does not sign this token |
+| `record_hash` | SHA-256 of canonical normalized metadata JSON |
+| `generation`, `boot_id`, `sequence` | Positive integer generation/sequence up to 2^53−1 and 32 lowercase hex boot ID |
+| `state` | `online` or `offline`; observation only |
+| `issued_at`, `expires_at` | Nonnegative integer seconds; 0 < lifetime <= requested TTL (10–300); issue time at most five seconds ahead; receipt before signed expiry |
+
+New signed-runtime records accept only endpoint/name/protocol/skills/ttl_seconds,
+with at most 4096 normalized JSON bytes. Endpoint remains HTTPS and excludes
+credentials/query/fragment. The proof challenge context becomes SHA-256 of sorted
+compact JSON containing the normalized `record` and `presence_hash` (SHA-256 of
+the exact token). A valid token alone cannot register: approved scoped grant,
+fresh active policy, learned revocation checks and a fresh audience/context-bound
+possession proof still apply. The SDK checks the returned challenge binding before
+signing its proof.
+
+Within one directory, lower generations fail; equal generations need the same
+boot ID and a strictly higher sequence. Same-generation different-boot requests
+leave the incumbent intact. Higher authorized generations supersede it. Conflict
+returns 409, authorization/proof/signature failure 403, malformed schema 400.
+Ordering, registration/grant and presence observation commit together. Signed
+registration returns the existing `id`, `ttl_seconds`, plus `presence` containing
+generation/boot ID/sequence/state and effective `expires_at`. Offline acknowledges
+TTL zero; its group membership remains unchanged. Online leases are capped by
+presence, credential and policy deadlines and require ten seconds remaining.
+
+GET `/v1/presence?after=...&limit=20` requires the existing directory read bearer
+and Host/Origin checks. `after` is empty or an Ed25519 subject cursor; `limit` is
+1–20. Unknown/repeated query parameters fail. The response contains `owner`,
+`group_id`, `observed_at`, policy age status, `entries`, `has_more`, `next_after`.
+Each entry has `id`, `subject`, `public_key`, original normalized `record`, signed
+`presence`, receiver `observed_at`, effective `expires_at` and state:
+`online`, signed `offline`, lease `expired`, or `unauthorized` after credential/
+policy/revocation checks. It exports no grant or private key. Empty pages retain
+the supplied cursor; pages are independent observations rather than a global
+atomic snapshot. Legacy unsigned registrations do not appear in this feed.
+
+Directory restart invalidates live leases but retains signed history/ordering.
+Reads never restore online state or renew policy. The CLI validates signatures,
+scope, metadata, cursor order and deadlines, conservatively expiring old online
+observations. Current membership is still the configured receiver's authenticated
+observation; this is not a receiver-signed grant attestation or proof of executor
+health. Presence is not included in policy/revocation replication. See
+[runtime operations](agent-runtime.md) for migration and recovery boundaries.

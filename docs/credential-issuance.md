@@ -116,12 +116,19 @@ approval separately. Download/issuance does not click approval or deliver policy
 Export/apply or [explicitly deliver](policy-delivery.md) the new signed snapshot.
 
 The simulation client can then use its own original key and installed grant with
-`tailnet-verified-register`. The directory independently checks current policy,
+the [signed simulation runtime](agent-runtime.md). `tailnet-verified-register`
+remains available for legacy identities that have never opted into signed
+presence. The directory independently checks current policy,
 grant ID/scope, signed age, learned revocations and a fresh possession proof.
 Installing or approving alone cannot register it. Repeat independently for Agent B
 on the same host; separate listeners use different ports or an explicitly
 configured gateway. Restart restores each original identity/group and requires
 each Agent to renew its own lease.
+
+v0.23 adds an explicit [simulation runtime](agent-runtime.md) that maintains signed
+heartbeat leases using those same installed keys/grants and original group. It
+has its own persistent per-Agent state and does not change the human approval
+or policy-delivery steps. No product Agent or executor is started.
 
 ## Validation and limits
 

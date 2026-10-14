@@ -204,3 +204,13 @@ mesh integration remain unimplemented or unvalidated. Announcements are locators
 not proof of remote health, global membership or permission to execute work.
 Same-interface multicast floods can still congest UDP queues or consume the
 verification rate; this is not comprehensive denial-of-service protection.
+
+## Separate configured runtime handoff (v0.23, unreleased)
+
+The [simulation runtime](agent-runtime.md) renews signed heartbeat leases only
+after a human explicitly supplies a trusted directory origin/audience, original
+key, scoped grant and existing group. Candidate scanning never starts it, copies
+credentials to a candidate or promotes a candidate into trusted configuration.
+The directory still verifies approved grants, current policy and fresh possession.
+Signed candidate announcements and signed runtime presence use different message
+types and cannot substitute for each other.

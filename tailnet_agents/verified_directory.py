@@ -6,10 +6,12 @@ import re
 import threading
 import time
 import secrets
-from .identity import Admission, AdmissionError, REVOCATION_TYPE, identity_id, sign, verify, verify_grant
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from .identity import Admission, AdmissionError, REVOCATION_TYPE, decode, encode, identity_id, public_bytes, sign, verify, verify_grant
 from .registry import Registry
 from .group_policy import PolicyStore
 from .discovery import make_announcement
+from .presence import canonical_record, presence_context, verify_presence
 
 
 def issue_revocation(owner_key,group_id,credential_id):
@@ -37,6 +39,7 @@ class VerifiedDirectory:
                     raise AdmissionError('database authority/group mismatch')
                 db.execute('INSERT OR IGNORE INTO admission_context VALUES(1,?,?)',expected)
                 db.execute('CREATE TABLE IF NOT EXISTS admission_grants (agent_id TEXT PRIMARY KEY,token TEXT NOT NULL)')
+                db.execute('CREATE TABLE IF NOT EXISTS agent_presence (subject TEXT PRIMARY KEY,generation INTEGER NOT NULL,boot_id TEXT NOT NULL,sequence INTEGER NOT NULL,token TEXT NOT NULL,public_key TEXT NOT NULL,record TEXT NOT NULL,expires REAL NOT NULL,observed REAL NOT NULL)')
                 db.execute('CREATE TABLE IF NOT EXISTS admission_revocations (jti TEXT PRIMARY KEY,proof TEXT NOT NULL)')
                 db.execute('CREATE TABLE IF NOT EXISTS revocation_generation (id INTEGER PRIMARY KEY CHECK(id=1),value TEXT NOT NULL)')
                 db.execute('INSERT OR IGNORE INTO revocation_generation VALUES(1,?)',(secrets.token_hex(16),))
@@ -91,19 +94,21 @@ class VerifiedDirectory:
                 now=int(self.clock()),max_age=self.policy_max_age,revoked=self._admission.revoked)
 
     @staticmethod
-    def record_context(record):
+    def record_context(record,presence=None):
         if not isinstance(record,dict) or 'id' in record:
             raise AdmissionError('identity is derived from the verified subject, not caller input')
         normalized=Registry.normalize_record(record|{'id':'pending'})
         del normalized['id']
+        if presence is not None:
+            return presence_context(record,presence)
         return hashlib.sha256(json.dumps(normalized,sort_keys=True,separators=(',',':')).encode()).hexdigest()
 
-    def challenge(self,record):
-        context=self.record_context(record)
+    def challenge(self,record,presence=None):
+        context=self.record_context(record,presence)
         with self.lock:
             return {'nonce':self._admission.challenge(context),'context':context}
 
-    def register(self,grant_token,subject_key,proof,nonce,record):
+    def register(self,grant_token,subject_key,proof,nonce,record,presence=None):
         with self.lock:
             # Metadata validation precedes consuming a valid single-use challenge.
             if not isinstance(record,dict) or 'id' in record:
@@ -111,17 +116,35 @@ class VerifiedDirectory:
             # Identity belongs to an Agent key, never its shared machine/IP/endpoint.
             agent_id='agent-'+identity_id(subject_key).split(':')[1]
             metadata=Registry.normalize_record(record|{'id':agent_id})
+            context=self.record_context(record,presence)
+            observed=None
+            if presence is not None:
+                if not self.require_policy:
+                    raise AdmissionError('signed presence requires policy enforcement')
+                observed=verify_presence(presence,subject_key,self.owner_key,self.group_id,record,now=self.clock())
             policy=None
             if self.require_policy:
                 grant=verify_grant(grant_token,self.owner_key,self.group_id,now=self.clock(),revoked=self._admission.revoked)
                 policy=self._policy.authorize(grant)
-            grant=self._admission.admit(grant_token,subject_key,proof,nonce,context=self.record_context(record))
+            grant=self._admission.admit(grant_token,subject_key,proof,nonce,context=context)
+            old=self._registry.db.execute('SELECT generation,boot_id,sequence FROM agent_presence WHERE subject=?',(grant['sub'],)).fetchone()
+            if old:
+                if observed is None:
+                    raise AdmissionError('cannot downgrade persisted signed presence to legacy registration')
+                if observed['generation']<old[0] or (observed['generation']==old[0] and (observed['boot_id']!=old[1] or observed['sequence']<=old[2])):
+                    raise FileExistsError('stale or conflicting runtime incarnation')
             remaining=math.floor(grant['exp']-self.clock())
             if policy is not None:
                 remaining=min(remaining,math.floor(policy['issued_at']+self.policy_max_age-self.clock()))
-            if remaining<10:
+            if observed is not None:
+                remaining=min(remaining,math.floor(observed['expires_at']-self.clock()))
+            offline=observed is not None and observed['state']=='offline'
+            if remaining<10 and not offline:
                 raise AdmissionError('authorization too close to expiry for a directory lease')
-            metadata['ttl_seconds']=min(metadata['ttl_seconds'],remaining)
+            metadata['ttl_seconds']=0 if offline else min(metadata['ttl_seconds'],remaining)
+            lease_expires=self.clock()+metadata['ttl_seconds']
+            if observed is not None:
+                lease_expires=min(lease_expires,observed['expires_at'])
             registry=self._registry
             with registry.lock,registry.db:
                 registry.db.execute('BEGIN IMMEDIATE')
@@ -129,9 +152,48 @@ class VerifiedDirectory:
                 if previous and previous[0]!=grant['sub']:
                     raise AdmissionError('identity ownership conflict')
                 registry.db.execute('INSERT INTO agents(id,owner,expires,metadata) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET expires=excluded.expires,metadata=excluded.metadata',
-                                    (agent_id,grant['sub'],self.clock()+metadata['ttl_seconds'],json.dumps(metadata)))
+                                    (agent_id,grant['sub'],lease_expires,json.dumps(metadata)))
                 registry.db.execute('INSERT INTO admission_grants VALUES(?,?) ON CONFLICT(agent_id) DO UPDATE SET token=excluded.token',(agent_id,grant_token))
-            return {'id':agent_id,'ttl_seconds':metadata['ttl_seconds']}
+                if observed is not None:
+                    expires=lease_expires
+                    registry.db.execute('INSERT INTO agent_presence VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(subject) DO UPDATE SET generation=excluded.generation,boot_id=excluded.boot_id,sequence=excluded.sequence,token=excluded.token,public_key=excluded.public_key,record=excluded.record,expires=excluded.expires,observed=excluded.observed',
+                        (grant['sub'],observed['generation'],observed['boot_id'],observed['sequence'],presence,encode(public_bytes(subject_key)),json.dumps(canonical_record(record)),expires,self.clock()))
+            result={'id':agent_id,'ttl_seconds':metadata['ttl_seconds']}
+            if observed is not None:
+                result['presence']={name:observed[name] for name in ('generation','boot_id','sequence','state')}|{'expires_at':expires}
+            return result
+
+    def presence_status(self,after='',limit=20):
+        if (type(limit) is not int or not 1<=limit<=20 or not isinstance(after,str) or
+                (after and not re.fullmatch(r'ed25519:[a-f0-9]{64}',after))):
+            raise ValueError('invalid presence page')
+        with self.lock:
+            if not self.require_policy:
+                raise AdmissionError('signed presence requires policy enforcement')
+            db=self._registry.db
+            rows=db.execute('SELECT subject,token,public_key,record,expires,observed FROM agent_presence WHERE subject>? ORDER BY subject LIMIT ?',(after,limit+1)).fetchall()
+            entries=[]
+            for subject,token,public_key,record,expires,observed_at in rows[:limit]:
+                record=json.loads(record)
+                key=Ed25519PublicKey.from_public_bytes(decode(public_key))
+                claims=verify_presence(token,key,self.owner_key,self.group_id,record)
+                if claims['subject']!=subject:raise AdmissionError('presence subject mismatch')
+                agent_id='agent-'+subject.split(':')[1]
+                lease=db.execute('SELECT expires FROM agents WHERE id=?',(agent_id,)).fetchone()
+                expires=min(expires,claims['expires_at'],0 if lease is None else lease[0])
+                try:
+                    grant_row=db.execute('SELECT token FROM admission_grants WHERE agent_id=?',(agent_id,)).fetchone()
+                    if grant_row is None:raise AdmissionError('missing credential')
+                    grant=verify_grant(grant_row[0],self.owner_key,self.group_id,now=self.clock(),revoked=self._admission.revoked)
+                    self._policy.authorize(grant)
+                    state='offline' if claims['state']=='offline' else 'expired' if self.clock()>=expires or claims['issued_at']>self.clock()+5 else 'online'
+                except AdmissionError:
+                    state='unauthorized'
+                entries.append({'id':agent_id,'subject':subject,'public_key':public_key,'record':record,
+                                'presence':token,'state':state,'expires_at':expires,'observed_at':observed_at})
+            return {'owner':identity_id(self.owner_key),'group_id':self.group_id,'observed_at':self.clock(),
+                    'policy':self._policy.status(),'entries':entries,'has_more':len(rows)>limit,
+                    'next_after':after if not entries else entries[-1]['subject']}
 
     def revoke(self,signed_revocation):
         with self.lock:
@@ -165,7 +227,12 @@ class VerifiedDirectory:
                     grant=verify_grant(row[0],self.owner_key,self.group_id,now=self.clock(),revoked=self._admission.revoked)
                     if self.require_policy:
                         self._policy.authorize(grant)
-                except AdmissionError:
+                    presence=self._registry.db.execute('SELECT token,public_key,record,expires FROM agent_presence WHERE subject=?',(grant['sub'],)).fetchone()
+                    if presence is not None:
+                        claims=verify_presence(presence[0],Ed25519PublicKey.from_public_bytes(decode(presence[1])),self.owner_key,self.group_id,json.loads(presence[2]),now=self.clock())
+                        if claims['subject']!=grant['sub'] or claims['state']!='online' or self.clock()>=presence[3]:
+                            continue
+                except (ValueError,TypeError):
                     continue
                 result.append(record)
             return result
