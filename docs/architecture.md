@@ -151,7 +151,7 @@ newer backup policy; unseen revocations remain possible within the age bound.
 LAN and Tailscale use the same hostname-verified TLS transport. Cross-machine
 trials and integrated mesh discovery remain future work; tests use synthetic identities.
 
-### Implemented candidate discovery (v0.19, unreleased)
+### Implemented candidate discovery (v0.19)
 
 An existing approved simulation key signs short-lived minimal announcements.
 The verified directory's optional public seed route and opt-in multicast publisher
@@ -252,7 +252,7 @@ necessary; network membership never grants filesystem or secret access.
   restart-safe learned revocations and source generation handling.
 - v0.18: signed-age authorization gate, persisted tighter bounds,
   lease expiry caps and ordered configured-source failover with separate cursors.
-- v0.19 (unreleased): existing-identity candidate beacons over explicit-interface
+- v0.19: existing-identity candidate beacons over explicit-interface
   multicast and configured HTTP/TLS seeds; no automatic enrollment.
 - Next: human UI signing/renewal workflow and explicit candidate enrollment.
 - Next: mesh transport with cryptographic admission and signed presence.

@@ -1,4 +1,4 @@
-# Existing-group candidate discovery — v0.19 (unreleased)
+# Existing-group candidate discovery — v0.19
 
 This optional layer locates candidate directory endpoints using signed IPv4 UDP
 multicast announcements and explicitly configured HTTP/TLS seeds. It uses the

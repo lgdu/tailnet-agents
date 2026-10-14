@@ -1,4 +1,4 @@
-# Verified admission HTTP/TLS — prototype (v0.19, unreleased)
+# Verified admission HTTP/TLS — prototype (v0.19)
 
 This separate optional service exposes VerifiedDirectory over HTTP/TLS. Default
 binding is loopback HTTP. Non-loopback binds require server certificate/key and

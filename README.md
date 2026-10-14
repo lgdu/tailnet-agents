@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.19 prototype (unreleased).** Working components are listed below. The network mesh and
+**v0.19 prototype.** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -227,8 +227,8 @@ add signed presence propagation, connect verified
 identity and candidate discovery to the mesh engine, validate the
 human UI in a browser, and then add real product adapters and durable tasks.
 The working registry mode remains available during mesh development.
-v0.18.0 remains the [published GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.18.0).
-v0.19.0 is prepared in this PR and is not yet published or tagged. Release checks and tag synchronization are described
+v0.19.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.19.0)
+with a matching version tag. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 
 No open-source license has been selected yet. Public release requires an owner

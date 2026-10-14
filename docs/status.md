@@ -1,4 +1,4 @@
-# Implementation status — v0.19 (unreleased)
+# Implementation status — v0.19
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -84,8 +84,10 @@ Tests include real loopback multicast, HTTP/TLS, subprocess startup/scanning,
 restart with the same key/group, revoked self-signed seed/LAN announcements,
 mid-scan state changes and absence of registration/lease side effects.
 The full suite contains 155 tests (38 for candidate discovery).
+The first post-merge main identity CI run failed and passed on rerun; its original
+failure cause remains unconfirmed because log downloads were inaccessible.
 Actual NIC/router/tailnet behavior remains unvalidated. See [discovery](discovery.md).
-v0.19.0 is prepared in this PR and is not yet published or tagged.
+v0.19.0 is published as a GitHub prerelease with a matching version tag.
 
 ## Documentation maintenance rule
 

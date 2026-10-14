@@ -96,7 +96,7 @@ proof audience/credential binding and local credential revocation.
 Primary API reference:
 https://cryptography.io/en/latest/hazmat/primitives/asymmetric/ed25519/
 
-## Candidate announcement use (v0.19, unreleased)
+## Candidate announcement use (v0.19)
 
 [Discovery](discovery.md) uses an existing approved simulation identity key to
 sign a separately typed, short-lived locator. Neither a grant nor a private key

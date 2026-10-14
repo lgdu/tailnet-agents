@@ -137,7 +137,7 @@ conflict and terminal-state checks apply to each source. Partial verified record
 persist; polling/failover cannot extend signed authorization. There is no new
 discovery route, membership grant, quorum or real Agent adapter.
 
-## Signed candidate locators (v0.19, unreleased)
+## Signed candidate locators (v0.19)
 
 An explicitly enabled GET `/v1/discovery` returns
 `{announcement: {public_key, announcement}}` with no bearer authentication, under
