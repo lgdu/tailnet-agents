@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tailnet-agents"
-version = "0.18.0"
+version = "0.19.0"
 description = "Discover heterogeneous agents across a Tailscale network"
 requires-python = ">=3.11"
 
@@ -17,6 +17,7 @@ tailnet-agents-ui = "tailnet_agents.ui:main"
 tailnet-verified-directory = "tailnet_agents.admission_server:main"
 tailnet-policy-sync = "tailnet_agents.policy_sync:main"
 tailnet-verified-register = "tailnet_agents.verified_client:main"
+tailnet-discover = "tailnet_agents.discovery:main"
 
 [tool.setuptools.packages.find]
 include = ["tailnet_agents*"]

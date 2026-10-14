@@ -1,4 +1,4 @@
-# Verified admission HTTP/TLS — prototype (v0.18)
+# Verified admission HTTP/TLS — prototype (v0.19, unreleased)
 
 This separate optional service exposes VerifiedDirectory over HTTP/TLS. Default
 binding is loopback HTTP. Non-loopback binds require server certificate/key and
@@ -94,6 +94,7 @@ endpoint is metadata and is not contacted by this service.
 | Method/path | Requirement | Payload/result |
 |---|---|---|
 | GET `/healthz` | Allowed Host/Origin | Process liveness |
+| GET `/v1/discovery` | Explicit discovery opt-in, allowed Host/Origin | Credential-free signed candidate metadata; no membership grant |
 | POST `/v1/challenges` | Allowed Host/Origin | `{record}` → `{nonce, context}` |
 | POST `/v1/registrations` | Signed grant and subject proof | `{record, grant, public_key, proof, nonce}` → ID/TTL |
 | GET `/v1/agents?skill=echo` | Read bearer token | Verified, leased, non-revoked records |
@@ -127,3 +128,18 @@ member removal, rollback rejection and terminal dissolution.
 [Policy sync](policy-sync.md) adds optional periodic pull from an explicitly
 configured sources with failover; registration leases and tasks/chat are not replicated. Signed credential
 revocations propagate through a paginated read-protected feed.
+
+## Optional candidate publication
+
+`--discovery-agent-key EXISTING-KEY.pem` and `--discovery-endpoint ORIGIN` enable
+the public `/v1/discovery` route. Both flags and policy mode are required. Load an
+existing approved simulation identity, never the owner private key. The route
+contains no read token, grant, member list or private key, and does not register
+an Agent. It returns 503 when policy/key eligibility is unavailable and 404 when
+disabled. Host/Origin checks remain active; query parameters are rejected.
+
+`--discovery-lan-interface LOCAL-IPV4` additionally enables five-second UDP multicast
+on that exact interface. The optional `--discovery-lan-port` defaults to 8773.
+Shutdown joins the publisher before closing the directory database. Seed scans
+and multicast reception are a separate [discovery CLI](discovery.md), and produce
+unadmitted candidates without changing existing registration/policy routes.

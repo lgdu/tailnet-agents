@@ -95,3 +95,11 @@ proof audience/credential binding and local credential revocation.
 
 Primary API reference:
 https://cryptography.io/en/latest/hazmat/primitives/asymmetric/ed25519/
+
+## Candidate announcement use (v0.19, unreleased)
+
+[Discovery](discovery.md) uses an existing approved simulation identity key to
+sign a separately typed, short-lived locator. Neither a grant nor a private key
+is transmitted in announcements. The scanner verifies the key against its local
+signed policy, but results do not establish grant validity, endpoint ownership
+or admission. The existing grant/proof checks remain mandatory and unchanged.

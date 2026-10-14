@@ -9,6 +9,7 @@ import secrets
 from .identity import Admission, AdmissionError, identity_id, sign, verify, verify_grant
 from .registry import Registry
 from .group_policy import PolicyStore
+from .discovery import make_announcement
 
 REVOCATION_TYPE='tailnet-agent-revocation+jwt'
 
@@ -80,6 +81,16 @@ class VerifiedDirectory:
     def policy_status(self):
         with self.lock:
             return self._policy.status() if self.require_policy else {'state':'disabled'}
+
+    def discovery_announcement(self,key,endpoint,audience):
+        with self.lock:
+            if not self.require_policy:
+                raise AdmissionError('policy mode required for candidate announcements')
+            row=self._registry.db.execute('SELECT token FROM group_policy WHERE id=1').fetchone()
+            if row is None:
+                raise AdmissionError('existing signed group policy required')
+            return make_announcement(key,row[0],self.owner_key,self.group_id,endpoint,audience,
+                now=int(self.clock()),max_age=self.policy_max_age,revoked=self._admission.revoked)
 
     @staticmethod
     def record_context(record):

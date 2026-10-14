@@ -136,3 +136,34 @@ incomplete revocations triggers fallback. Identical owner/group, rollback,
 conflict and terminal-state checks apply to each source. Partial verified records
 persist; polling/failover cannot extend signed authorization. There is no new
 discovery route, membership grant, quorum or real Agent adapter.
+
+## Signed candidate locators (v0.19, unreleased)
+
+An explicitly enabled GET `/v1/discovery` returns
+`{announcement: {public_key, announcement}}` with no bearer authentication, under
+the verified service's existing Host/Origin checks. Disabled is 404, invalid
+queries 400 and unavailable fresh approved policy 503. Other routes retain their
+existing authentication. `public_key` is raw base64url Ed25519 public material;
+`announcement` is JWS with type `tailnet-discovery+jwt`.
+
+Exact signed fields: `version` (integer 1), `group_id`, `subject`, `policy_hash`
+(SHA-256 of the locally trusted signed policy token), `endpoint` (canonical
+HTTP/TLS origin, HTTPS except loopback), `audience`, `issued_at`, `expires_at`.
+Expiry is at most 30 seconds after issue and no later than publisher policy expiry;
+over five seconds of future issue time is rejected. Owner/group and active local
+policy must match, and the subject must be locally approved. No grant/token/key
+secrets, policy body, membership list or capabilities are carried.
+
+Optional IPv4 multicast sends the inner envelope to `239.255.77.77:8773`, TTL 1,
+on an explicitly selected interface every five seconds. No UDP requests/replies.
+The custom protocol is not mDNS, A2A or automatic tailnet peer enumeration. Scans
+limit packets to 4096 bytes and 128 receives; configured seeds limit responses to
+4096 bytes and sources to eight. Only configured seed origins are queried, with
+no Authorization/Cookie headers or ambient proxies; redirects are rejected and
+TLS validation remains enabled.
+
+Merge by signed identity; withhold conflicting live locators for one subject.
+Results include `admission: not_checked`; no route makes a candidate an admitted
+member, execution authority or trusted policy source. Registration still requires
+the existing valid grant and fresh bound possession proof. See [discovery](discovery.md)
+for configuration, scanner-local policy checks, replay and validation limits.

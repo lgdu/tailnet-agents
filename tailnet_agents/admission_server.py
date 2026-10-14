@@ -10,13 +10,14 @@ from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs,urlparse
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from .identity import AdmissionError,decode
+from .identity import AdmissionError,decode,load_identity
 from .verified_directory import VerifiedDirectory
 from .client import Client
 from .policy_sync import PolicySynchronizer,load_policy_sources
+from .discovery import DISCOVERY_PORT,LanBroadcaster,lan_config,origin
 
 
-def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=None):
+def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=None,discovery=None):
     allowed_hosts=allowed_hosts or ("127.0.0.1","localhost")
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
@@ -54,6 +55,15 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=N
                 parsed=urlparse(self.path)
                 if parsed.path=='/healthz':
                     return self.respond(200,{'status':'ok','mode':'verified-'+scheme})
+                if parsed.path=='/v1/discovery':
+                    if discovery is None:
+                        return self.respond(404,{'error':'not found'})
+                    if parsed.query:
+                        raise ValueError('discovery route does not accept query parameters')
+                    try:
+                        return self.respond(200,{'announcement':discovery()})
+                    except AdmissionError:
+                        return self.respond(503,{'error':'discovery announcement unavailable'})
                 if parsed.path=='/v1/revocations':
                     self.read_auth()
                     query=parse_qs(parsed.query,keep_blank_values=True)
@@ -188,6 +198,10 @@ def main():
     parser.add_argument('--policy-peer-ca',help='trusted CA certificate PEM for the configured source')
     parser.add_argument('--policy-sync-interval',type=float,default=10,help='policy pull interval, 1..3600 seconds')
     parser.add_argument('--policy-max-age',type=int,help='maximum signed policy age, 1..86400 seconds; default 300 or persisted limit')
+    parser.add_argument('--discovery-agent-key',help='existing approved synthetic identity PEM; never an owner key')
+    parser.add_argument('--discovery-endpoint',help='explicit advertised directory origin; enables credential-free /v1/discovery')
+    parser.add_argument('--discovery-lan-interface',help='opt-in multicast on one explicit local IPv4 interface address')
+    parser.add_argument('--discovery-lan-port',type=int,default=DISCOVERY_PORT)
     args=parser.parse_args()
     token=os.environ.get('TAILNET_VERIFIED_READ_TOKEN','')
     if len(token)<32 or not token.isascii():
@@ -199,9 +213,22 @@ def main():
         parser.error('--policy-peer-ca requires --policy-peer')
     if (args.policy_sources_file or args.policy_max_age is not None) and not (args.require_policy or args.policy_file):
         parser.error('policy sources and maximum age require policy mode')
+    if bool(args.discovery_agent_key)!=bool(args.discovery_endpoint):
+        parser.error('discovery requires both an existing identity key and explicit endpoint')
+    if args.discovery_agent_key and not (args.require_policy or args.policy_file):
+        parser.error('discovery requires signed policy mode')
+    if args.discovery_lan_interface and not args.discovery_agent_key:
+        parser.error('LAN announcements require explicit discovery identity/endpoint')
     directory=None
     synchronizer=None
+    broadcaster=None
+    server=None
     try:
+        discovery_key=load_identity(args.discovery_agent_key) if args.discovery_agent_key else None
+        if args.discovery_endpoint:
+            args.discovery_endpoint=origin(args.discovery_endpoint)
+        if args.discovery_lan_interface:
+            lan_config(args.discovery_lan_interface,args.discovery_lan_port)
         allowed,context=transport_config(args.host,args.tls_cert,args.tls_key,args.allow_host)
         authority=Ed25519PublicKey.from_public_bytes(decode(Path(args.authority_public_key).read_text().strip()))
         peers=[]
@@ -214,21 +241,32 @@ def main():
             directory.apply_policy(Path(args.policy_file).read_text().strip())
         if peers:
             synchronizer=PolicySynchronizer(directory,peers[0],args.policy_sync_interval,fallback_clients=peers[1:])
+        discovery=None if discovery_key is None else lambda: directory.discovery_announcement(discovery_key,args.discovery_endpoint,args.audience)
+        if args.discovery_lan_interface:
+            broadcaster=LanBroadcaster(discovery,args.discovery_lan_interface,args.discovery_lan_port)
+        scheme='https' if context else 'http'
+        server=AdmissionHTTPServer((args.host,args.port),handler(directory,token,allowed,scheme,synchronizer,discovery),context)
     except (ValueError,OSError):
+        if broadcaster is not None:
+            broadcaster.stop()
+        if server is not None:
+            server.server_close()
         if directory is not None:
             directory.close()
         parser.error('authority/group/database setup failed; see docs/admission-http.md')
-    scheme='https' if context else 'http'
-    server=AdmissionHTTPServer((args.host,args.port),handler(directory,token,allowed,scheme,synchronizer),context)
     print(f'Verified directory: {scheme}://{allowed[0]}:{server.server_port}',flush=True)
     try:
         if synchronizer is not None:
             synchronizer.start()
+        if broadcaster is not None:
+            broadcaster.start()
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
         server.server_close()
+        if broadcaster is not None:
+            broadcaster.stop()
         if synchronizer is not None:
             synchronizer.stop()
         directory.close()
