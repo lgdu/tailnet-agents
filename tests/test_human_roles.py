@@ -16,6 +16,7 @@ class HumanRoleTests(unittest.TestCase):
         self.store = ChatStore()
         users = {name: {'token': char*32, 'role': role} for name, char, role in
                  [('alice','a','participant'),('bob','b','participant'),('owner','o','admin'),('watcher','w','observer')]}
+        self.store.create_group('Test group','owner',list(users),group_id='legacy')
         self.server = ThreadingHTTPServer(('127.0.0.1', 0), handler(self.store, users))
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()

@@ -1,9 +1,12 @@
 'use strict';
 let me = null, token = '', conversation = 'group', members = [], pending = null, busy = false;
+let groups=[], activeGroup=null;
 let session = 0, view = 0, loading = false, history = new Map(), moreOlder = false;
 const $ = id => document.getElementById(id);
 function node(tag, text, className) { const n = document.createElement(tag); if(text !== undefined) n.textContent = text; if(className) n.className = className; return n; }
 async function api(path, body) {
+  if(path.startsWith('/api/messages?')||path.startsWith('/api/members'))path+=(path.includes('?')?'&':'?')+'group_id='+encodeURIComponent(activeGroup||'');
+  if(body&&(path==='/api/messages'||path==='/api/presence'))body={...body,group_id:activeGroup};
   const credential = token, controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
   try {
@@ -14,7 +17,7 @@ async function api(path, body) {
 function renderMembers() {
   $('member-count').textContent = `${members.filter(m => m.online).length} / ${members.length} 模拟成员在线`;
   $('member-list').replaceChildren(); $('direct-list').replaceChildren();
-  for(const m of members) {
+  for(const m of (activeGroup?members:[])) {
     const nav = node('button', '@ '+m.name+(m.online?'':' · 离线'), 'nav'+(conversation==='dm:'+m.id?' active':'')); nav.onclick=()=>select('dm:'+m.id); if(me?.role!=='observer') $('direct-list').append(nav);
     const card=node('div',undefined,'member-card'), top=node('div',undefined,'member-top'); top.append(node('span',m.name[0],'avatar'));
     const info=node('div'); info.append(node('strong',m.name),node('small',m.online?'模拟 Echo · 在线':'模拟 Echo · 离线')); top.append(info,node('span',undefined,'presence'+(m.online?'':' offline')));
@@ -47,7 +50,7 @@ function renderMessages(mode, forceBottom=false) {
   else container.scrollTop=oldTop;
 }
 async function refreshMessages(mode='new',forceBottom=false) {
-  if(loading||!me)return;
+  if(loading||!me||!activeGroup)return;
   const current=view,currentSession=session,selected=conversation;
   loading=true;$('older').disabled=true;
   try {
@@ -68,21 +71,51 @@ async function refreshMessages(mode='new',forceBottom=false) {
 }
 async function select(value) {
   if(busy||pending){$('delivery-status').textContent='请先重试待确认消息，或退出连接后重新进入。';return;}
+  if(!activeGroup)return;
   conversation=value;view++;loading=false;history=new Map();moreOlder=false;$('older').hidden=true;$('messages').replaceChildren();
   $('group-button').classList.toggle('active',value==='group');$('conversation-title').textContent=value==='group'?'群组讨论':members.find(m=>m.id===value.slice(3))?.name;
   $('conversation-kind').textContent=value==='group'?'GROUP CONVERSATION':'DIRECT CONVERSATION';$('message').value='';renderMembers();renderRecipients();await refreshMessages('initial');
 }
+function renderGroups(){
+  $('group-select').replaceChildren();
+  if(!groups.length){const option=node('option','暂无获准访问的群组');option.value='';$('group-select').append(option);}
+  for(const group of groups){const option=node('option',group.name);option.value=group.id;option.selected=group.id===activeGroup;$('group-select').append(option);}
+  $('space-name').textContent=groups.find(g=>g.id===activeGroup)?.name||'尚未加入群组';
+  $('create-group').hidden=me?.role!=='admin';
+  $('compose').hidden=!activeGroup||me?.role==='observer';
+}
+async function chooseGroup(id){
+  if(busy||pending){$('group-select').value=activeGroup||'';$('delivery-status').textContent='请先处理待确认消息。';return;}
+  activeGroup=id;view++;loading=false;history=new Map();members=[];moreOlder=false;$('older').hidden=true;$('messages').replaceChildren();renderGroups();
+  if(!id){renderMembers();$('messages').append(node('div',me?.role==='admin'?'点击「创建群组」开始。Agent 不会自动创建。':'等待管理员将你加入一个群组。','empty'));$('sync-status').textContent='尚未加入群组';return;}
+  const current=session,selected=id;
+  try{const result=await api('/api/members');if(current!==session||selected!==activeGroup)return;members=result.members;await select('group');}
+  catch(error){if(current===session)$('network-error').textContent=error.message;}
+}
+$('group-select').onchange=()=>chooseGroup($('group-select').value);
+$('create-group').onclick=async()=>{
+  const current=session;$('group-error').textContent='';$('human-choices').replaceChildren();
+  try{const result=await api('/api/humans');if(current!==session)return;for(const human of result.humans){if(human.id===me.id)continue;const label=node('label'),check=node('input');check.type='checkbox';check.name='group-human';check.value=human.id;label.append(check,node('span',human.id+' · '+human.role));$('human-choices').append(label);}$('group-dialog').showModal();}
+  catch(error){if(current===session)$('network-error').textContent=error.message;}
+};
+$('cancel-group').onclick=()=>$('group-dialog').close();
+$('group-form').onsubmit=async e=>{
+  e.preventDefault();const current=session,button=$('group-form').querySelector('button[type="submit"]');button.disabled=true;
+  try{const created=await api('/api/groups',{name:$('group-name').value,humans:[...document.querySelectorAll('input[name="group-human"]:checked')].map(i=>i.value)});if(current!==session)return;groups=(await api('/api/groups')).groups;if(current!==session)return;$('group-dialog').close();$('group-name').value='';await chooseGroup(created.id);}
+  catch(error){if(current===session)$('group-error').textContent=error.message;}
+  finally{button.disabled=false;}
+};
 $('login-form').onsubmit=async e=>{
   e.preventDefault();const current=++session;view++;token=$('token').value;$('login-error').textContent='';
-  try{const identity=await api('/api/me');if(current!==session)return;const result=await api('/api/members');if(current!==session)return;
-    me=identity;members=result.members;conversation='group';history=new Map();loading=false;
-    $('human-name').textContent=me.id;$('human-role').textContent={admin:'管理员',participant:'参与者',observer:'观察者'}[me.role];$('compose').hidden=me.role==='observer';$('login').hidden=true;$('workspace').hidden=false;$('token').value='';renderMembers();renderRecipients();await refreshMessages('initial');
+  try{const identity=await api('/api/me');if(current!==session)return;const result=await api('/api/groups');if(current!==session)return;
+    me=identity;groups=result.groups;conversation='group';history=new Map();loading=false;
+    $('human-name').textContent=me.id;$('human-role').textContent={admin:'管理员',participant:'参与者',observer:'观察者'}[me.role];$('login').hidden=true;$('workspace').hidden=false;$('token').value='';await chooseGroup(groups[0]?.id||null);
   }catch(error){if(current!==session)return;token='';me=null;$('workspace').hidden=true;$('login').hidden=false;$('login-error').textContent=error.message;}
 };
-$('logout').onclick=()=>{session++;view++;token='';me=null;pending=null;busy=false;loading=false;history=new Map();conversation='group';$('workspace').hidden=true;$('login').hidden=false;$('message').value='';$('message').disabled=false;$('send-button').disabled=false;$('send-button').textContent='发送 ↑';$('messages').replaceChildren();$('group-button').classList.add('active');$('conversation-title').textContent='群组讨论';$('conversation-kind').textContent='GROUP CONVERSATION';};
+$('logout').onclick=()=>{session++;view++;activeGroup=null;groups=[];$('group-dialog').close();token='';me=null;pending=null;busy=false;loading=false;history=new Map();conversation='group';$('workspace').hidden=true;$('login').hidden=false;$('message').value='';$('message').disabled=false;$('send-button').disabled=false;$('send-button').textContent='发送 ↑';$('messages').replaceChildren();$('group-button').classList.add('active');$('conversation-title').textContent='群组讨论';$('conversation-kind').textContent='GROUP CONVERSATION';};
 $('group-button').onclick=()=>select('group');$('older').onclick=()=>refreshMessages('older');
 $('compose').onsubmit=async e=>{
-  e.preventDefault();if(busy||!me||me.role==='observer')return;if(!pending&&!$('message').value.trim())return;
+  e.preventDefault();if(busy||!me||!activeGroup||me.role==='observer')return;if(!pending&&!$('message').value.trim())return;
   if(!pending)pending={conversation,text:$('message').value,targets:[...document.querySelectorAll('input[name="recipient"]:checked')].map(i=>i.value),request_id:crypto.randomUUID()};
   const current=session;busy=true;$('send-button').disabled=true;$('message').disabled=true;$('delivery-status').textContent='发送中…';
   try{const result=await api('/api/messages',pending);if(current!==session)return;pending=null;$('message').value='';$('delivery-status').textContent=result.offline_targets.length?'已保存；离线接收者未回应：'+result.offline_targets.join(', '):'已保存 · 模拟回应已生成';await refreshMessages('new',true);}
@@ -95,8 +128,10 @@ setInterval(async()=>{
   if(!me||document.hidden||polling)return;
   polling=true;const current=session;
   try{
-    await refreshMessages();if(current!==session||!me)return;
-    const result=await api('/api/members');if(current!==session||!me)return;
+    const discovered=await api('/api/groups');if(current!==session||!me)return;
+    if(JSON.stringify(discovered.groups)!==JSON.stringify(groups)){groups=discovered.groups;renderGroups();if(!activeGroup&&groups.length)await chooseGroup(groups[0].id);}
+    if(!activeGroup)return;await refreshMessages();if(current!==session||!me)return;
+    const selected=activeGroup;const result=await api('/api/members');if(current!==session||!me||selected!==activeGroup)return;
     if(JSON.stringify(result.members)!==JSON.stringify(members)){members=result.members;renderMembers();}
   }catch(error){if(current===session)$('network-error').textContent=error.message;}
   finally{polling=false;}

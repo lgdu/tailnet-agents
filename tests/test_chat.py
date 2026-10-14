@@ -57,6 +57,7 @@ class ChatTests(unittest.TestCase):
                 self.send(request_id='new', **patch)
 
     def test_http_auth_origin_and_assets(self):
+        self.store.create_group('Test group','demo-owner',[],group_id='legacy')
         server = ThreadingHTTPServer(('127.0.0.1', 0), handler(self.store, 't'*32))
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()

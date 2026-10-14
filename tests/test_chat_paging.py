@@ -53,6 +53,7 @@ class ChatPagingTests(unittest.TestCase):
                 self.store.page('group',**options)
 
     def test_http_pages_and_invalid_queries(self):
+        self.store.create_group('Test group','demo-owner',[],group_id='legacy')
         server = ThreadingHTTPServer(('127.0.0.1',0),handler(self.store,'t'*32))
         thread = threading.Thread(target=server.serve_forever,daemon=True)
         thread.start()

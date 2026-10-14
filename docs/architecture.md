@@ -170,7 +170,8 @@ human interface. No timeout may turn restoration into new-group creation.
 If credential renewal, policy freshness or dissolution status cannot be established,
 apply the authorization rules above; do not silently bypass them.
 
-The current chat demo's group is predefined by the program, and the simulator
-receives its policy from the test harness. Neither currently creates dynamic
-network groups. A human group-creation form and its signed approval flow remain
-to be implemented. The old automatic-creation proposal is superseded.
+The current chat demo requires human creation for fresh groups; existing legacy
+group history is preserved on upgrade. The simulator receives its policy from
+the test harness. Neither currently creates dynamic
+network groups. v0.9 implements a local human group-creation form and database membership checks.
+Its signed approval flow and mesh propagation remain to be implemented. The old automatic-creation proposal is superseded.

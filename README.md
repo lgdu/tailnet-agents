@@ -2,7 +2,7 @@
 
 Discover heterogeneous agents across regions on a shared Tailscale network.
 
-Status: **v0.8 prototype**. Automatic bridge registration/renewal, discovery,
+Status: **v0.9 prototype**. Automatic bridge registration/renewal, discovery,
 Echo task submission, result polling and MCP stdio tools work. Real product
 adapters and A2A transport are planned. The custom task API is not A2A.
 
@@ -108,4 +108,8 @@ v0.7 支持独立人类 token、管理员/参与者/观察者角色，以及后�
 角色和多用户配置见 [Human UI](docs/ui.md)。
 
 v0.8 增加每 2 秒增量更新、旧历史分页与断线提示。设计规则已调整为：
-新群组由人明确创建，Agent 仅自动恢复已授权的原群组；创建表单仍待实现。
+新群组由人明确创建，Agent 仅自动恢复已授权的原群组；v0.9 已实现本地人类创建表单与初始成员选择，签名凭证仍待实现。
+
+v0.9 新安装没有默认群组，管理员点击「创建群组」并选择允许进入的人。
+不同群组的聊天与私聊独立保存；非成员（包括其他管理员）不能访问。
+这是本地 UI 的成员授权，尚未连接网络 Agent 凭证或 Mesh。

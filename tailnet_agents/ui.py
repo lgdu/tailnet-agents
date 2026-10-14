@@ -82,17 +82,27 @@ def handler(store, users):
                 principal, role = self.authorize()
                 if parsed.path == '/api/me':
                     return self.response(200, {'id': principal, 'role': role})
+                if parsed.path == '/api/groups':
+                    return self.response(200, {'groups':store.groups(principal)})
+                if parsed.path == '/api/humans':
+                    if role != 'admin':
+                        raise PermissionError('admin role required')
+                    return self.response(200, {'humans':[{'id':p,'role':c['role']} for p,c in users.items()]})
                 if parsed.path == '/api/members':
+                    group_id = parse_qs(parsed.query).get('group_id',['legacy'])[0]
+                    store.require_group(principal,group_id)
                     return self.response(200, {'members': store.members()})
                 if parsed.path == '/api/messages':
                     query = parse_qs(parsed.query, keep_blank_values=True)
-                    if set(query) - {'conversation','after','before','limit'} or any(len(v) != 1 for v in query.values()):
+                    if set(query) - {'conversation','after','before','limit','group_id'} or any(len(v) != 1 for v in query.values()):
                         raise ValueError('invalid history query')
                     conversation = query.get('conversation', ['group'])[0]
                     if role == 'observer' and conversation != 'group':
                         raise PermissionError('observer cannot access private conversations')
+                    group_id = query.get('group_id',['legacy'])[0]
+                    store.require_group(principal,group_id)
                     options = {key: int(query[key][0]) for key in ('after','before','limit') if key in query}
-                    return self.response(200, store.page(conversation, principal, **options))
+                    return self.response(200, store.page(conversation, principal, group_id=group_id, **options))
                 self.response(404, {'error': 'not found'})
             except PermissionError as exc:
                 self.response(403, {'error': str(exc)})
@@ -108,10 +118,20 @@ def handler(store, users):
                 payload = json.loads(self.rfile.read(length))
                 if not isinstance(payload, dict):
                     raise ValueError('body must be an object')
+                if self.path == '/api/groups':
+                    if role != 'admin':
+                        raise PermissionError('admin role required')
+                    if set(payload) != {'name','humans'} or not isinstance(payload['humans'],list) or any(not isinstance(p,str) or p not in users for p in payload['humans']):
+                        raise ValueError('select configured human members')
+                    return self.response(201,store.create_group(payload['name'],principal,payload['humans']))
+                group_id = payload.pop('group_id','legacy')
+                if not isinstance(group_id,str):
+                    raise ValueError('invalid group id')
+                store.require_group(principal,group_id)
                 if self.path == '/api/messages':
                     if role == 'observer':
                         raise PermissionError('observer cannot send messages')
-                    return self.response(200, store.send(payload, principal))
+                    return self.response(200, store.send(payload, principal, group_id))
                 if self.path == '/api/presence':
                     if role != 'admin':
                         raise PermissionError('admin role required')

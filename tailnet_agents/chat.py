@@ -3,6 +3,7 @@ import json
 import sqlite3
 import threading
 import time
+import uuid
 from pathlib import Path
 
 AGENTS = {'moderator': 'Moderator', 'coder': 'Coder', 'researcher': 'Researcher'}
@@ -16,6 +17,7 @@ class ChatStore:
         if database != ':memory:':
             Path(database).chmod(0o600)
         self.db.execute('PRAGMA journal_mode=WAL')
+        had_messages = self.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='messages'").fetchone() is not None
         self.db.execute('CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, conversation TEXT NOT NULL, sender TEXT NOT NULL, text TEXT NOT NULL, created REAL NOT NULL)')
         columns = {row[1] for row in self.db.execute('PRAGMA table_info(messages)')}
         if 'owner' not in columns:
@@ -24,10 +26,44 @@ class ChatStore:
         self.db.execute('CREATE TABLE IF NOT EXISTS user_submissions (owner TEXT NOT NULL, request_id TEXT NOT NULL, payload TEXT NOT NULL, result TEXT NOT NULL, PRIMARY KEY(owner, request_id))')
         # Legacy single-user conversations belong exclusively to demo-owner.
         self.db.execute("INSERT OR IGNORE INTO user_submissions SELECT 'demo-owner',request_id,payload,result FROM submissions")
-        self.db.execute('CREATE INDEX IF NOT EXISTS messages_scope ON messages(conversation,owner,id)')
+        columns = {row[1] for row in self.db.execute('PRAGMA table_info(messages)')}
+        if 'group_id' not in columns:
+            self.db.execute("ALTER TABLE messages ADD COLUMN group_id TEXT NOT NULL DEFAULT 'legacy'")
+        self.db.execute('CREATE TABLE IF NOT EXISTS chat_groups (id TEXT PRIMARY KEY, name TEXT NOT NULL, creator TEXT NOT NULL, created REAL NOT NULL)')
+        self.db.execute('CREATE TABLE IF NOT EXISTS group_humans (group_id TEXT NOT NULL, principal TEXT NOT NULL, PRIMARY KEY(group_id,principal))')
+        self.db.execute('CREATE TABLE IF NOT EXISTS group_submissions (group_id TEXT NOT NULL, owner TEXT NOT NULL, request_id TEXT NOT NULL, payload TEXT NOT NULL, result TEXT NOT NULL, PRIMARY KEY(group_id,owner,request_id))')
+        self.db.execute("INSERT OR IGNORE INTO group_submissions SELECT 'legacy',owner,request_id,payload,result FROM user_submissions")
+        # Restore existing predefined-group history; a fresh installation has NO groups.
+        if had_messages and self.db.execute("SELECT 1 FROM messages WHERE group_id='legacy' LIMIT 1").fetchone():
+            self.db.execute("INSERT OR IGNORE INTO chat_groups VALUES('legacy','旧版协作组','demo-owner',0)")
+            self.db.execute("INSERT OR IGNORE INTO group_humans SELECT 'legacy',owner FROM messages WHERE group_id='legacy'")
+            self.db.execute("INSERT OR IGNORE INTO group_humans VALUES('legacy','demo-owner')")
+        self.db.execute('CREATE INDEX IF NOT EXISTS messages_group_scope ON messages(group_id,conversation,owner,id)')
         self.db.commit()
         self.lock = threading.Lock()
         self.online = set(AGENTS)
+
+    def create_group(self, name, creator, humans, group_id=None):
+        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80:
+            raise ValueError('group name must be 1..80 characters')
+        if not isinstance(humans, list) or len(humans) > 100 or any(not isinstance(h, str) or not h for h in humans):
+            raise ValueError('invalid human members')
+        group_id = group_id or uuid.uuid4().hex
+        with self.lock, self.db:
+            self.db.execute('INSERT INTO chat_groups VALUES(?,?,?,?)', (group_id,name.strip(),creator,time.time()))
+            self.db.executemany('INSERT INTO group_humans VALUES(?,?)', [(group_id,h) for h in sorted(set(humans+[creator]))])
+        return {'id':group_id,'name':name.strip(),'creator':creator}
+
+    def groups(self, principal):
+        with self.lock:
+            rows = self.db.execute('SELECT g.id,g.name,g.creator FROM chat_groups g JOIN group_humans h ON h.group_id=g.id WHERE h.principal=? ORDER BY g.created,g.id', (principal,)).fetchall()
+        return [{'id':r[0],'name':r[1],'creator':r[2]} for r in rows]
+
+    def require_group(self, principal, group_id):
+        with self.lock:
+            exists = self.db.execute('SELECT 1 FROM group_humans WHERE group_id=? AND principal=?', (group_id,principal)).fetchone()
+        if not exists:
+            raise PermissionError('group access denied')
 
     @staticmethod
     def conversation(value):
@@ -35,7 +71,7 @@ class ChatStore:
             raise ValueError('unknown conversation')
         return value
 
-    def page(self, conversation, principal="demo-owner", *, after=None, before=None, limit=100):
+    def page(self, conversation, principal="demo-owner", *, after=None, before=None, limit=100, group_id="legacy"):
         self.conversation(conversation)
         if after is not None and before is not None:
             raise ValueError('after and before are mutually exclusive')
@@ -44,7 +80,7 @@ class ChatStore:
         if any(value is not None and (type(value) is not int or not 0 <= value <= 2**63-1)
                for value in (after, before)):
             raise ValueError('invalid message cursor')
-        clauses, values = ['conversation=?'], [conversation]
+        clauses, values = ['conversation=?','group_id=?'], [conversation,group_id]
         if conversation != 'group':
             clauses.append('owner=?')
             values.append(principal)
@@ -83,7 +119,7 @@ class ChatStore:
             else:
                 self.online.discard(agent)
 
-    def send(self, payload, principal="demo-owner"):
+    def send(self, payload, principal="demo-owner", group_id="legacy"):
         if set(payload) - {'conversation', 'text', 'request_id', 'targets'}:
             raise ValueError('unknown message fields')
         conversation = self.conversation(payload.get('conversation'))
@@ -102,13 +138,13 @@ class ChatStore:
         canonical = json.dumps({'conversation': conversation, 'text': text, 'targets': targets}, sort_keys=True)
         with self.lock, self.db:
             self.db.execute('BEGIN IMMEDIATE')
-            old = self.db.execute('SELECT payload,result FROM user_submissions WHERE owner=? AND request_id=?', (principal, request_id)).fetchone()
+            old = self.db.execute('SELECT payload,result FROM group_submissions WHERE group_id=? AND owner=? AND request_id=?', (group_id, principal, request_id)).fetchone()
             if old:
                 if old[0] != canonical:
                     raise FileExistsError('request id reused with changed message')
                 return json.loads(old[1])
             created = time.time()
-            cursor = self.db.execute('INSERT INTO messages(conversation,sender,text,created,owner) VALUES(?,?,?,?,?)', (conversation, 'human', text, created, principal))
+            cursor = self.db.execute('INSERT INTO messages(conversation,sender,text,created,owner,group_id) VALUES(?,?,?,?,?,?)', (conversation, 'human', text, created, principal, group_id))
             replies, skipped = [], []
             for target in targets:
                 if target not in self.online:
@@ -116,10 +152,10 @@ class ChatStore:
                     continue
                 # Exactly one deterministic reply; agent replies never trigger other agents.
                 reply = f'[{AGENTS[target]} · simulated] Received: {text}'
-                row = self.db.execute('INSERT INTO messages(conversation,sender,text,created,owner) VALUES(?,?,?,?,?)', (conversation, target, reply, created, principal))
+                row = self.db.execute('INSERT INTO messages(conversation,sender,text,created,owner,group_id) VALUES(?,?,?,?,?,?)', (conversation, target, reply, created, principal, group_id))
                 replies.append(row.lastrowid)
             result = {'message_id': cursor.lastrowid, 'reply_ids': replies, 'offline_targets': skipped}
-            self.db.execute('INSERT INTO user_submissions VALUES(?,?,?,?)', (principal, request_id, canonical, json.dumps(result)))
+            self.db.execute('INSERT INTO group_submissions VALUES(?,?,?,?,?)', (group_id, principal, request_id, canonical, json.dumps(result)))
             return result
 
     def close(self):

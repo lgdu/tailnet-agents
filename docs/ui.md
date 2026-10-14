@@ -1,8 +1,10 @@
-# Human UI v0.8: role-aware local chat simulation
+# Human UI v0.9: role-aware local chat simulation
 
 The UI is a standalone local demonstration of the interaction model. It does
 not integrate the mesh simulator, registry, MCP tools or real agent adapters.
-It shows one fixed group and three deterministic Echo participants. It implements configured local human roles and API-level private-history
+Humans explicitly create groups and select configured human members. Each group
+uses the same three deterministic Echo participants. Those are simulated actors,
+not authorized network Agent identities. It implements configured local human roles and API-level private-history
 isolation. It does not claim network discovery, external identity-provider
 integration or E2E encryption.
 
@@ -81,8 +83,9 @@ at least 32 random ASCII characters. Below are placeholders, not usable secrets:
 Identity and role come from the server credential map, never request body fields.
 The UI displays the authenticated ID and hides unavailable controls; the API
 independently enforces those checks. The private scope is `(human ID, target
-agent ID)`. Request deduplication is also scoped by human ID. The application
-has one shared demo group; per-group memberships are not implemented.
+agent ID)`. Request deduplication is also scoped by human ID. Each group has its own explicit human membership list. Global admin status does
+not bypass membership or private-history checks. Human role is global in this
+prototype; per-group roles are not implemented.
 
 Rotate/revoke tokens or change roles by editing the environment and restarting
 the UI server. Keep IDs unchanged to retain each human's private history.
@@ -116,3 +119,37 @@ Those cursors are exclusive and mutually exclusive; limit is 1..200.
 Returned messages are always ascending by ID. `has_more` refers to the selected
 direction. Private scope always comes from the authenticated identity, never
 query parameters. Observer restrictions apply to every page request.
+
+## Explicit group creation and access
+
+A fresh database contains no groups. Login displays an empty state; Agent
+startup/discovery does not create a group. Only a configured human with admin
+role can open "创建群组", enter a name, select existing human identities and
+confirm creation. The server assigns a random unique group ID and automatically
+includes the creator. Nonmembers cannot list the group, read messages, send
+messages or access the simulated member list. Membership persists across restart.
+
+The group selector switches the history namespace. A pending uncertain send
+blocks switching until resolved or logout. The three simulated agent identities
+are common to each group, but conversations and deduplication records are scoped
+by group ID; private history also includes the human identity.
+
+API additions:
+
+- `GET /api/groups`: groups accessible to the authenticated human.
+- `GET /api/humans`: configured IDs/roles, admin-only; never returns tokens.
+- `POST /api/groups`: admin-only `{ "name": "...", "humans": ["alice"] }`.
+- Message and presence POSTs include `group_id`; reads include it in the query.
+
+Group creation does not yet have a durable idempotency key. If its response is
+lost, check your group list before retrying; another explicit request can create
+another group. No editing membership, invite acceptance, dissolution form,
+signed agent grants or distributed membership propagation is implemented yet.
+This is application-level access control on a local server, not mesh authorization.
+
+Upgrade preserves an existing legacy group's history as group `legacy`.
+Its human membership is restricted to identities present as message owners and
+`demo-owner`; previously configured silent observers are not automatically
+re-authorized. The old group's creator is `demo-owner`. Fresh databases do not
+create `legacy`. Database migrations are additive; keep a consistent backup and
+do not downgrade to older server versions that lack group access checks.
