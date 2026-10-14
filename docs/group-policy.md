@@ -1,8 +1,9 @@
-# Signed group policy — v0.18
+# Signed group policy — v0.20 (unreleased)
 
 This optional layer connects persistent signed membership to the verified
-admission directory. It does **not** connect the human UI or implement a full
-mesh. [Configured-peer policy replication](policy-sync.md) is available. A trusted administrator explicitly creates and signs snapshots;
+admission directory. The optional [human UI signing gateway](human-policy.md)
+now creates and updates snapshots with explicit export/manual delivery. Full mesh
+integration remains future work. [Configured-peer policy replication](policy-sync.md) is available. A trusted administrator explicitly creates and signs snapshots;
 an Agent must never call creation on startup or discovery timeout.
 
 ## Human administration example
@@ -83,7 +84,9 @@ client.request('/v1/policies', {'policy': approved})
 
 Remote use requires HTTPS and trusted CA configuration. The service requires
 both the read token and owner signature. Possessing the read token alone cannot
-add members. No HTTP route accepts an owner private key or issues policies.
+add members. Directory HTTP routes never accept owner private keys or issue policies. The
+separate opt-in loopback human gateway signs with an existing local key; it never
+accepts private keys over HTTP or sends them to directories.
 
 ## Remove, renew and dissolve
 

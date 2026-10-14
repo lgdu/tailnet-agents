@@ -1,4 +1,4 @@
-# Implementation status — v0.19
+# Implementation status — v0.20 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -8,11 +8,11 @@ its future requirements must not be read as implemented security guarantees.
 | Registry | Durable central directory | Distributed discovery/anti-entropy |
 | Task transport | Echo, bearer authentication, in-memory deduplication | Durable state and real adapters |
 | MCP | Local tools subset | Real client interoperability verification |
-| Human UI | Configured people/roles, explicit groups, private scopes, paging/polling | Browser QA, durable outbox, sessions |
+| Human UI | Local roles/chat and opt-in signed policy creation/approval/removal/renewal/dissolution/export | Credential issuance/delivery UX, broader browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
-| Agent identity | Optional Ed25519 keys, scoped grants and possession proofs | Human policy issuance and key renewal |
-| Verified directory | Library + HTTP/TLS admission, read token, durable signed revocation | Real LAN/tailnet trial, human policy issuance and mesh replication |
-| Signed group policy | Durable snapshots, bounded signed age, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | Human policy renewal UX, UI integration and explicit runtime enrollment |
+| Agent identity | Optional Ed25519 keys, scoped grants and possession proofs | Manual grant provisioning, owner rotation and key renewal |
+| Verified directory | Library + HTTP/TLS admission, read token, durable signed revocation | Real LAN/tailnet trial, explicit UI-to-directory delivery UX and mesh replication |
+| Signed group policy | Durable snapshots, bounded signed age, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | Directory freshness feedback, explicit delivery and runtime enrollment |
 | Policy replication | Ordered source failover, independent revocation cursors, HTTP/TLS pull and read-protected status | Multi-source reconciliation/quorum and explicit source enrollment |
 | Candidate discovery | Opt-in signed IPv4 multicast, credential-free HTTP/TLS seeds, local-policy checks, expiry and identity merging | Physical LAN/tailnet trials, mDNS/peer enumeration and explicit runtime enrollment |
 | Mesh | State simulator; candidate discovery is separate | Integrated cryptographic admission, signed presence and network group engine |
@@ -22,16 +22,19 @@ New groups are human-created. Agent restart recovery retains an existing group
 ID and valid qualification; failure to discover peers must not create a new group.
 All-node downtime is sleep, not destruction. Local UI dissolution retains history.
 
-UI human membership and cryptographic Agent credentials remain separate. The
-verified directory can enforce signed member policy when explicitly enabled.
-That mode persists across restart and cannot be reopened as grant-only. Existing
-grant-only databases stay compatible. This does not create a human approval UI;
-policies are issued by a trusted administrator API. The
-existing registry/Bridge HTTP routes have not changed authentication. The mesh simulator's static IDs are not cryptographic identities.
-The UI's three Echo participants are not real authorized network agents.
+Human chat membership and cryptographic Agent credentials remain separate. The
+optional trusted loopback UI signer can create a signed group with the same ID,
+approve pre-issued grants, remove identities, explicitly renew policy and sign
+terminal dissolution. A configured admin and the original private key/public pin
+are required, persisted and checked on restart. Private keys are never accepted
+or returned by HTTP. The default local UI works without the identity extra.
+Exported policies require explicit application to a configured verified directory;
+reading, polling and discovery neither renew nor deliver them. The three Echo
+participants remain unauthenticated chat simulations. Existing registry/Bridge
+HTTP authentication is unchanged; the mesh simulator's IDs are not cryptographic.
 
 Verification: local core/identity tests, HTTP integration tests, simulated group
-fault scenarios and JS syntax checks. Browser interaction, real tailnet/LAN,
+fault scenarios and JS syntax checks. The new signing workflow has Chromium functional coverage. Broader browser QA, real tailnet/LAN,
 external JWS interoperability and product Agent integration are not validated.
 Policy propagation is tested between actual loopback HTTP/TLS services. Each
 service still has independent registration leases and task/chat state. Peer
@@ -83,11 +86,23 @@ group creation, credential issuance, enrollment or real Agent integration.
 Tests include real loopback multicast, HTTP/TLS, subprocess startup/scanning,
 restart with the same key/group, revoked self-signed seed/LAN announcements,
 mid-scan state changes and absence of registration/lease side effects.
-The full suite contains 155 tests (38 for candidate discovery).
+The v0.19 baseline contains 155 tests (38 for candidate discovery).
 The first post-merge main identity CI run failed and passed on rerun; its original
 failure cause remains unconfirmed because log downloads were inaccessible.
 Actual NIC/router/tailnet behavior remains unvalidated. See [discovery](discovery.md).
 v0.19.0 is published as a GitHub prerelease with a matching version tag.
+
+v0.20 (unreleased) adds 23 policy-admin tests and one core default-mode check,
+bringing the full suite to 179.
+Policy changes, audit and retry acknowledgments commit atomically; stale revisions
+and changed retry payloads conflict. Removed grant IDs cannot be reapproved in
+the UI. Creation, approvals and renewals require explicit human action. Existing
+local groups remain local and startup never converts them. Browser tests exercise
+creation, verified preview, approval, export, lost-response retry, removal and
+terminal dissolution; backend tests exercise real UI/directory HTTP and restart.
+Credential issuance/provisioning, automatic delivery, remote sessions, owner
+recovery/rotation and full runtime enrollment remain unimplemented. See
+[human policy signing](human-policy.md). v0.20.0 has no release or tag yet.
 
 ## Documentation maintenance rule
 

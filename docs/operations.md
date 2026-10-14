@@ -134,3 +134,25 @@ age bound without resetting leases; do not copy a static policy file as a substi
 It re-reads before output and fails for retry if the policy changed. LAN receiving
 requires Linux IP_PKTINFO and a primary local IPv4 address; unsupported setups
 must use seeds. Same-interface multicast flooding can still congest queues.
+
+## Human signing gateway
+
+v0.20 adds an opt-in loopback UI signer. Keep the existing owner private key on
+the trusted human machine, never on a directory replica. Configure the private
+key, its public pin and one human admin explicitly; protect the private key with
+mode 0600 or stricter and retain that configuration across restart. Do not expose
+this signer through a reverse proxy or Tailscale Serve. Existing local-only groups
+remain local. There is no key generation, identity replacement, group conversion
+or automatic renewal on startup.
+
+Back up the UI database consistently: it now contains signed policies, pinned
+authority, retired grant IDs, request deduplication and audit. Protect the owner
+key separately; never commit either. Restoring a stale backup can lose accepted
+revisions/retirements. Export current signed policies externally and do not run
+independent signers from diverged backups. This is not rollback-proof storage.
+
+New approval/removal/renewal/dissolution affects remote directories only after a
+human explicitly applies the latest exported policy. Recheck receiver revision
+and freshness via its existing authenticated routes; reads of the UI do not
+renew or deliver anything. Scope previews do not replace the receiver's learned
+revocation and possession checks. See [human policy signing](human-policy.md).

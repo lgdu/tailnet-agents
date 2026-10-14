@@ -1,8 +1,8 @@
-# Remaining work for the v0.19 development line
+# Remaining work for the v0.20 development line
 
 The verified directory can persist and exchange signed policy and credential
-revocations between configured peers. The human UI is a separate local simulated
-application. This is not yet a complete heterogeneous Agent collaboration network.
+revocations between configured peers. The human UI remains a local simulated chat application, with an optional
+trusted owner signer and explicit policy-export handoff. This is not yet a complete heterogeneous Agent collaboration network.
 v0.18 adds bounded signed-policy age, restart-safe enforcement and ordered
 source failover. Sources cannot renew old authorization merely by replaying it.
 Human policy renewal, trusted clocks and real-network trials are still required.
@@ -10,9 +10,13 @@ v0.19 adds opt-in signed LAN multicast and explicitly configured HTTPS seed
 discovery. These produce candidates only; they never enroll a peer or grant
 membership, choose policy sources or generate identities/groups at startup.
 
+v0.20 adds human-confirmed signing, verified grant preview/approval, removal,
+manual renewal, terminal dissolution, local audit and policy export. Grant
+issuance/provisioning and policy delivery still require separate human steps.
+
 | Priority | Work | Acceptance evidence |
 |---|---|---|
-| P0 | Human UI signing workflow | Human creation/approval/removal/dissolution produces signed network policy, with clear audit and safe owner-key handling |
+| P0 | Human enrollment and policy-delivery UX | Issue/provision scoped credentials, review the configured recipient, explicitly deliver snapshots and show receiver revision/freshness acknowledgment |
 | P1 | Signed presence and stable Agent runtime | Authorized restart restores the original identity/group; leases, runtime incarnations and offline display converge |
 | P1 | Discovery operations and explicit runtime enrollment | Validate physical LAN/tailnet behavior, optional mDNS/peer enumeration and a separately authorized handoff from candidate to admitted runtime |
 | P1 | Cross-node group/direct messages | Authenticated identities, group scopes, recipient privacy, durable outbox, deduplication and reconnect catch-up are verified across nodes |

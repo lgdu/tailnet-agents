@@ -1,6 +1,6 @@
-# Human UI v0.11: role-aware local chat simulation
+# Human UI v0.20 (unreleased): local chat and opt-in policy signing
 
-The UI is a standalone local demonstration of the interaction model. It does
+The UI is a local demonstration of the interaction model. It does
 not integrate the mesh simulator, registry, MCP tools or real agent adapters.
 Humans explicitly create groups and select configured human members. Each group
 uses the same three deterministic Echo participants. Those are simulated actors,
@@ -52,7 +52,8 @@ or compromised bearer tokens. Storage remains plaintext SQLite, not E2E encrypti
 
 Backend HTTP tests cover authentication, Origin rejection, CSP headers,
 conversation routing, offline recipients and durable deduplication. Static
-assets are packaged with the Python distribution. Browser/product interop
+assets are packaged with the Python distribution. The new signing workflow has
+Chromium functional coverage; broader browser/accessibility and product interop
 and real mesh chat remain unvalidated.
 
 Next milestones: external human identity/session integration; authenticated group membership;
@@ -145,7 +146,9 @@ Group creation is now idempotent by `(human creator, request_id)` across restart
 Retry identical payloads with the same key; a changed payload returns 409. The
 UI retains its key while the create dialog stays open. Closing/reopening it or
 reloading loses that key: check the group list before making another request.
-Signed agent grants and distributed membership propagation remain unimplemented.
+Grant issuance remains manual. Opt-in signed policy approval/export is described
+in [human policy signing](human-policy.md); explicit directory application enables
+existing policy propagation.
 This is application-level access control on a local server, not mesh authorization.
 
 Upgrade preserves an existing legacy group's history as group `legacy`.
@@ -184,11 +187,14 @@ lock/transaction. Revocation and terminal state are not just UI controls.
 Legacy-history import is marked once so a restart cannot re-add a removed human
 solely because that person's old messages remain stored.
 
-Membership changes and dissolution do not yet have signed distributed proofs.
+Local human membership remains a UI ACL. For explicitly created signed groups,
+dissolution also commits a signed terminal policy; Agent removal uses a separate
+signed-policy action. Distribution requires explicit policy export/application.
 No owner transfer or recovery is implemented: preserve the creator's identity,
 credentials/configuration and database backup. Lifecycle records are plaintext
 local audit data, not tamper-proof evidence against a database operator.
 
-Agent identity primitives added in v0.11 are not connected to this UI. Human role
-configuration and local group membership still use the authentication and database
-checks documented above. See [status](status.md) for the current integration boundary.
+The optional [signing workflow](human-policy.md) connects this UI to existing
+Agent grants and signed policies through explicit human actions. Grant creation,
+Agent runtime enrollment and automatic directory delivery remain separate. Human
+role configuration and local group membership use the checks documented above. See [status](status.md) for the current integration boundary.
