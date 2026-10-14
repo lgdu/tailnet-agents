@@ -200,7 +200,7 @@ source. The signed policy/grant/proof path remains mandatory for admission.
 Cloned-key fencing, mDNS, tailnet enumeration, actual cross-machine trials and
 the integrated group runtime remain future work. See [discovery](discovery.md).
 
-### Implemented human signing gateway (v0.20, unreleased)
+### Implemented human signing gateway (v0.20)
 
 The trusted human's loopback UI can optionally load an existing owner private
 key, a separately pinned public key and one configured admin principal. POSIX
@@ -304,7 +304,7 @@ necessary; network membership never grants filesystem or secret access.
   lease expiry caps and ordered configured-source failover with separate cursors.
 - v0.19: existing-identity candidate beacons over explicit-interface
   multicast and configured HTTP/TLS seeds; no automatic enrollment.
-- v0.20 (unreleased): opt-in local human policy signing and export, grant preview/
+- v0.20: opt-in local human policy signing and export, grant preview/
   approval, removal, manual renewal and terminal dissolution with transactional audit.
 - Next: credential issuance, explicit delivery UX and candidate runtime enrollment.
 - Next: mesh transport with cryptographic admission and signed presence.

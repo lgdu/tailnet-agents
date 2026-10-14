@@ -1,4 +1,4 @@
-# Implementation status — v0.20 (unreleased)
+# Implementation status — v0.20
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -92,7 +92,7 @@ failure cause remains unconfirmed because log downloads were inaccessible.
 Actual NIC/router/tailnet behavior remains unvalidated. See [discovery](discovery.md).
 v0.19.0 is published as a GitHub prerelease with a matching version tag.
 
-v0.20 (unreleased) adds 23 policy-admin tests and one core default-mode check,
+v0.20 adds 23 policy-admin tests and one core default-mode check,
 bringing the full suite to 179.
 Policy changes, audit and retry acknowledgments commit atomically; stale revisions
 and changed retry payloads conflict. Removed grant IDs cannot be reapproved in
@@ -105,7 +105,7 @@ disabled until the latest revision is read, and cover read failure/retry without
 repeating an acknowledged mutation. A dedicated CI browser job runs these checks.
 Credential issuance/provisioning, automatic delivery, remote sessions, owner
 recovery/rotation and full runtime enrollment remain unimplemented. See
-[human policy signing](human-policy.md). v0.20.0 has no release or tag yet.
+[human policy signing](human-policy.md). v0.20.0 is published as a GitHub prerelease with a matching version tag.
 
 ## Documentation maintenance rule
 

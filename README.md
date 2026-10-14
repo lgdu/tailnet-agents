@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.20 prototype (unreleased).** Working components are listed below. The network mesh and
+**v0.20 prototype.** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -205,7 +205,7 @@ Results explicitly say `admission: not_checked`; a signature does not prove a
 currently valid grant, endpoint ownership or permission to execute tasks. No
 discovered endpoint is automatically contacted, registered or made a policy source.
 
-## Human-approved signed policies (v0.20, unreleased)
+## Human-approved signed policies (v0.20)
 
 On the trusted human's loopback gateway, explicitly configure an existing
 `--policy-owner-key`, its `--policy-owner-public-key` pin and one `--policy-admin`.
@@ -250,8 +250,8 @@ add signed presence propagation and runtime enrollment, connect verified
 identity and candidate discovery to the mesh engine, broaden browser QA,
 and then add real product adapters and durable tasks.
 The working registry mode remains available during mesh development.
-v0.19.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.19.0)
-with a matching version tag. v0.20.0 is prepared in this PR, not published or tagged. Release checks and tag synchronization are described
+v0.20.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.20.0)
+with a matching version tag. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 
 No open-source license has been selected yet. Public release requires an owner

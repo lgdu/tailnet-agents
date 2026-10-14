@@ -1,4 +1,4 @@
-# Signed group policy — v0.20 (unreleased)
+# Signed group policy — v0.20
 
 This optional layer connects persistent signed membership to the verified
 admission directory. The optional [human UI signing gateway](human-policy.md)

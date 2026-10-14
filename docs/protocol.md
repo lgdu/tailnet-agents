@@ -179,7 +179,7 @@ member, execution authority or trusted policy source. Registration still require
 the existing valid grant and fresh bound possession proof. See [discovery](discovery.md)
 for configuration, synchronized policy checks, replay and validation limits.
 
-## Human policy administration (v0.20, unreleased)
+## Human policy administration (v0.20)
 
 These routes belong only to the loopback UI, retaining its human bearer role,
 Host and Origin checks. The directory wire format and HTTP routes are unchanged.

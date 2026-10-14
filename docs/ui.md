@@ -1,4 +1,4 @@
-# Human UI v0.20 (unreleased): local chat and opt-in policy signing
+# Human UI v0.20: local chat and opt-in policy signing
 
 The UI is a local demonstration of the interaction model. It does
 not integrate the mesh simulator, registry, MCP tools or real agent adapters.
