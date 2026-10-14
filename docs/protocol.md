@@ -71,3 +71,9 @@ authentication remains in place until an explicit transport integration revision
 [VerifiedDirectory](verified-directory.md) enforces signed admission for its
 in-process registration path. It does not replace or expose the HTTP endpoints
 above. Network admission and verified read authorization remain future work.
+
+## Loopback signed admission HTTP (v0.13)
+
+[Admission HTTP](admission-http.md) is a separate service with challenge/register/
+revoke routes. It does not change the bearer registry/task APIs above.
+Cross-machine channels and signed group-policy binding are not implemented.

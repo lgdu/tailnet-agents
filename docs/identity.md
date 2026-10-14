@@ -1,11 +1,11 @@
-# Agent identity and admission primitives (v0.12)
+# Agent identity and admission primitives (v0.13)
 
 This optional library component uses Ed25519 through `cryptography`.
 [VerifiedDirectory](verified-directory.md) integrates it with registration through
 an in-process API. It is not wired into existing registry HTTP routes, Bridge,
 UI or mesh simulator. Existing services still
-use their documented bearer-token authentication. No new network admission
-endpoint or human grant-signing UI is provided yet.
+use their documented bearer-token authentication. A separate [loopback HTTP admission endpoint](admission-http.md) is available.
+Cross-machine TLS admission and a human grant-signing UI are not provided yet.
 
 ## Installation
 

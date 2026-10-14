@@ -144,6 +144,8 @@ necessary; network membership never grants filesystem or secret access.
 - v0.11: optional Agent signature/grant primitives, not integrated with mesh.
 - v0.12: in-process verified directory admission and durable signed revocation;
   existing network services remain unchanged.
+- v0.13: separate loopback HTTP admission and signed registration client;
+  no cross-machine mesh or UI policy integration.
 - Next: cryptographic identity/admission implementation and network mesh transport.
 - Next: trusted human gateway with simulated chat participants and durable history.
 - Then: validated agent adapters, durable tasks and real LAN/tailnet trials.

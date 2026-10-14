@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.12 prototype.** Working components are listed below. The network mesh and
+**v0.13 prototype.** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -17,8 +17,8 @@ action; agents may only discover or restore previously authorized groups.
 | Human UI | Explicit groups, human roles, scoped group/private chat, polling, pagination | Loopback-only, simulated agents, no E2E encryption |
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
 | Mesh simulator | Restart, partition reconciliation, stale claims, dissolution rules | Deterministic state model, no network or cryptographic admission |
-| Agent identity | Ed25519 identities, signed scoped grants, expiry/revocation checks, possession proof | Optional component; no network admission endpoint |
-| Verified directory | Proof-based registration, metadata binding, durable signed revocation | In-process API; separate from existing HTTP services and UI |
+| Agent identity | Ed25519 identities, signed scoped grants, expiry/revocation checks, possession proof | Optional component; no signed group policy integration |
+| Verified directory | Proof-based registration, metadata binding, durable signed revocation | Separate library and loopback HTTP service, not mesh/UI integrated |
 
 Different product agents will connect through adapters. Grok model API access
 and Grok's product Agent are separate integration targets. No claim is made that
@@ -67,7 +67,8 @@ The optional identity component uses `cryptography`; other services retain
 standard-library runtime dependencies. [Identity guide](docs/identity.md)
 describes scoped signing and admission examples, including current limits.
 [Verified directory](docs/verified-directory.md) connects these checks to registration
-through a trusted in-process API.
+through a trusted in-process API. [Admission HTTP](docs/admission-http.md) adds
+a separate loopback service and registration client for local trials.
 
 ## Verification
 
