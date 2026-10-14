@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 GRANT_TYPE = 'tailnet-agent-grant+jwt'
+REVOCATION_TYPE = 'tailnet-agent-revocation+jwt'
 PROOF_TYPE = 'tailnet-agent-proof+jwt'
 PERMISSIONS = frozenset({'join','discover','chat.group','chat.direct','task.echo'})
 

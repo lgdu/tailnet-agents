@@ -39,7 +39,8 @@ DNS names and display names are locators, not identity. Private keys never gossi
 
 ## Components
 
-1. Discovery providers: LAN mDNS/DNS-SD, tailnet peer probing, static seeds.
+1. Discovery providers: opt-in IPv4 multicast and explicit HTTP/TLS seeds produce
+   signed candidates. mDNS/DNS-SD, tailnet enumeration and mesh enrollment remain planned.
 2. Group engine: verified membership claims, anti-entropy synchronization,
    local reachability observations, persistent checkpoints.
 3. Authorization verifier: signed policies and scoped credentials, proof of
@@ -148,7 +149,56 @@ Ordered failover is not quorum consensus, anti-entropy across all sources or
 replay-resistant online authority attestation. A still-fresh primary may hide a
 newer backup policy; unseen revocations remain possible within the age bound.
 LAN and Tailscale use the same hostname-verified TLS transport. Cross-machine
-trials and automatic discovery remain future work; tests use synthetic identities.
+trials and integrated mesh discovery remain future work; tests use synthetic identities.
+
+### Implemented candidate discovery (v0.19, unreleased)
+
+An existing approved simulation key signs short-lived minimal announcements.
+The verified directory's optional public seed route and opt-in multicast publisher
+use its current policy, persisted age bound and learned revocations. Missing,
+expired, dissolved or unapproved state suppresses publication; startup never
+creates a group/key or loads the owner private key. UDP is unsolicited, one
+packet per five seconds on one selected IPv4 interface, multicast TTL 1.
+
+```mermaid
+flowchart LR
+  STATE["Original key + current human-approved policy"] --> SIGN["Sign minimal candidate / No grants or bearer tokens"]
+  SIGN --> LAN["Explicit-interface LAN multicast"]
+  SIGN --> SEED["Opt-in HTTP/TLS seed route"]
+  CONFIG["Trusted seed URLs + CA files / No credentials"] --> SCAN["Bounded candidate scanner"]
+  LAN --> INGRESS["Linux ingress interface + multicast destination filter"]
+  INGRESS --> SCAN
+  SEED --> SCAN
+  LOCAL["Owner pin + read-only synchronized directory / Policy, age and signed revocations"] --> SCAN
+  SCAN --> VERIFY["Signature, group, policy hash, expiry and sticky conflicts"]
+  LOCAL -->|"Re-read before output / Policy changes require retry"| VERIFY
+  VERIFY --> CAND["Candidate address / admission not checked"]
+  CAND -.-> HUMAN["Future explicit enrollment / Separate grant + possession + channel checks"]
+```
+
+The scanner contacts only configured seed origins, sends no Authorization/Cookie
+headers and never follows candidate URLs or redirects. HTTPS chain/hostname trust
+is independent of the announcement signature. Provider results merge by verified
+subject, not locator. Any second distinct locator marks that key as conflicted
+for the entire scan, including after expiry or dropping a third locator. Provider
+labels belong only to the retained announcement version. Duplicate delivery
+cannot refresh signed expiry. Announcements are
+at most 30 seconds old; more than five seconds of future issue time is rejected.
+
+A local-policy candidate is not proof of an unexpired grant, live endpoint/channel
+ownership or execution rights. The CLI requires an existing synchronized directory
+database and reads it without opening Registry or resetting leases. It enforces
+the owner/group pin, policy mode, persisted age bound and signed learned revocations,
+then re-reads state before output. Newly learned revocations/tighter bounds apply;
+a changed policy aborts the scan for retry. Later updates require another scan.
+LAN reception fails closed without Linux IP_PKTINFO and a local primary IPv4
+address. Ingress interface/destination checks precede the 128-attempts/second
+verification limit; that limit pauses processing without ending the scan early.
+Same-interface flooding can still exhaust receive queues. No discovery result automatically
+changes membership, invokes registration, learns owner trust or becomes a policy
+source. The signed policy/grant/proof path remains mandatory for admission.
+Cloned-key fencing, mDNS, tailnet enumeration, actual cross-machine trials and
+the integrated group runtime remain future work. See [discovery](discovery.md).
 
 ## Human interaction
 
@@ -202,8 +252,10 @@ necessary; network membership never grants filesystem or secret access.
   restart-safe learned revocations and source generation handling.
 - v0.18: signed-age authorization gate, persisted tighter bounds,
   lease expiry caps and ordered configured-source failover with separate cursors.
-- Next: human UI signing/renewal workflow and peer discovery.
-- Next: network discovery and mesh transport with cryptographic admission.
+- v0.19 (unreleased): existing-identity candidate beacons over explicit-interface
+  multicast and configured HTTP/TLS seeds; no automatic enrollment.
+- Next: human UI signing/renewal workflow and explicit candidate enrollment.
+- Next: mesh transport with cryptographic admission and signed presence.
 - Then: validated agent adapters, durable tasks and real LAN/tailnet trials.
 
 Do not replace working registry mode until mesh fault and authorization tests pass.

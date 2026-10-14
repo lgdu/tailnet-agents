@@ -125,12 +125,15 @@ already dispatched tasks are not cancelled. Registration leases still expire
 and require fresh possession proof after directory restart.
 
 Configured directory peers can now pull full signed snapshots periodically.
-No automatic peer discovery, global ordering, owner-key rotation or partition-wide
+No automatic enrollment, global ordering, owner-key rotation or partition-wide
 immediate revocation exists. Signed age is now bounded, with up to 30 seconds of
 future-timestamp tolerance and no expiry grace. A partitioned receiver cannot
 learn a removal immediately; its last policy authorizes only until its original
 deadline. Learned dissolution never expires. Ordered source failover does not
 weaken rollback or conflict rejection.
+[Signed candidate discovery](discovery.md) can locate existing policy-approved
+identities via explicit-interface multicast or configured seeds. It carries no
+grant and never modifies this policy, enrolls a member or selects trusted sources.
 Two owner-signed snapshots at the same revision cause a conflict requiring human
 resolution via a higher revision; terminal dissolution remains irreversible at
 receivers that learned it. Restoring an older database backup can lose learned

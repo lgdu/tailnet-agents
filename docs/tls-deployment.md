@@ -1,4 +1,4 @@
-# Verified admission over TLS (v0.18)
+# Verified admission over TLS (v0.19, unreleased)
 
 The verified admission service can now bind an IPv4 LAN or tailnet address when
 TLS and explicit HTTP host names are configured. Default remains loopback HTTP.
@@ -78,6 +78,11 @@ hostname and use a certificate for that hostname. Callers use the corresponding
 HTTPS URL, subject to tailnet access policy. Tailscale connectivity does not
 replace Agent admission. No peer enumeration or automatic tailnet discovery is
 implemented by this milestone; the URL is explicitly configured.
+The [candidate scanner](discovery.md) can now query explicitly configured LAN
+and tailnet HTTPS seeds without credentials. It verifies each seed's chain and
+hostname and refuses redirects/proxies. It never follows advertised endpoints;
+a signed candidate is not proof of that endpoint's channel ownership. Enabling
+LAN beacons is separately opt-in and never installs or configures Tailscale.
 
 This implementation terminates TLS directly. A TLS-terminating reverse proxy
 would require explicit external-host/port/origin and trusted proxy semantics;

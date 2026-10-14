@@ -7,7 +7,12 @@ Periodic service pull and one-shot HTTP-to-HTTP relay are both available.
 
 This is policy replication, not a full Agent mesh. Agent presence, directory leases, conversations and tasks stay local.
 Owner-signed credential revocations now propagate alongside policies.
-There is no automatic peer discovery, leader election or quorum consensus.
+There is no automatic policy-source trust, leader election or quorum consensus.
+Separate [candidate discovery](discovery.md) can locate signed peer endpoints;
+those results never populate this trusted source configuration automatically.
+The discovery CLI reads this receiver's existing database in read-only mode so
+learned signed revocations and its persisted policy age bound also constrain
+self-signed candidates; keep this local receiver synchronized.
 
 ## Two nodes on one machine
 

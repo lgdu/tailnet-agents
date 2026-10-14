@@ -88,7 +88,8 @@ clock requirements and configured-source failover.
 ## Limits
 
 - The separate loopback HTTP service/CLI is available; TLS transport is available and tested locally; TLS exporter/channel binding and
-  decentralized discovery are not.
+  integrated decentralized mesh are not. Separate [candidate providers](discovery.md)
+  offer opt-in locators without changing proof-based registration.
 - `discover()` is a trusted-caller library method, not an authenticated remote
   discovery endpoint. Network callers need explicit read authorization.
 - Proof context binds registration metadata, but production still needs a

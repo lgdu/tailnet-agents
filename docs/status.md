@@ -1,4 +1,4 @@
-# Implementation status — v0.18
+# Implementation status — v0.19 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -12,9 +12,10 @@ its future requirements must not be read as implemented security guarantees.
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
 | Agent identity | Optional Ed25519 keys, scoped grants and possession proofs | Human policy issuance and key renewal |
 | Verified directory | Library + HTTP/TLS admission, read token, durable signed revocation | Real LAN/tailnet trial, human policy issuance and mesh replication |
-| Signed group policy | Durable snapshots, bounded signed age, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | Human policy renewal UX, UI integration and peer discovery |
-| Policy replication | Ordered source failover, independent revocation cursors, HTTP/TLS pull and read-protected status | Multi-source reconciliation/quorum and discovery |
-| Mesh | State simulator only | Cryptographic admission, LAN/seed/tailnet providers |
+| Signed group policy | Durable snapshots, bounded signed age, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | Human policy renewal UX, UI integration and explicit runtime enrollment |
+| Policy replication | Ordered source failover, independent revocation cursors, HTTP/TLS pull and read-protected status | Multi-source reconciliation/quorum and explicit source enrollment |
+| Candidate discovery | Opt-in signed IPv4 multicast, credential-free HTTP/TLS seeds, local-policy checks, expiry and identity merging | Physical LAN/tailnet trials, mDNS/peer enumeration and explicit runtime enrollment |
+| Mesh | State simulator; candidate discovery is separate | Integrated cryptographic admission, signed presence and network group engine |
 | Product agents | None | OpenClaw/Claude Code/Codex/Qoder/Grok interface validation |
 
 New groups are human-created. Agent restart recovery retains an existing group
@@ -53,6 +54,38 @@ Migration from v0.17 adds a policy-age setting; an old active snapshot may alrea
 be expired at upgrade. Back up the database and prepare a fresh owner revision.
 The policy wire format is unchanged. Versions before v0.18 do not enforce this
 age limit. v0.18.0 is published as a GitHub prerelease with a matching version tag.
+
+v0.19 adds a locator layer for already human-approved identities, using existing
+keys and group IDs. The optional public `/v1/discovery` route and explicitly
+selected LAN interface disclose only signed minimal metadata. Announcements live
+at most 30 seconds, with no grant/token/private-key data. Seed requests carry no
+Authorization/Cookie credentials, disable proxies/redirects and verify TLS.
+Only administrator-configured seed origins are contacted. Unknown/foreign/stale
+records are ignored and identities merge across providers. Conflicts remain
+sticky throughout one scan; older announcements cannot claim sources of newer
+versions. The Linux LAN receiver checks ingress interface and multicast destination
+using IP_PKTINFO, rejecting unicast and truncated/missing metadata. LAN verification
+is bounded to 128 attempts per second without ending the scan early.
+
+The CLI requires an existing synchronized directory database opened read-only.
+It verifies signed relevant revocations, enforces the persisted age bound and
+re-reads state before output; newly learned revocations/tighter bounds apply and
+policy changes require a retry. Scanning does not reset leases or modify registry
+state. Static-policy-file scanning has been removed before the v0.19 release.
+LAN receive filtering requires Linux and a primary local IPv4 address; seeds
+remain available on other platforms. Same-interface floods and immediate delivery
+of unseen remote revocations are not solved.
+
+These are candidates, not admitted members or trusted policy sources. A signed
+record does not establish endpoint ownership, grant expiry or permission to run
+tasks. Existing proof-based admission remains unchanged. There is no automatic
+group creation, credential issuance, enrollment or real Agent integration.
+Tests include real loopback multicast, HTTP/TLS, subprocess startup/scanning,
+restart with the same key/group, revoked self-signed seed/LAN announcements,
+mid-scan state changes and absence of registration/lease side effects.
+The full suite contains 155 tests (38 for candidate discovery).
+Actual NIC/router/tailnet behavior remains unvalidated. See [discovery](discovery.md).
+v0.19.0 is prepared in this PR and is not yet published or tagged.
 
 ## Documentation maintenance rule
 

@@ -1,4 +1,4 @@
-# Remaining work after v0.18
+# Remaining work for the v0.19 development line
 
 The verified directory can persist and exchange signed policy and credential
 revocations between configured peers. The human UI is a separate local simulated
@@ -6,12 +6,15 @@ application. This is not yet a complete heterogeneous Agent collaboration networ
 v0.18 adds bounded signed-policy age, restart-safe enforcement and ordered
 source failover. Sources cannot renew old authorization merely by replaying it.
 Human policy renewal, trusted clocks and real-network trials are still required.
+v0.19 adds opt-in signed LAN multicast and explicitly configured HTTPS seed
+discovery. These produce candidates only; they never enroll a peer or grant
+membership, choose policy sources or generate identities/groups at startup.
 
 | Priority | Work | Acceptance evidence |
 |---|---|---|
-| P0 | LAN and configured-seed discovery | Nodes locate peers without granting membership; LAN broadcasts never trigger credential leakage or silent group creation |
 | P0 | Human UI signing workflow | Human creation/approval/removal/dissolution produces signed network policy, with clear audit and safe owner-key handling |
 | P1 | Signed presence and stable Agent runtime | Authorized restart restores the original identity/group; leases, runtime incarnations and offline display converge |
+| P1 | Discovery operations and explicit runtime enrollment | Validate physical LAN/tailnet behavior, optional mDNS/peer enumeration and a separately authorized handoff from candidate to admitted runtime |
 | P1 | Cross-node group/direct messages | Authenticated identities, group scopes, recipient privacy, durable outbox, deduplication and reconnect catch-up are verified across nodes |
 | P1 | Durable tasks | Executor persists request/result identity; caller recovery cannot silently execute uncertain side effects twice |
 | P1 | Multi-source reconciliation and policy renewal UX | Compare sources beyond ordered failover, diagnose equivocation, renew signed authorization through explicit human-controlled administration |
@@ -19,7 +22,7 @@ Human policy renewal, trusted clocks and real-network trials are still required.
 | P2 | Operational deployment | Actual household LAN and cross-region tailnet trials, certificate/key renewal, backups, rate limits and service packaging |
 | P2 | Release readiness | Browser interaction QA, interoperability/security review, installation instructions and owner-selected open-source license |
 
-Suggested order: discovery → human-controlled enrollment and policy renewal → presence
+Suggested order: human-controlled enrollment and policy renewal → presence
 and messages → durable execution → real adapters and deployment trials.
 Discovery is separate from authorization. A fresh or isolated Agent waits for
 human approval or restores existing valid qualification; it never creates a group.
