@@ -1,4 +1,4 @@
-# Human UI v0.10: role-aware local chat simulation
+# Human UI v0.11: role-aware local chat simulation
 
 The UI is a standalone local demonstration of the interaction model. It does
 not integrate the mesh simulator, registry, MCP tools or real agent adapters.
@@ -188,3 +188,7 @@ Membership changes and dissolution do not yet have signed distributed proofs.
 No owner transfer or recovery is implemented: preserve the creator's identity,
 credentials/configuration and database backup. Lifecycle records are plaintext
 local audit data, not tamper-proof evidence against a database operator.
+
+Agent identity primitives added in v0.11 are not connected to this UI. Human role
+configuration and local group membership still use the authentication and database
+checks documented above. See [status](status.md) for the current integration boundary.

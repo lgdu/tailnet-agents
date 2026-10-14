@@ -139,7 +139,9 @@ necessary; network membership never grants filesystem or secret access.
 ## Implementation stages
 
 - v0.4: central directory, Echo bridges and MCP tools (existing).
-- v0.5: design contract and deterministic mesh state simulator (this milestone).
+- v0.5: design contract and deterministic mesh state simulator.
+- v0.6–v0.10: local human UI, roles, explicit groups and lifecycle.
+- v0.11: optional Agent signature/grant primitives, not integrated with mesh.
 - Next: cryptographic identity/admission implementation and network mesh transport.
 - Next: trusted human gateway with simulated chat participants and durable history.
 - Then: validated agent adapters, durable tasks and real LAN/tailnet trials.
@@ -175,3 +177,6 @@ group history is preserved on upgrade. The simulator receives its policy from
 the test harness. Neither currently creates dynamic
 network groups. v0.9 implements a local human group-creation form and database membership checks.
 Its signed approval flow and mesh propagation remain to be implemented. The old automatic-creation proposal is superseded.
+
+Current implementation boundaries are tracked in [status.md](status.md); signed group
+policy and lifecycle replication remain future work even though grant primitives exist.

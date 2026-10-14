@@ -1,0 +1,35 @@
+# Implementation status — v0.11
+
+This file and README describe current behavior. Architecture is the target design;
+its future requirements must not be read as implemented security guarantees.
+
+| Area | Current state | Next work |
+|---|---|---|
+| Registry | Durable central directory | Distributed discovery/anti-entropy |
+| Task transport | Echo, bearer authentication, in-memory deduplication | Durable state and real adapters |
+| MCP | Local tools subset | Real client interoperability verification |
+| Human UI | Configured people/roles, explicit groups, private scopes, paging/polling | Browser QA, durable outbox, sessions |
+| Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
+| Agent identity | Optional Ed25519 keys, scoped grants and possession proofs | Integrate verifier with group engine and transport |
+| Mesh | State simulator only | Cryptographic admission, LAN/seed/tailnet providers |
+| Product agents | None | OpenClaw/Claude Code/Codex/Qoder/Grok interface validation |
+
+New groups are human-created. Agent restart recovery retains an existing group
+ID and valid qualification; failure to discover peers must not create a new group.
+All-node downtime is sleep, not destruction. Local UI dissolution retains history.
+
+UI human membership and cryptographic Agent credentials are separate components
+at present. The mesh simulator's static IDs are not cryptographic identities.
+The UI's three Echo participants are not real authorized network agents.
+
+Verification: local core/identity tests, HTTP integration tests, simulated group
+fault scenarios and JS syntax checks. Browser interaction, real tailnet/LAN,
+external JWS interoperability and product Agent integration are not validated.
+
+## Documentation maintenance rule
+
+Every behavior change must update README's current feature table, the relevant
+usage guide and this status file. Update architecture only for changed decisions;
+label future requirements. Record protocol changes and migration consequences.
+Do not append contradictory version notes as a substitute for rewriting current
+instructions. Never commit credentials, generated keys or runtime databases.

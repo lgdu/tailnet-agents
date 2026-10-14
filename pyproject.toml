@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tailnet-agents"
-version = "0.10.0"
+version = "0.11.0"
 description = "Discover heterogeneous agents across a Tailscale network"
 requires-python = ">=3.11"
 
@@ -20,3 +20,6 @@ include = ["tailnet_agents*"]
 
 [tool.setuptools.package-data]
 tailnet_agents = ["web/*.html", "web/*.css", "web/*.js"]
+
+[project.optional-dependencies]
+identity = ["cryptography>=44"]

@@ -59,3 +59,9 @@ Task IDs and deduplication keys are process-local and disappear on restart.
 Bridges renew registration every TTL/3 and retry registry connection failures.
 The CLI polls discovery; there is no watch/subscription API or peer cache yet.
 Only the Echo adapter is implemented. A2A and product execution remain planned.
+
+## Optional identity component (v0.11)
+
+[Identity primitives](identity.md) implement scoped signed grants and possession
+proofs offline. They do not change the registry/task API above; bearer
+authentication remains in place until an explicit transport integration revision.
