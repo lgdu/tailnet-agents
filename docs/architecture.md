@@ -109,7 +109,7 @@ remain durable longer than stale credentials can be accepted. Offline nodes may
 not yet know dissolution; sensitive work cannot rely only on their stale copy.
 Authority key recovery/rotation and credential renewal UX remain open decisions.
 
-### Implemented signed-age gate and configured-source failover (v0.18, unreleased)
+### Implemented signed-age gate and configured-source failover (v0.18)
 
 In verified policy mode, active authorization ends at signed `issued_at` plus a
 local maximum age (default 300 seconds). The bound persists in SQLite and cannot
@@ -200,7 +200,7 @@ necessary; network membership never grants filesystem or secret access.
   synchronization, manual CLI and read-protected status. No automatic mesh discovery.
 - v0.17: paginated signed credential-revocation replication, bounded scans,
   restart-safe learned revocations and source generation handling.
-- v0.18 (unreleased): signed-age authorization gate, persisted tighter bounds,
+- v0.18: signed-age authorization gate, persisted tighter bounds,
   lease expiry caps and ordered configured-source failover with separate cursors.
 - Next: human UI signing/renewal workflow and peer discovery.
 - Next: network discovery and mesh transport with cryptographic admission.

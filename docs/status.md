@@ -1,4 +1,4 @@
-# Implementation status — v0.18 (unreleased)
+# Implementation status — v0.18
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -52,7 +52,7 @@ task cancellation. Signed tombstones and learned revocations remain durable.
 Migration from v0.17 adds a policy-age setting; an old active snapshot may already
 be expired at upgrade. Back up the database and prepare a fresh owner revision.
 The policy wire format is unchanged. Versions before v0.18 do not enforce this
-age limit. v0.18.0 is prepared in the PR, not yet published or tagged.
+age limit. v0.18.0 is published as a GitHub prerelease with a matching version tag.
 
 ## Documentation maintenance rule
 

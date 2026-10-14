@@ -1,4 +1,4 @@
-# Credential-enforced directory (v0.18, unreleased)
+# Credential-enforced directory (v0.18)
 
 `VerifiedDirectory` connects the optional identity component to SQLite directory
 registration. This module remains an **in-process API**. A separate

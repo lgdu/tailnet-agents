@@ -1,9 +1,9 @@
-# Remaining work for the v0.18 development line
+# Remaining work after v0.18
 
 The verified directory can persist and exchange signed policy and credential
 revocations between configured peers. The human UI is a separate local simulated
 application. This is not yet a complete heterogeneous Agent collaboration network.
-The v0.18 PR adds bounded signed-policy age, restart-safe enforcement and ordered
+v0.18 adds bounded signed-policy age, restart-safe enforcement and ordered
 source failover. Sources cannot renew old authorization merely by replaying it.
 Human policy renewal, trusted clocks and real-network trials are still required.
 

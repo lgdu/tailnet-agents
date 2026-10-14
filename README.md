@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.18 prototype (unreleased).** Working components are listed below. The network mesh and
+**v0.18 prototype.** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -174,8 +174,8 @@ python3 -m tailnet_agents.mesh_sim
 Install the identity extra to run cryptographic tests; without it, those tests
 are explicitly skipped. CI runs both core and identity installations. Browser
 visual/interaction validation and real-agent compatibility remain outstanding.
-The v0.17 baseline had 95 tests; this change adds expiry, restart/upgrade,
-source failover, independent-cursor and actual HTTP/TLS subprocess coverage.
+v0.18 includes 117 tests, covering expiry, restart/upgrade, source failover,
+independent cursors and actual HTTP/TLS service subprocesses.
 
 ## Design and roadmap
 
@@ -190,8 +190,9 @@ signed presence propagation, connect verified
 identity to the mesh engine, implement LAN/seed/tailnet discovery, validate the
 human UI in a browser, and then add real product adapters and durable tasks.
 The working registry mode remains available during mesh development.
-The v0.18.0 version is pending release; publish its GitHub tag together with the
-release after merging and validating main, as described in [operations](docs/operations.md#version-and-github-tag).
+v0.18.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.18.0)
+with a matching version tag. Release checks and tag synchronization are described
+in [operations](docs/operations.md#version-and-github-tag).
 
 No open-source license has been selected yet. Public release requires an owner
 license decision. Keys, tokens and SQLite state must stay outside git.

@@ -114,7 +114,7 @@ policy updates or missing source records. Cursor checkpoints are routing hints;
 completed scans and process restart rescan from zero. See [policy sync](policy-sync.md)
 for the response schema, partial-progress behavior and version compatibility.
 
-## Signed policy age and ordered sources (v0.18, unreleased)
+## Signed policy age and ordered sources (v0.18)
 
 Policy JWS and update acknowledgments retain their existing wire format. In
 policy mode, active authorization requires `now < issued_at + max_age`;

@@ -98,10 +98,10 @@ for independently authenticated primary/backup sources and CA configuration.
 
 ## Version and GitHub tag
 
-v0.18.0 in this PR is unreleased. Merge and validate main before publishing it.
-At release, verify `pyproject.toml`, MCP serverInfo and README/docs describe the
-same version, run both CI modes and the mesh simulator, then create an annotated
-GitHub tag on that exact release commit:
+Publish only a validated release commit on main. Verify `pyproject.toml`, MCP
+serverInfo and README/docs describe the same version, run both CI modes and the
+mesh simulator, then create an annotated
+GitHub tag on that exact release commit. For v0.18.0:
 
 ```bash
 git tag -a v0.18.0 -m 'Tailnet Agents v0.18.0'
@@ -110,3 +110,6 @@ git push origin refs/tags/v0.18.0
 
 Run these from the verified release commit on main; do not tag a different
 checkout or move an existing published tag. Creating a PR is not publishing a release.
+Create the GitHub Release from that same tag and keep prototype versions marked
+as prereleases. Release notes must include verification results, migration steps
+and remaining implementation/validation limits.

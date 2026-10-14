@@ -1,4 +1,4 @@
-# Configured-peer policy synchronization — v0.18 (unreleased)
+# Configured-peer policy synchronization — v0.18
 
 Verified directory nodes can share the same human-created group policy over
 HTTP/TLS. A receiver pulls a full owner-signed snapshot from explicitly configured

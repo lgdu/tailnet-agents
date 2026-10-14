@@ -1,4 +1,4 @@
-# Verified admission over TLS (v0.18, unreleased)
+# Verified admission over TLS (v0.18)
 
 The verified admission service can now bind an IPv4 LAN or tailnet address when
 TLS and explicit HTTP host names are configured. Default remains loopback HTTP.
