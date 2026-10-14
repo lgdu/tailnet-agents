@@ -1,4 +1,4 @@
-# Signed group policy — v0.16
+# Signed group policy — v0.17
 
 This optional layer connects persistent signed membership to the verified
 admission directory. It does **not** connect the human UI or implement a full

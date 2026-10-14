@@ -1,13 +1,15 @@
 """Pull owner-signed policy from an explicitly configured HTTP/TLS peer."""
 import argparse
 import os
+import re
 from pathlib import Path
 import threading
 import time
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from .client import Client
 from .group_policy import verify_policy
-from .identity import AdmissionError, decode
+from .verified_directory import REVOCATION_TYPE
+from .identity import AdmissionError, decode, verify
 
 
 def fetch_policy(client, owner_key, group_id):
@@ -20,6 +22,49 @@ def fetch_policy(client, owner_key, group_id):
     return token
 
 
+def pull_revocations(source, owner_key, group_id, apply, checkpoint, max_pages=10):
+    """Bounded incremental pull. Records are signed; cursors are only routing hints.
+
+    Callback returns False when shutting down. Cursor advances only after apply.
+    A new source database generation restarts scanning from zero.
+    """
+    if checkpoint.get('scan_complete'):
+        checkpoint.update(after=0,scan_complete=False)
+    for _ in range(max_pages):
+        after = checkpoint['after']
+        page = source.request('/v1/revocations?after='+str(after)+'&limit=100')
+        if (not isinstance(page, dict) or set(page) != {'generation','entries','next_cursor','has_more'} or
+                not isinstance(page['generation'], str) or not re.fullmatch(r'[a-f0-9]{32}',page['generation']) or
+                not isinstance(page['entries'], list) or len(page['entries']) > 100 or
+                type(page['next_cursor']) is not int or not 0 <= page['next_cursor'] <= 2**53-1 or
+                type(page['has_more']) is not bool):
+            raise AdmissionError('invalid revocation page')
+        if checkpoint['generation'] != page['generation']:
+            checkpoint.update(generation=page['generation'], after=0)
+            if after != 0:
+                continue  # Refetch the new generation from its beginning.
+        cursor = checkpoint['after']
+        for entry in page['entries']:
+            if (not isinstance(entry, dict) or set(entry) != {'sequence','revocation'} or
+                    type(entry['sequence']) is not int or not cursor < entry['sequence'] <= 2**53-1):
+                raise AdmissionError('invalid revocation entry')
+            cursor = entry['sequence']
+        if page['next_cursor'] != cursor or (page['has_more'] and not page['entries']):
+            raise AdmissionError('revocation cursor did not advance')
+        for entry in page['entries']:
+            claims = verify(entry['revocation'], owner_key, REVOCATION_TYPE)
+            if (set(claims) != {'group_id','jti'} or claims['group_id'] != group_id or
+                    not isinstance(claims['jti'],str) or not re.fullmatch(r'[a-f0-9]{32}',claims['jti'])):
+                raise AdmissionError('invalid signed revocation scope')
+            if apply(entry['revocation']) is False:
+                return False
+            checkpoint['after'] = entry['sequence']
+        if not page['has_more']:
+            checkpoint['scan_complete'] = True
+            return True
+    return False
+
+
 def sync_remote(source, target, owner_key, group_id):
     token = fetch_policy(source, owner_key, group_id)
     if token is None:
@@ -29,7 +74,13 @@ def sync_remote(source, target, owner_key, group_id):
     expected = {k: claims[k] for k in ('group_id', 'revision', 'state')}
     if result != expected:
         raise AdmissionError('unexpected target response')
-    return result
+    checkpoint = {'generation': None, 'after': 0}
+    def relay(proof):
+        response = target.request('/v1/revocations', {'revocation': proof})
+        if not isinstance(response, dict) or set(response) != {'revoked'} or response['revoked'] is not True:
+            raise AdmissionError('unexpected revocation acknowledgment')
+    complete = pull_revocations(source, owner_key, group_id, relay, checkpoint, max_pages=100)
+    return result | {'revocations_complete': complete}
 
 
 class PolicySynchronizer:
@@ -48,7 +99,8 @@ class PolicySynchronizer:
         self._apply_lock = threading.Lock()
         self._attempt_lock = threading.Lock()
         self._thread = None
-        self._status = {'state': 'idle', 'last_attempt': None, 'last_success': None, 'revision': None}
+        self._revocations = {'generation': None, 'after': 0}
+        self._status = {'state': 'idle', 'last_attempt': None, 'last_success': None, 'revision': None, 'revocation_cursor': 0}
 
     def status(self):
         with self._apply_lock:
@@ -65,11 +117,22 @@ class PolicySynchronizer:
                 with self._apply_lock:
                     if self._stopped.is_set():
                         return dict(self._status)
-                    if token is None:
-                        self._status['state'] = 'waiting'
-                    else:
+                    if token is not None:
                         result = self.directory.apply_policy(token)
-                        self._status.update(state='synced', last_success=self.clock(), revision=result['revision'])
+                        self._status['revision'] = result['revision']
+                def apply_revocation(proof):
+                    with self._apply_lock:
+                        if self._stopped.is_set():
+                            return False
+                        self.directory.revoke(proof)
+                complete = pull_revocations(self.client, self.directory.owner_key,
+                    self.directory.group_id, apply_revocation, self._revocations)
+                with self._apply_lock:
+                    if not self._stopped.is_set():
+                        self._status['revocation_cursor'] = self._revocations['after']
+                        self._status['state'] = 'catching_up' if not complete else ('waiting' if token is None else 'synced')
+                        if complete and token is not None:
+                            self._status['last_success'] = self.clock()
                     return dict(self._status)
             except Exception:
                 with self._apply_lock:
@@ -120,6 +183,8 @@ def main():
         source = Client(args.source_url, source_token, ca_file=args.source_ca_cert)
         target = Client(args.target_url, target_token, ca_file=args.target_ca_cert)
         result = sync_remote(source, target, owner, args.group_id)
+        if result is not None and not result['revocations_complete']:
+            parser.exit(1, 'Policy applied; revocation scan incomplete. Use periodic service sync for large histories.\n')
         if result is None:
             parser.exit(1, 'Source has no policy; no target changes made.\n')
     except (ValueError, OSError):

@@ -157,7 +157,9 @@ necessary; network membership never grants filesystem or secret access.
   rollback/conflict rejection and terminal dissolution in opt-in verified admission.
 - v0.16: configured-peer full signed-policy pull over HTTP/TLS, periodic
   synchronization, manual CLI and read-protected status. No automatic mesh discovery.
-- Next: human UI signing workflow, credential revocation propagation and peer discovery.
+- v0.17: paginated signed credential-revocation replication, bounded scans,
+  restart-safe learned revocations and source generation handling.
+- Next: human UI signing workflow, policy freshness and peer discovery.
 - Next: network discovery and mesh transport with cryptographic admission.
 - Then: validated agent adapters, durable tasks and real LAN/tailnet trials.
 
@@ -198,5 +200,6 @@ policy issuance from the human UI and full lifecycle replication remain future w
 v0.15 implements durable owner-signed group snapshots and opt-in enforcement
 in verified admission, including member removal and terminal dissolution.
 v0.16 adds configured-peer policy replication, including removals and dissolution.
-Presence, per-credential revocations, chat and tasks are not replicated.
+v0.17 also replicates signed credential revocations. Presence, chat and tasks
+are not replicated.
 The human UI and mesh simulator remain separate from these snapshots.

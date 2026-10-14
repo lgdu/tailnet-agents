@@ -1,4 +1,4 @@
-# Implementation status — v0.16
+# Implementation status — v0.17
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -10,10 +10,10 @@ its future requirements must not be read as implemented security guarantees.
 | MCP | Local tools subset | Real client interoperability verification |
 | Human UI | Configured people/roles, explicit groups, private scopes, paging/polling | Browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
-| Agent identity | Optional Ed25519 keys, scoped grants and possession proofs | Human policy issuance and credential-revocation propagation |
+| Agent identity | Optional Ed25519 keys, scoped grants and possession proofs | Human policy issuance and key renewal |
 | Verified directory | Library + HTTP/TLS admission, read token, durable signed revocation | Real LAN/tailnet trial, human policy issuance and mesh replication |
 | Signed group policy | Durable signed snapshots, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | UI integration, peer discovery and policy freshness |
-| Policy replication | Periodic configured-peer HTTP/TLS pull and read-protected status | Multi-source reconciliation, credential revocations and discovery |
+| Policy replication | Configured-peer policy/credential-revocation pull and read-protected status | Multi-source reconciliation, freshness and discovery |
 | Mesh | State simulator only | Cryptographic admission, LAN/seed/tailnet providers |
 | Product agents | None | OpenClaw/Claude Code/Codex/Qoder/Grok interface validation |
 

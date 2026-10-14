@@ -1,12 +1,12 @@
-# Configured-peer policy synchronization — v0.16
+# Configured-peer policy synchronization — v0.17
 
 Verified directory nodes can share the same human-created group policy over
 HTTP/TLS. A receiver pulls a full owner-signed snapshot from one explicitly
 configured source and verifies the pinned owner/group before applying it.
 Periodic service pull and one-shot HTTP-to-HTTP relay are both available.
 
-This is policy replication, not a full Agent mesh. Agent presence, directory
-leases, conversations, tasks and per-credential revocation records stay local.
+This is policy replication, not a full Agent mesh. Agent presence, directory leases, conversations and tasks stay local.
+Owner-signed credential revocations now propagate alongside policies.
 There is no automatic peer discovery, leader election or source failover.
 
 ## Two nodes on one machine
@@ -85,9 +85,10 @@ python3 -m tailnet_agents.policy_sync \
 The installed entry point is `tailnet-policy-sync`. For private HTTPS CAs use
 `--source-ca-cert` and `--target-ca-cert`. The relay verifies A's signed snapshot
 locally, then submits it to B's existing read-token-and-signature protected route.
-It never opens either running service's database. Empty source, invalid policy,
-authentication/transport failure or rejected update exits nonzero with a generic
-error and no token output. If the target acknowledgment is invalid, the command
+It never opens either running service's database. Empty policy source exits before relay. Invalid policy, authentication/transport
+failure or rejected update exits nonzero with a generic error and no token output.
+Policy or some signed revocations may already have been accepted when a later
+page fails; accepted revocations are never undone. If the target acknowledgment is invalid, the command
 reports failure, although the target may already have accepted the update.
 
 ## Read-protected API and status
@@ -95,16 +96,18 @@ reports failure, although the target may already have accepted the update.
 | Route | Response |
 |---|---|
 | GET `/v1/policies` | `{policy: signed-JWS}` or `{policy: null}`; policy mode required |
+| GET `/v1/revocations?after=0&limit=100` | Read-protected paginated signed credential-revocation records |
 | POST `/v1/policies` | Apply owner-signed snapshot; exact group/revision/state acknowledgment |
-| GET `/v1/policy-sync` | Synchronizer state, last attempt/success epoch timestamps and accepted revision; or `{state: disabled}` |
+| GET `/v1/policy-sync` | Synchronizer state, last attempt/success epoch timestamps, accepted revision and revocation cursor; or `{state: disabled}` |
 
-All three routes require the receiving service's read bearer token and existing
+All listed routes require the receiving service's read bearer token and existing
 Host/Origin checks. Policy GET and sync status do not accept query parameters.
 POST additionally requires the pinned owner signature. Grant-only mode cannot
 export or accept policy snapshots. Status reveals no credentials or detailed
 transport exceptions. `last_success` refers to this runtime, not persisted state.
 
-States are `idle`, `waiting` (source has no snapshot), `synced`, `error` and
+States are `idle`, `waiting` (source has no policy snapshot), `catching_up`
+(revocation scan has more pages), `synced`, `error` and
 `stopped`. Receiving the same valid snapshot counts as a successful attempt; it
 is not proof that no newer snapshot exists elsewhere. Status is exposed by the
 service API and is not yet connected to the human UI.
@@ -124,8 +127,8 @@ service API and is not yet connected to the human UI.
   configuration or issue a higher valid revision. A dissolved receiver cannot
   be revived by a higher active revision.
 - This uses one fixed source and full snapshots, with no multi-source convergence,
-  signatures from a member quorum, replay-resistant fresh-source attestation,
-  per-credential revocation replication or task cancellation.
+  signatures from a member quorum, replay-resistant fresh-source attestation
+  or task cancellation.
 - Source polling is independent of HTTP request handling. Shutdown prevents late
   network responses from applying to a closed database. Network I/O can outlive
   shutdown in a daemon thread; it cannot perform further database writes.
@@ -135,3 +138,39 @@ checks, stale/foreign/conflicting snapshots, empty-source behavior, restart,
 background recovery, stop during slow I/O, the one-shot CLI, service startup flags
 and certificate CA/hostname rejection. These are loopback tests using synthetic
 Agent identities, not real product adapters or WAN trials.
+
+## Signed credential-revocation feed (v0.17)
+
+GET `/v1/revocations?after=0&limit=100` requires the source read token. `after`
+is a nonnegative integer cursor, `limit` is 1..100. The response has exactly
+`generation`, `entries`, `next_cursor`, `has_more`. Entries contain `sequence`
+and the separately typed owner-signed `revocation` JWS. Sequences are source-local
+SQLite row IDs, not globally trusted versions. Generation is a persisted random
+source database identifier, not a membership identity or signed freshness proof.
+
+Each signed record must match the pinned owner/group and contain a valid grant
+ID. Receipt inserts it idempotently into the receiver's durable revocation set;
+that credential can no longer register/renew or appear in discovery even if
+policy still lists it. Relays can export learned signed records without re-signing.
+There is no un-revoke operation; issue and explicitly approve a new credential.
+
+Periodic service sync processes at most ten pages per attempt. More pages give
+`catching_up`, retaining the cursor for the next attempt. A completed scan restarts
+from zero on the next poll, and process restart also starts from zero. Full rescans
+catch records behind an earlier cursor after source backup restoration. A source
+generation change during a scan resets the cursor. No deleted or missing source
+record clears a receiver's learned revocation.
+
+The one-shot relay allows up to 100 pages (10,000 entries). Its acknowledgment
+includes `revocations_complete`; exhaustion reports partial progress and exits
+nonzero. Use the periodic service for larger histories. A bad signature or page
+never advances past the last accepted record. Partial valid updates persist on
+failure, while sync reports `error`. Old v0.16 sources lack this feed and therefore
+cannot produce a successful v0.17 sync; upgrade sources before receivers.
+
+`last_success` updates only after policy verification and a completed revocation
+scan. A null policy can still supply valid revocations to a periodic receiver;
+one-shot relay with a null policy makes no changes. Disconnected receivers still
+cannot learn new revocations immediately. Polling is full-history work, not an
+optimized production replication protocol, and cancelling running tasks remains
+unimplemented.

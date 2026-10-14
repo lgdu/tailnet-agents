@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.16 prototype.** Working components are listed below. The network mesh and
+**v0.17 prototype.** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -16,10 +16,10 @@ action; agents may only discover or restore previously authorized groups.
 | MCP | Stdio discovery, delegation, result tools | 2025 handshake family; real client compatibility unvalidated |
 | Human UI | Explicit groups, human roles, scoped group/private chat, polling, pagination | Loopback-only, simulated agents, no E2E encryption |
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
-| Policy replication | Configured peer pull over HTTP/TLS, periodic synchronization and status | Signed policy snapshots only; no presence/chat/task or credential-revocation replication |
+| Policy replication | Configured peer pull over HTTP/TLS, periodic synchronization, signed credential revocations and status | Policy and credential revocations only; no presence/chat/task replication |
 | Mesh simulator | Restart, partition reconciliation, stale claims, dissolution rules | Deterministic state model, no network or cryptographic admission |
-| Signed group policy | Owner-signed snapshots, approved grant IDs, rollback rejection, terminal dissolution | Opt-in verified directory enforcement; no UI issuance or peer propagation |
-| Agent identity | Ed25519 identities, signed scoped grants, expiry/revocation checks, possession proof | Optional component; no signed group policy integration |
+| Signed group policy | Owner-signed snapshots, approved grant IDs, rollback rejection, terminal dissolution | Opt-in verified directory enforcement; no UI issuance or automatic peer discovery |
+| Agent identity | Ed25519 identities, signed scoped grants, expiry/revocation checks, possession proof | Verified admission integrated; no UI/mesh identity integration |
 | Verified directory | Proof-based registration, metadata binding, durable signed revocation | TLS service with optional durable signed member policy; not mesh/UI integrated |
 
 Different product agents will connect through adapters. Grok model API access
@@ -51,7 +51,7 @@ flowchart TB
   subgraph VERIFY["Optional verified admission / 可选身份准入"]
     direction TB
     VC["Verified client / 持有身份私钥"] -->|"TLS + grant + proof"| API["Admission HTTP service"]
-    API -->|"Periodic policy pull / 配置的来源"| PEER["Peer admission service / 签名策略副本"]
+    API -->|"Policy and revocation pull / 配置的来源"| PEER["Peer admission service / 签名策略副本"]
     API --> VD["Verified directory / 身份与授权校验"]
     VD --> GP["Signed group policy / 成员、凭证、解散"]
     VD --> ID["Ed25519 / 签名、有效期、撤销"]
@@ -151,7 +151,7 @@ adds certificate-verified transport for controlled cross-machine trials.
 [Signed group policy](docs/group-policy.md) adds opt-in persistent membership and
 dissolution checks to verified admission. A read token cannot sign a policy.
 [Policy synchronization](docs/policy-sync.md) enables configured nodes to pull
-these signed snapshots periodically over HTTP/TLS.
+signed policies and credential revocations periodically over HTTP/TLS.
 
 ## Verification
 
@@ -170,9 +170,10 @@ visual/interaction validation and real-agent compatibility remain outstanding.
 - [Protocol boundaries](docs/protocol.md)
 - [Registry operations and backup](docs/operations.md)
 - [Current status and next work](docs/status.md)
+- [Prioritized remaining work](docs/roadmap.md)
 
 Next: connect human group creation to signed policies, add peer discovery and
-credential-revocation propagation, connect verified
+policy freshness and presence propagation, connect verified
 identity to the mesh engine, implement LAN/seed/tailnet discovery, validate the
 human UI in a browser, and then add real product adapters and durable tasks.
 The working registry mode remains available during mesh development.

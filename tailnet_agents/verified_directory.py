@@ -5,6 +5,7 @@ import math
 import re
 import threading
 import time
+import secrets
 from .identity import Admission, AdmissionError, identity_id, sign, verify, verify_grant
 from .registry import Registry
 from .group_policy import PolicyStore
@@ -34,6 +35,8 @@ class VerifiedDirectory:
                 db.execute('INSERT OR IGNORE INTO admission_context VALUES(1,?,?)',expected)
                 db.execute('CREATE TABLE IF NOT EXISTS admission_grants (agent_id TEXT PRIMARY KEY,token TEXT NOT NULL)')
                 db.execute('CREATE TABLE IF NOT EXISTS admission_revocations (jti TEXT PRIMARY KEY,proof TEXT NOT NULL)')
+                db.execute('CREATE TABLE IF NOT EXISTS revocation_generation (id INTEGER PRIMARY KEY CHECK(id=1),value TEXT NOT NULL)')
+                db.execute('INSERT OR IGNORE INTO revocation_generation VALUES(1,?)',(secrets.token_hex(16),))
                 db.execute('CREATE TABLE IF NOT EXISTS admission_policy_mode (id INTEGER PRIMARY KEY CHECK(id=1),required INTEGER NOT NULL)')
                 mode=db.execute('SELECT required FROM admission_policy_mode WHERE id=1').fetchone()
                 if mode and mode[0] and not require_policy:
@@ -111,6 +114,16 @@ class VerifiedDirectory:
             with self._registry.db:
                 self._registry.db.execute('INSERT OR IGNORE INTO admission_revocations VALUES(?,?)',(claims['jti'],signed_revocation))
             self._admission.revoked.add(claims['jti'])
+
+    def export_revocations(self,after=0,limit=100):
+        if type(after) is not int or not 0<=after<=2**53-1 or type(limit) is not int or not 1<=limit<=100:
+            raise ValueError('invalid revocation page')
+        with self.lock:
+            rows=self._registry.db.execute('SELECT rowid,proof FROM admission_revocations WHERE rowid>? ORDER BY rowid LIMIT ?',(after,limit+1)).fetchall()
+            page=rows[:limit]
+            generation=self._registry.db.execute('SELECT value FROM revocation_generation WHERE id=1').fetchone()[0]
+            return {'generation':generation,'entries':[{'sequence':seq,'revocation':proof} for seq,proof in page],
+                    'next_cursor':page[-1][0] if page else after,'has_more':len(rows)>limit}
 
     def discover(self,skill=None):
         with self.lock:

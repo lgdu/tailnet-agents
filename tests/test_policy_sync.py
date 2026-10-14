@@ -15,8 +15,8 @@ try:
     from tailnet_agents.client import Client
     from tailnet_agents.group_policy import create_policy, revise_policy, POLICY_TYPE
     from tailnet_agents.identity import AdmissionError, identity_id, issue_grant, verify_grant, verify, sign, encode, public_bytes
-    from tailnet_agents.policy_sync import PolicySynchronizer, fetch_policy, sync_remote
-    from tailnet_agents.verified_directory import VerifiedDirectory
+    from tailnet_agents.policy_sync import PolicySynchronizer, fetch_policy, sync_remote, pull_revocations
+    from tailnet_agents.verified_directory import VerifiedDirectory, issue_revocation
     from tailnet_agents.verified_client import VerifiedClient
     from tests.test_admission_tls import certificates
     HAS_CRYPTO = True
@@ -236,6 +236,88 @@ class PolicySyncTests(unittest.TestCase):
             if process.poll() is None:
                 process.terminate()
                 process.communicate(timeout=8)
+
+    def test_credential_revocation_replicates_and_survives_receiver_restart(self):
+        self.sync.sync_once()
+        self.agent_client().register(self.record)
+        jti = verify_grant(self.grant, self.owner.public_key(), self.group, now=110)['jti']
+        proof = issue_revocation(self.owner, self.group, jti)
+        self.source.request('/v1/revocations', {'revocation': proof})
+        self.sync.sync_once()
+        self.assertEqual(self.target.request('/v1/agents')['agents'], [])
+        with self.assertRaises(HTTPError): self.agent_client().register(self.record)
+        self.sync.stop(); self.b.close(); self.nodes.remove(self.b)
+        restored = self.directory('b')
+        self.assertEqual(restored.export_revocations()['entries'][0]['revocation'], proof)
+        restored.apply_policy(self.approved)  # policy approval cannot undo a learned revoke
+        self.assertEqual(restored._admission.revoked, {jti})
+
+    def test_multiple_pages_and_source_generation_change(self):
+        for n in range(205): self.a.revoke(issue_revocation(self.owner, self.group, f'{n:032x}'))
+        self.assertEqual(self.sync.sync_once()['revocation_cursor'], 205)
+        self.assertEqual(len(self.b._admission.revoked), 205)
+        fresh = self.directory('fresh-source')
+        fresh.apply_policy(self.approved)
+        jti = 'f'*32
+        fresh.revoke(issue_revocation(self.owner, self.group, jti))
+        self.sync.client = self.serve(fresh, 'f'*32)
+        self.sync.sync_once()
+        self.assertIn(jti, self.b._admission.revoked)
+        self.assertEqual(len(self.b._admission.revoked), 206)
+        self.assertEqual(self.sync.status()['revocation_cursor'], 1)
+
+    def test_paginated_pull_resumes_after_budget_without_losing_entries(self):
+        for n in range(105): self.a.revoke(issue_revocation(self.owner, self.group, f'{n:032x}'))
+        checkpoint = {'generation': None, 'after': 0}
+        self.assertFalse(pull_revocations(self.source, self.owner.public_key(), self.group,
+            self.b.revoke, checkpoint, max_pages=1))
+        self.assertEqual(checkpoint['after'], 100)
+        self.assertTrue(pull_revocations(self.source, self.owner.public_key(), self.group,
+            self.b.revoke, checkpoint, max_pages=1))
+        self.assertEqual(checkpoint['after'], 105)
+        self.assertEqual(len(self.b._admission.revoked), 105)
+
+    def test_bad_signed_record_never_advances_past_last_verified_record(self):
+        first = issue_revocation(self.owner, self.group, 'a'*32)
+        invalid = issue_revocation(self.owner, 'another-group', 'b'*32)
+        checkpoint = {'generation': None, 'after': 0}
+        page = {'generation': 'c'*32, 'entries': [
+            {'sequence': 1, 'revocation': first}, {'sequence': 2, 'revocation': invalid}],
+            'next_cursor': 2, 'has_more': False}
+        with self.assertRaises(AdmissionError): pull_revocations(ResponseClient(page),
+            self.owner.public_key(), self.group, self.b.revoke, checkpoint)
+        self.assertEqual(checkpoint['after'], 1)
+        self.assertEqual(self.b._admission.revoked, {'a'*32})
+        for bad in [page | {'entries': [], 'next_cursor': 1, 'has_more': True},
+                    page | {'next_cursor': True}, page | {'generation': 'bad'}]:
+            with self.assertRaises(AdmissionError): pull_revocations(ResponseClient(bad),
+                self.owner.public_key(), self.group, self.b.revoke, checkpoint)
+
+    def test_completed_scan_restarts_from_zero_to_catch_restored_source_history(self):
+        checkpoint = {'generation': 'c'*32, 'after': 500, 'scan_complete': True}
+        proof = issue_revocation(self.owner, self.group, 'd'*32)
+        class RecordingClient:
+            def request(inner, path):
+                self.assertIn('after=0&', path)
+                return {'generation': 'c'*32, 'entries': [{'sequence': 1, 'revocation': proof}],
+                        'next_cursor': 1, 'has_more': False}
+        self.assertTrue(pull_revocations(RecordingClient(), self.owner.public_key(), self.group,
+            self.b.revoke, checkpoint))
+        self.assertIn('d'*32, self.b._admission.revoked)
+
+    def test_revocation_export_requires_reader_and_valid_page_parameters(self):
+        with self.assertRaises(HTTPError) as error: Client(self.source.url, 'wrong').request('/v1/revocations')
+        self.assertEqual(error.exception.code, 403)
+        for query in ['after=-1', 'limit=101', 'limit=0', 'after=true', 'extra=1', 'after=1&after=2']:
+            with self.assertRaises(HTTPError) as error: self.source.request('/v1/revocations?'+query)
+            self.assertEqual(error.exception.code, 400)
+
+    def test_one_shot_http_relay_includes_signed_credential_revocations(self):
+        jti = verify_grant(self.grant, self.owner.public_key(), self.group, now=110)['jti']
+        self.a.revoke(issue_revocation(self.owner, self.group, jti))
+        result = sync_remote(self.source, self.target, self.owner.public_key(), self.group)
+        self.assertTrue(result['revocations_complete'])
+        with self.assertRaises(HTTPError): self.agent_client().register(self.record)
 
     def test_invalid_poll_interval_and_grant_only_mode_rejected(self):
         for interval in [0, 3601, float('nan'), True]:

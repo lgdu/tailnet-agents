@@ -54,6 +54,12 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=N
                 parsed=urlparse(self.path)
                 if parsed.path=='/healthz':
                     return self.respond(200,{'status':'ok','mode':'verified-'+scheme})
+                if parsed.path=='/v1/revocations':
+                    self.read_auth()
+                    query=parse_qs(parsed.query,keep_blank_values=True)
+                    if set(query)-{'after','limit'} or any(len(v)!=1 for v in query.values()):
+                        raise ValueError('invalid revocation query')
+                    return self.respond(200,directory.export_revocations(int(query.get('after',['0'])[0]),int(query.get('limit',['100'])[0])))
                 if parsed.path in ('/v1/policies','/v1/policy-sync'):
                     self.read_auth()
                     if parsed.query:

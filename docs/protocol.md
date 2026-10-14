@@ -104,3 +104,12 @@ are available; GET `/v1/policy-sync` exposes read-protected synchronization stat
 Null/errors never create groups or clear accepted policy. This replicates policy
 only, not presence, credential-revocation records, conversations or tasks.
 See [policy synchronization](policy-sync.md) for deployment and freshness limits.
+
+## Signed credential-revocation replication (v0.17)
+
+The configured-peer synchronizer additionally pulls GET `/v1/revocations`, using
+bounded pages and independent verification of each owner-signed group/jti record.
+Accepted revocations persist, are relayed unchanged, and are never removed by
+policy updates or missing source records. Cursor checkpoints are routing hints;
+completed scans and process restart rescan from zero. See [policy sync](policy-sync.md)
+for the response schema, partial-progress behavior and version compatibility.

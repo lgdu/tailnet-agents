@@ -1,4 +1,4 @@
-# Credential-enforced directory (v0.16)
+# Credential-enforced directory (v0.17)
 
 `VerifiedDirectory` connects the optional identity component to SQLite directory
 registration. This module remains an **in-process API**. A separate
@@ -69,7 +69,7 @@ and their entries immediately disappear from this directory's discovery results.
 This does not stop an existing task or revoke a different previously issued grant.
 Other directories must receive and verify the signed credential-revocation record
 independently. [Policy synchronization](policy-sync.md) propagates membership
-snapshots, not these per-credential records; no partition-wide immediate guarantee
+snapshots and these per-credential records; no partition-wide immediate guarantee
 is provided.
 
 The database pins owner fingerprint and group ID. Reopening with a different
