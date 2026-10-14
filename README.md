@@ -17,7 +17,7 @@ action; agents may only discover or restore previously authorized groups.
 | Human UI | Explicit groups, human roles, scoped group/private chat, polling, pagination | Loopback-only, simulated agents, no E2E encryption |
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
 | Policy replication | Ordered HTTP/TLS source failover, independent revocation cursors, periodic pull and status | Configured sources only; no quorum, presence/chat/task replication |
-| Candidate discovery | Opt-in signed UDP multicast and credential-free HTTP/TLS seeds, expiry and identity-based merging | Existing policy/key required; candidates only, no auto-enrollment or policy-source promotion |
+| Candidate discovery | Signed UDP multicast with ingress filtering, HTTP/TLS seeds, sticky conflicts, synchronized policy/revocation checks | Existing directory/key required; Linux LAN receiver; candidates only, no auto-enrollment or policy-source promotion |
 | Mesh simulator | Restart, partition reconciliation, stale claims, dissolution rules | Deterministic state model, no network or cryptographic admission |
 | Signed group policy | Owner-signed snapshots, bounded signed age, approved grant IDs, rollback rejection, terminal dissolution | Opt-in verified admission; owner must renew policy, no UI issuance or automatic enrollment |
 | Agent identity | Ed25519 identities, signed scoped grants, expiry/revocation checks, possession proof | Verified admission integrated; no UI/mesh identity integration |
@@ -65,6 +65,7 @@ flowchart TB
     VD --> ANN["Signed minimal announcement / 原身份签名的候选公告"]
     ANN -->|"Explicit interface, TTL 1 / 指定网卡组播"| LAN["LAN UDP multicast"]
     LAN --> FIND["Candidate scanner / 身份、时效与冲突检查"]
+    VDB -->|"Read-only policy, age and revocations / 只读策略与撤销"| FIND
     FIND -->|"Credential-free HTTPS seeds / 配置种子"| API
     FIND --> CAND["Candidate addresses only / 不自动入群或授予权限"]
   end
@@ -182,12 +183,17 @@ advertise on a selected IPv4 interface. No key or group is generated at startup.
 python3 -m tailnet_agents.discovery \
   --authority-public-key state/owner.pub \
   --group-id YOUR-EXISTING-GROUP-ID \
-  --policy-file state/group.policy \
+  --directory-database state/directory-a.sqlite3 \
   --seeds-file state/discovery-seeds.json
 ```
 
 Seed configuration contains URLs and optional CA paths, never tokens. LAN and
 Tailscale HTTPS seeds can be mixed. Optionally listen with `--lan-interface`.
+The CLI reads the existing synchronized directory database in read-only mode,
+including learned revocations and its persisted policy age bound. It checks that
+state again before output; optional `--policy-max-age` can only tighten the bound.
+LAN receiving requires Linux and a primary local IPv4 address; ingress interface
+and multicast destination are verified. Conflicts stay hidden for the entire scan.
 Announcements carry only signed candidate metadata and expire within 30 seconds.
 Results explicitly say `admission: not_checked`; a signature does not prove a
 currently valid grant, endpoint ownership or permission to execute tasks. No
@@ -203,9 +209,10 @@ python3 -m tailnet_agents.mesh_sim
 Install the identity extra to run cryptographic tests; without it, those tests
 are explicitly skipped. CI runs both core and identity installations. Browser
 visual/interaction validation and real-agent compatibility remain outstanding.
-v0.19 includes 142 tests: the 117-test v0.18 baseline plus 25 candidate-discovery
+v0.19 includes 155 tests: the 117-test v0.18 baseline plus 38 candidate-discovery
 checks covering signed/expired/foreign records, credential isolation, conflicts,
-real multicast and HTTP/TLS, CLI scans, service shutdown and restart recovery.
+real multicast and HTTP/TLS, ingress filtering, learned revocations, read-only
+state/lease preservation, mid-scan updates, service shutdown and restart recovery.
 
 ## Design and roadmap
 

@@ -6,12 +6,10 @@ import re
 import threading
 import time
 import secrets
-from .identity import Admission, AdmissionError, identity_id, sign, verify, verify_grant
+from .identity import Admission, AdmissionError, REVOCATION_TYPE, identity_id, sign, verify, verify_grant
 from .registry import Registry
 from .group_policy import PolicyStore
 from .discovery import make_announcement
-
-REVOCATION_TYPE='tailnet-agent-revocation+jwt'
 
 
 def issue_revocation(owner_key,group_id,credential_id):

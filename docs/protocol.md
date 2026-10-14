@@ -151,19 +151,30 @@ Exact signed fields: `version` (integer 1), `group_id`, `subject`, `policy_hash`
 HTTP/TLS origin, HTTPS except loopback), `audience`, `issued_at`, `expires_at`.
 Expiry is at most 30 seconds after issue and no later than publisher policy expiry;
 over five seconds of future issue time is rejected. Owner/group and active local
-policy must match, and the subject must be locally approved. No grant/token/key
+policy must match, and the subject must be locally approved with at least one
+approved grant ID not locally revoked. No grant/token/key
 secrets, policy body, membership list or capabilities are carried.
 
 Optional IPv4 multicast sends the inner envelope to `239.255.77.77:8773`, TTL 1,
 on an explicitly selected interface every five seconds. No UDP requests/replies.
 The custom protocol is not mDNS, A2A or automatic tailnet peer enumeration. Scans
-limit packets to 4096 bytes and 128 receives; configured seeds limit responses to
+limit packets to 4096 bytes and 128 verification attempts per second, resuming in
+the next second instead of stopping early. Linux IP_PKTINFO verifies the selected
+ingress interface and multicast destination before verification. Unicast,
+truncation and missing metadata are rejected. Unsupported platforms or non-primary
+IPv4 interface addresses fail closed for LAN reception. Configured seeds limit responses to
 4096 bytes and sources to eight. Only configured seed origins are queried, with
 no Authorization/Cookie headers or ambient proxies; redirects are rejected and
 TLS validation remains enabled.
 
-Merge by signed identity; withhold conflicting live locators for one subject.
+Merge by signed identity; any second locator/audience sets a sticky conflict for
+that scan, unaffected by expiry or discarded third locators. Sources describe
+only the retained announcement version; old replays cannot add source labels.
+The scanner CLI reads an existing policy-mode directory database read-only,
+including signed relevant revocations and its persisted age bound. It re-reads
+before output, applies new revocations/tighter bounds, and fails for retry on
+policy changes. It never creates a directory or resets registration leases.
 Results include `admission: not_checked`; no route makes a candidate an admitted
 member, execution authority or trusted policy source. Registration still requires
 the existing valid grant and fresh bound possession proof. See [discovery](discovery.md)
-for configuration, scanner-local policy checks, replay and validation limits.
+for configuration, synchronized policy checks, replay and validation limits.

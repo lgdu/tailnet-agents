@@ -166,10 +166,12 @@ flowchart LR
   SIGN --> LAN["Explicit-interface LAN multicast"]
   SIGN --> SEED["Opt-in HTTP/TLS seed route"]
   CONFIG["Trusted seed URLs + CA files / No credentials"] --> SCAN["Bounded candidate scanner"]
-  LAN --> SCAN
+  LAN --> INGRESS["Linux ingress interface + multicast destination filter"]
+  INGRESS --> SCAN
   SEED --> SCAN
-  LOCAL["Local owner pin + fresh policy"] --> SCAN
-  SCAN --> VERIFY["Signature, group, policy hash, expiry and conflicts"]
+  LOCAL["Owner pin + read-only synchronized directory / Policy, age and signed revocations"] --> SCAN
+  SCAN --> VERIFY["Signature, group, policy hash, expiry and sticky conflicts"]
+  LOCAL -->|"Re-read before output / Policy changes require retry"| VERIFY
   VERIFY --> CAND["Candidate address / admission not checked"]
   CAND -.-> HUMAN["Future explicit enrollment / Separate grant + possession + channel checks"]
 ```
@@ -177,13 +179,22 @@ flowchart LR
 The scanner contacts only configured seed origins, sends no Authorization/Cookie
 headers and never follows candidate URLs or redirects. HTTPS chain/hostname trust
 is independent of the announcement signature. Provider results merge by verified
-subject, not locator. Multiple live locators for one key are reported as conflict
-and withheld. Duplicate delivery cannot refresh signed expiry. Announcements are
+subject, not locator. Any second distinct locator marks that key as conflicted
+for the entire scan, including after expiry or dropping a third locator. Provider
+labels belong only to the retained announcement version. Duplicate delivery
+cannot refresh signed expiry. Announcements are
 at most 30 seconds old; more than five seconds of future issue time is rejected.
 
 A local-policy candidate is not proof of an unexpired grant, live endpoint/channel
-ownership or execution rights. The scanner's file-based policy check cannot undo
-the directory's persisted admission restrictions. No discovery result automatically
+ownership or execution rights. The CLI requires an existing synchronized directory
+database and reads it without opening Registry or resetting leases. It enforces
+the owner/group pin, policy mode, persisted age bound and signed learned revocations,
+then re-reads state before output. Newly learned revocations/tighter bounds apply;
+a changed policy aborts the scan for retry. Later updates require another scan.
+LAN reception fails closed without Linux IP_PKTINFO and a local primary IPv4
+address. Ingress interface/destination checks precede the 128-attempts/second
+verification limit; that limit pauses processing without ending the scan early.
+Same-interface flooding can still exhaust receive queues. No discovery result automatically
 changes membership, invokes registration, learns owner trust or becomes a policy
 source. The signed policy/grant/proof path remains mandatory for admission.
 Cloned-key fencing, mDNS, tailnet enumeration, actual cross-machine trials and

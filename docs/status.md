@@ -61,15 +61,29 @@ selected LAN interface disclose only signed minimal metadata. Announcements live
 at most 30 seconds, with no grant/token/private-key data. Seed requests carry no
 Authorization/Cookie credentials, disable proxies/redirects and verify TLS.
 Only administrator-configured seed origins are contacted. Unknown/foreign/stale
-records are ignored, identities merge across providers and conflicting live
-locators are withheld. Packet/body, source count and receive budgets are bounded.
+records are ignored and identities merge across providers. Conflicts remain
+sticky throughout one scan; older announcements cannot claim sources of newer
+versions. The Linux LAN receiver checks ingress interface and multicast destination
+using IP_PKTINFO, rejecting unicast and truncated/missing metadata. LAN verification
+is bounded to 128 attempts per second without ending the scan early.
+
+The CLI requires an existing synchronized directory database opened read-only.
+It verifies signed relevant revocations, enforces the persisted age bound and
+re-reads state before output; newly learned revocations/tighter bounds apply and
+policy changes require a retry. Scanning does not reset leases or modify registry
+state. Static-policy-file scanning has been removed before the v0.19 release.
+LAN receive filtering requires Linux and a primary local IPv4 address; seeds
+remain available on other platforms. Same-interface floods and immediate delivery
+of unseen remote revocations are not solved.
 
 These are candidates, not admitted members or trusted policy sources. A signed
 record does not establish endpoint ownership, grant expiry or permission to run
 tasks. Existing proof-based admission remains unchanged. There is no automatic
 group creation, credential issuance, enrollment or real Agent integration.
 Tests include real loopback multicast, HTTP/TLS, subprocess startup/scanning,
-restart with the same key/group and absence of registration side effects.
+restart with the same key/group, revoked self-signed seed/LAN announcements,
+mid-scan state changes and absence of registration/lease side effects.
+The full suite contains 155 tests (38 for candidate discovery).
 Actual NIC/router/tailnet behavior remains unvalidated. See [discovery](discovery.md).
 v0.19.0 is prepared in this PR and is not yet published or tagged.
 

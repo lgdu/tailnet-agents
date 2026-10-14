@@ -1,12 +1,15 @@
 """Credential-free candidate discovery; never enroll peers or create groups."""
 import argparse
+from contextlib import closing
 import hashlib
 import ipaddress
 import json
 from pathlib import Path
 import re
 import socket
+import sqlite3
 import ssl
+import struct
 import sys
 import threading
 import time
@@ -15,14 +18,14 @@ from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from .client import NoRedirect, validate_url
 from .group_policy import POLICY_FUTURE_SKEW, verify_policy
-from .identity import (AdmissionError, decode, encode, identity_id, public_bytes,
+from .identity import (AdmissionError, REVOCATION_TYPE, decode, encode, identity_id, public_bytes,
                        sign, unique_object, verify)
 
 ANNOUNCEMENT_TYPE = 'tailnet-discovery+jwt'
 MULTICAST_GROUP = '239.255.77.77'
 DISCOVERY_PORT = 8773
 MAX_PACKET = 4096
-MAX_PACKETS = 128
+MAX_PACKETS = 128  # Signature-verification attempts per one-second LAN window.
 
 
 def origin(url):
@@ -116,36 +119,90 @@ class Candidates:
         self.max_age, self.clock, self.revoked = max_age, clock, frozenset(revoked)
         fresh_policy(policy_token, owner, group_id, clock(), max_age)
         self._records = {}
+        self._conflicts = set()
+        self._snapshot = None
+
+    @classmethod
+    def from_directory(cls, path, owner, group_id, *, max_age=None, clock=time.time):
+        """Read synchronized state without opening Registry or resetting leases."""
+        def snapshot():
+            return directory_snapshot(path, owner, group_id, now=clock(), max_age=max_age)
+        token, bound, revoked = snapshot()
+        result = cls(token, owner, group_id, max_age=bound, clock=clock, revoked=revoked)
+        result._snapshot = snapshot
+        return result
 
     def add(self, envelope, source):
         now = self.clock()
         claims = verify_announcement(envelope, self.policy, self.owner, self.group_id,
                                      now=now, max_age=self.max_age, revoked=self.revoked)
         records = self._records.setdefault(claims['subject'], {})
-        for locator, (previous, _) in list(records.items()):
-            if previous['expires_at'] <= now or previous['issued_at'] > now + 5:
-                del records[locator]
         locator = (claims['endpoint'], claims['audience'])
+        if records and locator not in records:
+            self._conflicts.add(claims['subject'])
         if locator not in records and len(records) >= 2:
             return  # Two conflicting locators already suppress this identity.
         if locator not in records or claims['issued_at'] > records[locator][0]['issued_at']:
-            sources = set() if locator not in records else records[locator][1]
-            records[locator] = (claims, sources)
-        records[locator][1].add(source)
+            records[locator] = (claims, {source})
+        elif claims == records[locator][0]:
+            records[locator][1].add(source)
 
     def result(self):
+        if self._snapshot is not None:
+            token, bound, revoked = self._snapshot()
+            if token != self.policy:
+                raise AdmissionError('directory policy changed during scan; retry')
+            self.max_age = min(self.max_age, bound)
+            self.revoked = self.revoked | revoked
         now = self.clock()
-        fresh_policy(self.policy, self.owner, self.group_id, now, self.max_age)
+        policy = fresh_policy(self.policy, self.owner, self.group_id, now, self.max_age)
         candidates, conflicts = [], []
         for subject, locators in sorted(self._records.items()):
+            if not set(policy['members'][subject]['grant_ids']) - self.revoked:
+                continue
             live = [value for value in locators.values()
-                    if value[0]['issued_at'] <= now + 5 and value[0]['expires_at'] > now]
-            if len(live) > 1:
+                    if value[0]['issued_at'] <= now + 5 and now < value[0]['expires_at'] <= policy['issued_at'] + self.max_age]
+            if subject in self._conflicts:
                 conflicts.append(subject)
             elif live:
                 claims, sources = live[0]
                 candidates.append(claims | {'sources': sorted(sources), 'admission': 'not_checked'})
         return {'candidates': candidates, 'conflicts': conflicts}
+
+
+def directory_snapshot(path, owner, group_id, *, now, max_age=None):
+    """Transactional, read-only view; relevant revocation proofs remain owner-pinned."""
+    uri = Path(path).resolve(strict=True).as_uri() + '?mode=ro'
+    try:
+        with closing(sqlite3.connect(uri, uri=True, timeout=2)) as db:
+            with db:
+                db.execute('BEGIN')
+                context = db.execute('SELECT owner_id,group_id FROM admission_context WHERE id=1').fetchone()
+                mode = db.execute('SELECT required FROM admission_policy_mode WHERE id=1').fetchone()
+                age = db.execute('SELECT max_age FROM admission_policy_freshness WHERE id=1').fetchone()
+                row = db.execute('SELECT token FROM group_policy WHERE id=1').fetchone()
+                if context != (identity_id(owner), group_id) or mode != (1,) or age is None or row is None:
+                    raise AdmissionError('existing pinned policy-mode directory required')
+                bound = age[0]
+                if type(bound) is not int or not 1 <= bound <= 86400:
+                    raise AdmissionError('invalid persisted policy maximum age')
+                if max_age is not None:
+                    if type(max_age) is not int or not 1 <= max_age <= bound:
+                        raise AdmissionError('scanner may only tighten directory policy maximum age')
+                    bound = max_age
+                policy = fresh_policy(row[0], owner, group_id, now, bound)
+                grants = sorted({jti for member in policy['members'].values() for jti in member['grant_ids']})
+                revoked = set()
+                if grants:
+                    query = 'SELECT jti,proof FROM admission_revocations WHERE jti IN (' + ','.join('?' for _ in grants) + ')'
+                    for jti, proof in db.execute(query, grants):
+                        claims = verify(proof, owner, REVOCATION_TYPE)
+                        if claims != {'group_id': group_id, 'jti': jti}:
+                            raise AdmissionError('invalid persisted revocation proof')
+                        revoked.add(jti)
+                return row[0], bound, frozenset(revoked)
+    except sqlite3.Error as error:
+        raise AdmissionError('cannot read synchronized directory state') from error
 
 
 class Seed:
@@ -191,19 +248,63 @@ def lan_config(interface, port):
     return socket.inet_aton(str(address))
 
 
+def lan_interface_index(interface):
+    if not sys.platform.startswith('linux') or not hasattr(socket.socket, 'recvmsg'):
+        raise ValueError('LAN receive filtering requires Linux IP_PKTINFO; use explicit seeds')
+    import fcntl
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        for index, name in socket.if_nameindex():
+            try:
+                data = fcntl.ioctl(probe, 0x8915, struct.pack('256s', name.encode()))  # SIOCGIFADDR
+            except OSError:
+                continue
+            if socket.inet_ntoa(data[20:24]) == interface:
+                return index
+    raise ValueError('LAN interface must be a local primary IPv4 address')
+
+
+class LanReceiver:
+    """Accept only the selected ingress interface and multicast destination."""
+    def __init__(self, connection, interface_index):
+        self.connection, self.interface_index = connection, interface_index
+        self.timeout = 1
+
+    def settimeout(self, timeout):
+        self.timeout = timeout
+
+    def recvfrom(self, size):
+        deadline = time.monotonic() + self.timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise socket.timeout()
+            self.connection.settimeout(remaining)
+            data, metadata, flags, source = self.connection.recvmsg(size, socket.CMSG_SPACE(12))
+            if flags & (socket.MSG_TRUNC | socket.MSG_CTRUNC):
+                continue
+            for level, kind, value in metadata:
+                if level == socket.IPPROTO_IP and kind == getattr(socket, 'IP_PKTINFO', 8) and len(value) == 12:
+                    index, _, destination = struct.unpack('=I4s4s', value)
+                    if index == self.interface_index and destination == socket.inet_aton(MULTICAST_GROUP):
+                        return data, source
+
+    def close(self):
+        self.connection.close()
+
+
 def lan_receiver(interface, port=DISCOVERY_PORT):
     address = lan_config(interface, port)
+    index = lan_interface_index(interface)
     connection = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     try:
         connection.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        connection.bind(('', port))
+        connection.bind((MULTICAST_GROUP, port))
+        connection.setsockopt(socket.IPPROTO_IP, getattr(socket, 'IP_PKTINFO', 8), 1)
         connection.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP,
                               socket.inet_aton(MULTICAST_GROUP) + address)
-        # Linux otherwise also delivers groups joined by other local sockets.
-        if sys.platform.startswith('linux'):
-            # Linux UAPI <linux/in.h>: Python does not always expose option 49.
-            connection.setsockopt(socket.IPPROTO_IP, getattr(socket, 'IP_MULTICAST_ALL', 49), 0)
-        return connection
+        # Linux UAPI <linux/in.h>: Python does not always expose option 49.
+        connection.setsockopt(socket.IPPROTO_IP, getattr(socket, 'IP_MULTICAST_ALL', 49), 0)
+        return LanReceiver(connection, index)
     except Exception:
         connection.close()
         raise
@@ -264,15 +365,22 @@ def scan(candidates, *, seeds=(), interface=None, port=DISCOVERY_PORT, duration=
                 statuses.append('error')
         if connection is not None:
             deadline = time.monotonic() + duration
-            for _ in range(MAX_PACKETS):
+            window, attempts = time.monotonic(), 0
+            while True:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     break
+                if time.monotonic() >= window + 1:
+                    window, attempts = time.monotonic(), 0
+                if attempts >= MAX_PACKETS:
+                    time.sleep(min(remaining, max(0, window + 1 - time.monotonic())))
+                    continue
                 connection.settimeout(remaining)
                 try:
                     data, _ = connection.recvfrom(MAX_PACKET + 1)
                 except socket.timeout:
                     break
+                attempts += 1
                 try:
                     candidates.add(unpack(data), 'lan')
                 except (ValueError, UnicodeError, TypeError):
@@ -287,8 +395,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--authority-public-key', required=True)
     parser.add_argument('--group-id', required=True, help='existing human-created group ID')
-    parser.add_argument('--policy-file', required=True, help='locally trusted signed policy snapshot')
-    parser.add_argument('--policy-max-age', type=int, default=300)
+    parser.add_argument('--directory-database', required=True, help='existing synchronized directory database (read-only)')
+    parser.add_argument('--policy-max-age', type=int, help='optionally tighten the persisted directory maximum age')
     parser.add_argument('--seeds-file', help='trusted JSON array of url and optional ca_cert; no tokens')
     parser.add_argument('--lan-interface', help='explicit local IPv4 address; no automatic NIC selection')
     parser.add_argument('--lan-port', type=int, default=DISCOVERY_PORT)
@@ -296,7 +404,7 @@ def main():
     args = parser.parse_args()
     try:
         owner = Ed25519PublicKey.from_public_bytes(decode(Path(args.authority_public_key).read_text().strip()))
-        candidates = Candidates(Path(args.policy_file).read_text().strip(), owner, args.group_id, max_age=args.policy_max_age)
+        candidates = Candidates.from_directory(args.directory_database, owner, args.group_id, max_age=args.policy_max_age)
         seeds = load_seeds(args.seeds_file) if args.seeds_file else ()
         result = scan(candidates, seeds=seeds, interface=args.lan_interface, port=args.lan_port, duration=args.duration)
     except (ValueError, OSError, TypeError):

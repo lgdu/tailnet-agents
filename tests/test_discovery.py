@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import selectors
 import signal
+import struct
 import socket
 import subprocess
 import sys
@@ -25,7 +26,7 @@ try:
     from tailnet_agents.client import Client
     from tailnet_agents.verified_client import VerifiedClient
     from tailnet_agents.discovery import (ANNOUNCEMENT_TYPE, Candidates, DISCOVERY_PORT,
-        LanBroadcaster, MAX_PACKET, MAX_PACKETS, Seed, lan_config, lan_receiver,
+        LanBroadcaster, LanReceiver, MAX_PACKET, MAX_PACKETS, MULTICAST_GROUP, Seed, lan_config, lan_receiver,
         load_seeds, make_announcement, origin, pack, scan, unpack, verify_announcement)
     from tests.test_admission_tls import certificates
     HAS_CRYPTO = True
@@ -190,7 +191,7 @@ class AnnouncementTests(DiscoveryFixture):
         self.now = 104
         self.assertEqual(candidates.result()['candidates'], [])
 
-    def test_expired_conflict_locators_do_not_hide_a_new_valid_announcement(self):
+    def test_conflicts_remain_sticky_after_expiry_and_third_locator(self):
         candidates = self.candidates()
         original = self.announcement()
         candidates.add(original, 'lan')
@@ -198,12 +199,117 @@ class AnnouncementTests(DiscoveryFixture):
                                     'https://other.example', self.audience, now=110)
         candidates.add(changed, 'seed:0')
         self.assertEqual(candidates.result()['conflicts'], [self.subject])
-        self.now = 141
+        # A short-lived decoy must not let another locator win this scan.
+        self.now = 139
         latest = make_announcement(self.agent, self.policy, self.owner.public_key(), self.group,
                                    'https://new.example', self.audience, now=self.now)
         candidates.add(latest, 'seed:1')
-        self.assertEqual(candidates.result()['conflicts'], [])
-        self.assertEqual(candidates.result()['candidates'][0]['endpoint'], 'https://new.example')
+        self.now = 141
+        self.assertEqual(candidates.result(), {'candidates': [], 'conflicts': [self.subject]})
+        next_scan = self.candidates()
+        next_scan.add(latest, 'seed:1')
+        self.assertEqual(next_scan.result()['candidates'][0]['endpoint'], 'https://new.example')
+
+    def test_sources_describe_only_the_retained_announcement_version(self):
+        candidates = self.candidates()
+        old = self.announcement()
+        candidates.add(old, 'lan')
+        self.now = 115
+        latest = self.announcement()
+        candidates.add(latest, 'seed:0')
+        candidates.add(old, 'seed:1')
+        claims = self.verify(latest)
+        changed = latest | {'announcement': sign(self.agent, claims | {'expires_at': 144}, ANNOUNCEMENT_TYPE)}
+        candidates.add(changed, 'seed:2')
+        self.assertEqual(candidates.result()['candidates'][0]['sources'], ['seed:0'])
+        candidates.add(latest, 'lan')
+        self.assertEqual(candidates.result()['candidates'][0]['sources'], ['lan', 'seed:0'])
+
+    def test_expiring_decoy_cannot_select_evil_over_discarded_good_locator(self):
+        candidates = self.candidates()
+        envelope = self.announcement()
+        claims = self.verify(envelope)
+        for endpoint, expiry in [('https://decoy.example', 111), ('https://evil.example', 140),
+                                 ('https://good.example', 140)]:
+            packet = envelope | {'announcement': sign(self.agent, claims | {
+                'endpoint': endpoint, 'expires_at': expiry}, ANNOUNCEMENT_TYPE)}
+            candidates.add(packet, 'lan')
+        self.now = 112
+        self.assertEqual(candidates.result(), {'candidates': [], 'conflicts': [self.subject]})
+
+
+@unittest.skipUnless(HAS_CRYPTO, 'install identity extra')
+class DirectorySnapshotTests(DiscoveryFixture):
+    def setUp(self):
+        super().setUp()
+        self.database = self.root/'directory.sqlite3'
+        self.node = self.directory(database=str(self.database), policy_max_age=30)
+
+    def scanner(self, **options):
+        return Candidates.from_directory(self.database, self.owner.public_key(), self.group,
+                                         clock=lambda: self.now, **options)
+
+    def test_persisted_age_cannot_be_loosened_and_missing_database_is_not_created(self):
+        self.assertEqual(self.scanner().max_age, 30)
+        self.assertEqual(self.scanner(max_age=20).max_age, 20)
+        with self.assertRaises(AdmissionError): self.scanner(max_age=31)
+        self.now = 131
+        with self.assertRaises(AdmissionError): self.scanner()
+        missing = self.root/'missing.sqlite3'
+        with self.assertRaises(OSError):
+            Candidates.from_directory(missing, self.owner.public_key(), self.group)
+        self.assertFalse(missing.exists())
+
+    def test_snapshot_does_not_reset_leases_or_write_directory_state(self):
+        db = self.node._registry.db
+        with db:
+            db.execute('INSERT INTO agents VALUES(?,?,?,?)', ('live', self.subject, 125, '{}'))
+        before = '\n'.join(db.iterdump())
+        scanner = self.scanner()
+        scanner.add(self.announcement(max_age=30), 'lan')
+        self.assertEqual(scanner.result()['candidates'][0]['subject'], self.subject)
+        self.assertEqual('\n'.join(db.iterdump()), before)
+        self.assertEqual(db.execute('SELECT expires FROM agents WHERE id=?', ('live',)).fetchone(), (125,))
+
+    def test_revocation_learned_during_scan_suppresses_already_collected_candidate(self):
+        scanner = self.scanner()
+        scanner.add(self.announcement(max_age=30), 'lan')
+        self.node.revoke(issue_revocation(self.owner, self.group, self.jti))
+        self.assertEqual(scanner.result()['candidates'], [])
+        with self.assertRaises(AdmissionError): scanner.add(self.announcement(max_age=30), 'seed:0')
+
+    def test_policy_change_during_scan_requires_retry(self):
+        scanner = self.scanner()
+        scanner.add(self.announcement(max_age=30), 'lan')
+        self.node.apply_policy(revise_policy(self.owner, self.policy, {}, now=111))
+        with self.assertRaises(AdmissionError): scanner.result()
+
+    def test_tightened_age_during_scan_applies_before_output(self):
+        scanner = self.scanner()
+        scanner.add(self.announcement(max_age=30), 'lan')
+        with self.node._registry.db as db:
+            db.execute('UPDATE admission_policy_freshness SET max_age=15 WHERE id=1')
+        self.now = 116
+        with self.assertRaises(AdmissionError): scanner.result()
+
+    def test_foreign_context_disabled_policy_and_corrupt_revocations_fail_closed(self):
+        with self.assertRaises(AdmissionError):
+            Candidates.from_directory(self.database, self.owner.public_key(), 'foreign', clock=lambda: self.now)
+        other = Ed25519PrivateKey.generate()
+        with self.assertRaises(AdmissionError):
+            Candidates.from_directory(self.database, other.public_key(), self.group, clock=lambda: self.now)
+        db = self.node._registry.db
+        with db:
+            db.execute('UPDATE admission_policy_mode SET required=0 WHERE id=1')
+        with self.assertRaises(AdmissionError): self.scanner()
+        with db:
+            db.execute('UPDATE admission_policy_mode SET required=1 WHERE id=1')
+        for proof in [issue_revocation(other, self.group, self.jti),
+                      issue_revocation(self.owner, 'foreign', self.jti),
+                      issue_revocation(self.owner, self.group, 'f'*32)]:
+            with db:
+                db.execute('INSERT OR REPLACE INTO admission_revocations VALUES(?,?)', (self.jti, proof))
+            with self.subTest(proof=proof), self.assertRaises(AdmissionError): self.scanner()
 
 
 @unittest.skipUnless(HAS_CRYPTO, 'install identity extra')
@@ -317,6 +423,15 @@ class SeedDiscoveryTests(DiscoveryFixture):
 
 @unittest.skipUnless(HAS_CRYPTO, 'install identity extra')
 class LanDiscoveryTests(DiscoveryFixture):
+    def test_receiver_drops_unicast_to_the_discovery_port(self):
+        port = self.port()
+        receiver = lan_receiver('127.0.0.1', port)
+        self.addCleanup(receiver.close)
+        receiver.settimeout(0.15)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
+            sender.sendto(b'unicast-not-multicast', ('127.0.0.1', port))
+        with self.assertRaises(socket.timeout): receiver.recvfrom(MAX_PACKET + 1)
+
     def port(self):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as connection:
             connection.bind(('127.0.0.1', 0))
@@ -352,20 +467,60 @@ class LanDiscoveryTests(DiscoveryFixture):
         finally:
             timer.cancel(); timer.join()
 
-    def test_packet_budget_bounds_floods_even_when_clock_does_not_advance(self):
+    def test_packet_budget_resumes_next_second_without_ending_scan(self):
+        envelope = pack(self.announcement())
         class Flood:
             count = 0
             closed = False
             def settimeout(inner, timeout): pass
             def recvfrom(inner, size):
                 inner.count += 1
-                return b'{}', ('127.0.0.1', 1234)
+                if inner.count > MAX_PACKETS + 1: raise socket.timeout()
+                return (b'{}' if inner.count <= MAX_PACKETS else envelope), ('127.0.0.1', 1234)
             def close(inner): inner.closed = True
         flood = Flood()
-        with patch('tailnet_agents.discovery.lan_receiver', return_value=flood), patch('tailnet_agents.discovery.time.monotonic', return_value=0):
-            self.assertEqual(scan(self.candidates(), interface='127.0.0.1')['candidates'], [])
-        self.assertEqual(flood.count, MAX_PACKETS)
+        started = time.monotonic()
+        with patch('tailnet_agents.discovery.lan_receiver', return_value=flood):
+            result = scan(self.candidates(), interface='127.0.0.1', duration=1.3)
+        self.assertEqual(result['candidates'][0]['subject'], self.subject)
+        self.assertGreaterEqual(time.monotonic() - started, 1)
+        self.assertEqual(flood.count, MAX_PACKETS + 2)
         self.assertTrue(flood.closed)
+
+    def test_receive_metadata_rejects_wrong_interface_destination_and_truncation(self):
+        def packet(index=1, destination=MULTICAST_GROUP, flags=0, metadata=True):
+            info = [(socket.IPPROTO_IP, 8, struct.pack('=I4s4s', index, b'\0'*4, socket.inet_aton(destination)))]
+            return b'accepted', info if metadata else [], flags, ('127.0.0.1', 1234)
+        frames = iter([packet(index=2), packet(destination='127.0.0.1'),
+                       packet(flags=socket.MSG_TRUNC), packet(flags=socket.MSG_CTRUNC),
+                       packet(metadata=False), packet()])
+        class Connection:
+            count = 0
+            def settimeout(inner, timeout): pass
+            def recvmsg(inner, *args):
+                inner.count += 1
+                return next(frames)
+        connection = Connection()
+        receiver = LanReceiver(connection, 1)
+        self.assertEqual(receiver.recvfrom(MAX_PACKET)[0], b'accepted')
+        self.assertEqual(connection.count, 6)
+
+    def test_unicast_flood_does_not_spend_multicast_verification_budget(self):
+        port = self.port()
+        broadcaster = LanBroadcaster(self.announcement, '127.0.0.1', port)
+        self.addCleanup(broadcaster.stop)
+        def send():
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
+                for _ in range(MAX_PACKETS + 20):
+                    sender.sendto(b'{}', ('127.0.0.1', port))
+            broadcaster.send_once()
+        timer = threading.Timer(0.1, send)
+        timer.start()
+        try:
+            result = scan(self.candidates(), interface='127.0.0.1', port=port, duration=0.4)
+            self.assertEqual(result['candidates'][0]['subject'], self.subject)
+        finally:
+            timer.cancel(); timer.join()
 
     def test_broadcaster_shutdown_waits_before_provider_database_closes(self):
         entered, release = threading.Event(), threading.Event()
@@ -405,6 +560,59 @@ class DiscoveryCLITests(DiscoveryFixture):
         policy.write_text(fresh)
         return owner, policy, fresh
 
+    def test_cli_suppresses_self_signed_seed_after_learned_revocation(self):
+        owner, policy, fresh = self.files()
+        self.now = int(time.time())
+        database = self.root/'directory.sqlite3'
+        node = self.directory(database=str(database))
+        node.apply_policy(fresh)
+        self.policy = fresh
+        envelope = self.announcement()
+        node.revoke(issue_revocation(self.owner, self.group, self.jti))
+        # An identity holder can still sign its own announcement after revocation.
+        with patch.object(node, 'discovery_announcement', return_value=envelope):
+            url = self.serve(node)
+            seeds = self.root/'seeds.json'
+            seeds.write_text(json.dumps([{'url': url}]))
+            result = subprocess.run([sys.executable, '-m', 'tailnet_agents.discovery',
+                '--authority-public-key', str(owner), '--directory-database', str(database),
+                '--group-id', self.group, '--seeds-file', str(seeds)],
+                capture_output=True, text=True, timeout=8)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)['candidates'], [])
+
+    def test_cli_suppresses_self_signed_lan_after_learned_revocation(self):
+        owner, _, fresh = self.files()
+        self.now = int(time.time())
+        database = self.root/'directory.sqlite3'
+        node = self.directory(database=str(database))
+        node.apply_policy(fresh)
+        self.policy = fresh
+        envelope = self.announcement()
+        node.revoke(issue_revocation(self.owner, self.group, self.jti))
+        with self.assertRaises(AdmissionError): node.discovery_announcement(self.agent, self.endpoint, self.audience)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.bind(('127.0.0.1', 0))
+            port = probe.getsockname()[1]
+        # Repeated attacker announcements cover subprocess startup without guessing a delay.
+        stopped = threading.Event()
+        broadcaster = LanBroadcaster(lambda: envelope, '127.0.0.1', port)
+        def send():
+            while not stopped.is_set():
+                broadcaster.send_once()
+                stopped.wait(0.05)
+        sender = threading.Thread(target=send)
+        sender.start()
+        try:
+            result = subprocess.run([sys.executable, '-m', 'tailnet_agents.discovery',
+                '--authority-public-key', str(owner), '--directory-database', str(database),
+                '--group-id', self.group, '--lan-interface', '127.0.0.1',
+                '--lan-port', str(port), '--duration', '0.4'], capture_output=True, text=True, timeout=8)
+        finally:
+            stopped.set(); sender.join(); broadcaster.stop()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)['candidates'], [])
+
     def test_real_service_restart_and_cli_scan_preserve_identity_group_and_empty_registry(self):
         owner, policy, fresh = self.files()
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as connection:
@@ -438,7 +646,7 @@ class DiscoveryCLITests(DiscoveryFixture):
                 seeds = self.root/'seeds.json'
                 seeds.write_text(json.dumps([{'url': url}]))
                 result = subprocess.run([sys.executable, '-m', 'tailnet_agents.discovery',
-                    '--authority-public-key', str(owner), '--policy-file', str(policy),
+                    '--authority-public-key', str(owner), '--directory-database', str(database),
                     '--group-id', self.group, '--seeds-file', str(seeds)],
                     env=env, capture_output=True, text=True, timeout=8)
                 self.assertEqual(result.returncode, 0, result.stderr)
@@ -461,12 +669,16 @@ class DiscoveryCLITests(DiscoveryFixture):
 
     def test_empty_scan_fails_without_creating_state_or_generating_keys(self):
         owner, policy, fresh = self.files()
-        url = self.serve(self.directory(), enabled=False)
+        self.now = int(time.time())
+        database = self.root/'directory.sqlite3'
+        node = self.directory(database=str(database))
+        node.apply_policy(fresh)
+        url = self.serve(node, enabled=False)
         seeds = self.root/'seeds.json'
         seeds.write_text(json.dumps([{'url': url}]))
         before = {path.name for path in self.root.iterdir()}
         result = subprocess.run([sys.executable, '-m', 'tailnet_agents.discovery',
-            '--authority-public-key', str(owner), '--policy-file', str(policy),
+            '--authority-public-key', str(owner), '--directory-database', str(database),
             '--group-id', self.group, '--seeds-file', str(seeds)], capture_output=True, text=True, timeout=8)
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertEqual(json.loads(result.stdout)['candidates'], [])

@@ -8,7 +8,8 @@ registers an Agent, issues credentials, starts an executor or adds a policy sour
 ## Trust and disclosure boundary
 
 A human must already have created the group, approved the simulation identity in
-its signed policy and provisioned the local public-key pin and policy snapshot.
+its signed policy and provisioned the local public-key pin and a policy-mode
+directory database maintained by trusted administration or configured-source sync.
 Load the existing Agent key; do not generate a replacement at startup. Keep the
 owner private key exclusively with human-controlled administration.
 
@@ -19,7 +20,10 @@ them intentionally discloses group ID, public identity, policy fingerprint,
 endpoint and audience to listeners; this prototype has no encrypted discovery.
 
 Scanners verify the signature, exact group and local policy fingerprint, signed
-age and presence of the subject in the fresh active local policy. A signature
+age and presence of the subject in the fresh active local policy, excluding
+identities whose approved grant IDs are all locally revoked. The CLI reads signed
+policy, signed relevant revocations and the persisted age bound from the same
+directory database. A signature
 identifies the candidate; it does not prove possession of an unexpired grant,
 the endpoint's TLS identity or live endpoint ownership. Results always say
 `admission: not_checked`. Existing registration still requires a valid approved
@@ -78,23 +82,31 @@ reflect packets. Use `--discovery-lan-port` to select another explicit port, and
 match it on scanners. There is no automatic NIC selection, broadcast to all
 interfaces, multicast routing, mDNS/DNS-SD implementation or Tailscale enumeration.
 
-On another approved node with the same current policy and owner public key:
+On another approved node with the same current policy and owner public key,
+use that node's existing, synchronized directory database:
 
 ```bash
 python3 -m tailnet_agents.discovery \
   --authority-public-key state/owner.pub \
   --group-id YOUR-EXISTING-GROUP-ID \
-  --policy-file state/group.policy \
+  --directory-database state/directory-a.sqlite3 \
   --lan-interface 192.168.1.21 \
   --duration 6
 ```
 
-The window is 0.1–10 seconds (default 6), with at most 128 received datagrams and
-4096 bytes per message. The default overlaps the five-second broadcast interval;
+The window is 0.1–10 seconds (default 6), with 4096 bytes per message and at most
+128 verification attempts per second. Reaching that rate limit pauses verification
+until the next second; it does not end the scan early. The default overlaps the five-second broadcast interval;
 a shorter window may miss an existing service. Oversized, malformed, foreign,
 stale and unknown-identity records are
-ignored. IPv4 interface membership is explicit; Linux also disables delivery of
-multicast groups joined only by other sockets. Guest isolation or blocked
+ignored. LAN receiving requires Linux `IP_PKTINFO` and an explicit local primary
+IPv4 address (secondary/alias addresses are not supported). The socket binds the
+discovery multicast destination, disables `IP_MULTICAST_ALL`, and verifies each
+packet's ingress interface index and multicast destination before it reaches the
+verification budget. Unicast, wrong-interface, missing-metadata and truncated
+packets are discarded. TTL 1 limits outbound traffic; receive filtering enforces
+the input boundary. Unsupported platforms fail closed; HTTPS seeds remain usable.
+Guest isolation or blocked
 multicast can yield no candidates; use explicitly configured seeds instead.
 Invalid interface setup fails rather than silently selecting another NIC.
 
@@ -121,34 +133,49 @@ this is not a strict whole-scan wall-time deadline or a hardened HTTP client.
 python3 -m tailnet_agents.discovery \
   --authority-public-key state/owner.pub \
   --group-id YOUR-EXISTING-GROUP-ID \
-  --policy-file state/group.policy \
+  --directory-database state/directory-a.sqlite3 \
   --seeds-file state/discovery-seeds.json
 ```
 
 The installed equivalent is `tailnet-discover`. Add `--lan-interface` to combine
 providers. Only the configured seed origins receive HTTP requests; candidate
 URLs are not probed. Per-seed errors do not erase candidates from working seeds.
-Scanner policy age defaults to 300 seconds; `--policy-max-age` is a scan-local
-trusted setting, not an override of the directory's persisted admission bound.
+The CLI requires `--directory-database`; there is no static-policy-file fallback.
+It opens the existing database in SQLite read-only mode without constructing a
+directory service, creating a database, changing registrations or resetting leases.
+The pinned owner/group and persisted policy mode must match. The persisted age
+bound applies (directory default 300 seconds); optional `--policy-max-age` may only
+tighten it. Relevant stored revocations are signature-checked against the owner.
+The library's standalone `Candidates(...)` accepts an explicit snapshot/revoked
+set; its caller is responsible for updating that state. The CLI always uses
+`Candidates.from_directory(...)`.
 
 ## Results, expiry and recovery
 
 Results contain `candidates`, `conflicts` and `seeds` (each seed's ok/error status).
 Candidates merge by verified subject identity, never by IP address or display
 name. The result includes locator, audience, group, signed timestamps, policy
-hash, observed provider labels and `admission: not_checked`. Conflicting live
-locators/audiences for the same key withhold that candidate and report its subject
-in `conflicts`; no last-arrival winner or automatic task migration is chosen.
+hash, observed provider labels and `admission: not_checked`. Seeing a second
+distinct locator/audience for the same key sets a sticky conflict for the entire
+scan, including after either announcement expires or a third locator is dropped.
+That candidate is withheld and its subject appears in `conflicts`; only a new
+scan clears this state. No winner or automatic task migration is chosen. Provider
+labels describe the retained announcement version only: a newer issue time resets
+sources, identical claims merge sources, and older/different claims add no source.
 
 Announcements expire in at most 30 seconds and never beyond the publisher's
 policy deadline. More than five seconds of future announcement time is rejected.
 Replay/duplicate delivery does not extend the signed expiry. The scanner also
-checks freshness at output and drops expired or clock-future records. Empty or
+checks freshness at output and drops expired or clock-future records. It re-reads
+the authoritative database before output, applies newly learned revocations and
+tighter age bounds, and aborts with a retry requirement if the policy changed.
+The read snapshot is the output's consistency point; later updates require another
+scan. Empty or
 conflict-only results exit nonzero; empty discovery never creates a new group.
 
 Restart loads the same key and group/database. Leases still require fresh proof
-after restart. A scanner uses a locally trusted policy snapshot, not policy sent
-in discovery; a changed fingerprint requires updating that snapshot through
+after restart. A scanner uses the locally synchronized directory state, never
+policy or revocations sent in discovery. Keep that directory updated through
 trusted administration or existing policy replication. Missing/stale policy
 stops discovery and admission until human-authorized renewal, preserving state.
 
@@ -157,11 +184,14 @@ stops discovery and admission until human-authorized renewal, preserving state.
 Tests use synthetic identities, actual local UDP multicast, HTTP/TLS services and
 CLI/service subprocesses. They verify signatures/scopes, no credential leakage,
 expiry/replay, conflict handling, CA/hostname and redirect rejection, bounded
-flood handling, opt-in routes, original identity/group after restart and no
-registration side effects. No real product Agent is connected.
+flood handling, opt-in routes, original identity/group after restart, read-only
+lease preservation, mid-scan state changes and revoked self-signed CLI candidates
+over both LAN and seeds. No real product Agent is connected.
 
 Physical LAN/tailnet/WAN trials, multicast across real NICs/routers/firewalls,
 mDNS, tailnet peer APIs, relay-resistant channel binding, cloned-key fencing,
-revocation freshness beyond the existing policy bound, UI enrollment and full
+immediate delivery of unseen remote revocations, UI enrollment and full
 mesh integration remain unimplemented or unvalidated. Announcements are locators,
 not proof of remote health, global membership or permission to execute work.
+Same-interface multicast floods can still congest UDP queues or consume the
+verification rate; this is not comprehensive denial-of-service protection.
