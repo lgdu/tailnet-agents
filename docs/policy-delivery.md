@@ -138,6 +138,13 @@ restart recovery and policy changes during slow network I/O. Chromium checks the
 visible preview, explicit confirmation, lost delivery acknowledgment/retry and
 terminal delivery; the same check runs in CI.
 
-Automatic confidential credential transfer, runtime enrollment, live receiver monitoring,
+Automatic confidential credential transfer, runtime enrollment, continuous receiver monitoring,
 owner recovery/rotation, distributed presence/chat and durable tasks remain future
 work. No real product Agent or physical LAN/WAN/tailnet trial is included.
+
+
+The v0.24 [runtime monitor](runtime-monitoring.md) reuses configured recipients for
+separate explicit GET-only observation reads. Opening management/listing targets
+still performs no remote requests. Monitoring does not deliver policy; a policy
+mismatch requires a separate human decision. Receiver credentials stay on the
+gateway and signed observations remain separate from delivery receipts.

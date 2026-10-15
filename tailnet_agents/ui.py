@@ -7,7 +7,7 @@ import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
-from .chat import ChatStore, PolicyDeliveryError
+from .chat import ChatStore, PolicyDeliveryError, RuntimeMonitorError
 
 WEB = Path(__file__).parent / 'web'
 
@@ -95,6 +95,15 @@ def handler(store, users):
                     if set(query) != {'group_id'} or len(query['group_id']) != 1:
                         raise ValueError('one explicit group ID required')
                     return self.response(200, store.policy_export(principal, query['group_id'][0]))
+                if parsed.path == '/api/runtime-presence':
+                    if role != 'admin':
+                        raise PermissionError('admin role required')
+                    query = parse_qs(parsed.query, keep_blank_values=True)
+                    if (not {'group_id', 'target_id'} <= set(query) or set(query) - {'group_id', 'target_id', 'after', 'limit'} or
+                            any(len(values) != 1 for values in query.values())):
+                        raise ValueError('one configured directory and group required')
+                    return self.response(200, store.runtime_presence(principal, query['group_id'][0], query['target_id'][0],
+                        after=query.get('after', [''])[0], limit=int(query.get('limit', ['20'])[0])))
                 if parsed.path in ('/api/policy-targets', '/api/policy-deliveries', '/api/credential-issuances'):
                     if role != 'admin':
                         raise PermissionError('admin role required')
@@ -129,8 +138,12 @@ def handler(store, users):
                     options = {key: int(query[key][0]) for key in ('after','before','limit') if key in query}
                     return self.response(200, store.page(conversation, principal, group_id=group_id, enforce_access=True, **options))
                 self.response(404, {'error': 'not found'})
+            except FileExistsError as exc:
+                self.response(409, {'error': str(exc)})
             except PermissionError as exc:
                 self.response(403, {'error': str(exc)})
+            except RuntimeMonitorError as exc:
+                self.response(502, {'error': str(exc)})
             except ValueError as exc:
                 self.response(400, {'error': str(exc)})
 

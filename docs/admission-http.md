@@ -155,3 +155,10 @@ GET `/v1/presence` pages expose signed observations and effective lease state,
 without exporting grants. Existing unsigned registration stays compatible until
 that identity's first successful signed heartbeat; afterward downgrade is denied.
 Directory restart preserves ordering/history but invalidates old live leases.
+
+
+The v0.24 human gateway's [runtime monitor](runtime-monitoring.md) consumes these
+existing authenticated GET routes with the original owner/group pins. No new
+admission-service write route or grant export is added. Directory versions with
+v0.23 signed presence are compatible sources; legacy unsigned registrations
+remain outside the monitor feed.

@@ -402,8 +402,38 @@ the configured receiver's observations. These are neither receiver-signed
 attestations nor global reachability/executor health. Presence is not part of
 policy/revocation replication, and the local human chat UI retains separate Echo
 participants. State backup rollback, malicious holders of a cloned key, distributed
-fencing, authenticated UI monitoring and physical-network validation remain open.
+fencing and physical-network validation remain open; authenticated UI monitoring
+is added separately below.
 See [runtime operations](agent-runtime.md).
+
+### Authenticated runtime observations on the human gateway (v0.24, unreleased)
+
+```mermaid
+flowchart LR
+  CONFIG["Existing human-created signed group / Fixed directory ID, origin and CA"] --> SELECT["Signing admin + group creator / Explicit read"]
+  SELECT --> CAPTURE["Capture original owner/group + local policy + source config"]
+  CAPTURE --> READ["GET source policy / One signed presence page / GET policy again"]
+  READ --> VERIFY["Agent signatures, metadata, cursor and deadlines / Source policy matches local snapshot"]
+  VERIFY --> GUARD["Recheck local policy/config and access / Discard changed reads"]
+  GUARD --> PAGE["Source/time-scoped online, offline, expired, unauthorized or unconfirmed"]
+  PAGE --> BROWSER["Clear on refresh/error/context changes / Monotonic expiry / No late-response reuse"]
+```
+
+This is a read-only integration at the already trusted loopback gateway. It
+reuses explicit policy-recipient configuration without adding discovery sources
+or performing delivery. Network I/O holds no local database lock. Online needs
+a fresh source policy identical to the local signed snapshot; a newer, older or
+conflicting source snapshot stays diagnostic and is never adopted automatically.
+Local/source policy or configured-source changes during I/O discard the page.
+
+Observations are not copied into another registry or persisted in the UI database.
+The browser receives validated display fields, not full grants or source read
+credentials. Same-host keys remain distinct. It ages displayed leases without
+polling peers and invalidates data on source/group/policy changes, close/logout,
+failed refresh and superseding requests. A clock rollback cannot revive an
+expired cached display. The receiver's grant/revocation decision remains its
+authenticated observation; no independent grant proof or global/executor health
+attestation is implied. See [runtime monitoring](runtime-monitoring.md).
 
 ## Human interaction
 
@@ -467,8 +497,9 @@ necessary; network membership never grants filesystem or secret access.
   recovery, recipient identity validation and exclusive private-file installation.
 - v0.23: explicit simulation runtime, durable instance ordering,
   signed heartbeat leases and authenticated paginated presence observations.
-- Next: candidate-to-runtime trust handoff, peer presence replication and
-  authenticated runtime monitoring.
+- v0.24 (unreleased): authenticated, explicitly read runtime monitoring on the
+  human gateway, with source/time attribution and signature/policy/expiry guards.
+- Next: candidate-to-runtime trust handoff and peer presence replication.
 - Next: integrated mesh transport with cryptographic admission.
 - Then: validated agent adapters, durable tasks and real LAN/tailnet trials.
 

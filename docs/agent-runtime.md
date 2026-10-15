@@ -168,7 +168,9 @@ Each call reads one page (1–20 subjects). If `has_more` is true, pass its
 an atomic snapshot of a whole network. Only this directory's signed-runtime
 subjects appear; legacy registrations and observations at other replicas are
 separate. Read operations never renew leases or contact advertised endpoints.
-The local chat UI still shows its separate Echo simulations.
+The local chat UI still shows its separate Echo simulations. The optional
+[authenticated monitor](runtime-monitoring.md) explicitly reads these directory
+observations in a separate panel without changing Echo state.
 
 Membership authorization is the authenticated configured directory's current
 observation, not an independently verified export of every grant or a receiver-
@@ -189,7 +191,7 @@ higher authorized generations supersede it. These are per-directory ordering
 checks, not distributed fencing or protection from a malicious holder of the same
 private key choosing larger counters. Local file/backup operators remain trusted.
 Presence is not replicated with policy/revocation synchronization. Peer presence
-replication, integrated authenticated UI monitoring, candidate-to-runtime trust
+replication, candidate-to-runtime trust
 handoff, real adapters, mesh chat/tasks and physical LAN/tailnet trials remain open.
 
 Tests use real HTTP/TLS services and distinct synthetic keys, including two live

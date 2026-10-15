@@ -1,4 +1,4 @@
-# Implementation status — v0.23
+# Implementation status — v0.24 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -11,7 +11,8 @@ its future requirements must not be read as implemented security guarantees.
 | Human UI | Local roles/chat and opt-in signed policy creation/approval/removal/renewal/dissolution/export and explicit recipient delivery; separate grant issuance/download | Automatic secure provisioning, broader browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
 | Agent identity | Optional Ed25519 keys, human-issued scoped grants, verified private-file installation and possession proofs | Trusted manual transfer, owner rotation and key renewal |
-| Simulation runtime | Existing identity/group, signed heartbeat leases, durable boot/sequence ordering, graceful offline and paginated observations | POSIX; configured directory; authenticated UI/peer presence integration pending |
+| Runtime monitoring | Explicit signing-admin/creator reads from configured sources; signature/policy checks, scoped pages and browser expiry/race guards | Receiver observations only; no peer presence replication or executor health checks |
+| Simulation runtime | Existing identity/group, signed heartbeat leases, durable boot/sequence ordering, graceful offline and paginated observations | POSIX; configured directory; authenticated manual UI monitoring; peer presence replication pending |
 | Verified directory | Library + HTTP/TLS admission, read token, durable signed revocation and signed-runtime presence | Real LAN/tailnet trial, physical transport trials and mesh replication |
 | Signed group policy | Durable snapshots, bounded signed age, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | Live receiver monitoring and candidate-to-runtime trust handoff |
 | Policy replication | Ordered source failover, independent revocation cursors, HTTP/TLS pull and read-protected status | Multi-source reconciliation/quorum and explicit source enrollment |
@@ -162,9 +163,28 @@ presence cases), including fractional clocks with the minimum ten-second TTL,
 transport consumption and grant/policy expiry gates. Signed timestamps retain
 fractional precision; remaining leases use one receipt-time snapshot and round
 down without extending deadlines. Online is an authorized heartbeat, not verified executor health.
-Peer presence replication, authenticated UI integration, real product adapters,
+At v0.23, peer presence replication, authenticated UI integration, real product adapters,
 strong distributed fencing and physical LAN/tailnet trials remain unimplemented.
 See [runtime operations](agent-runtime.md). v0.23.0 is published as a GitHub prerelease with a matching annotated tag.
+
+## v0.24 authenticated runtime monitoring (unreleased)
+
+The trusted human gateway can read one page of signed runtime observations from
+an explicitly selected configured directory. Signing-admin/group-creator, Host
+and Origin checks protect access; no credentials or full grants reach the browser.
+Owner/group/Agent signatures, metadata, cursors, expiry and signed source-policy
+status are verified. Source policy must match the local snapshot for confirmed
+online status; changes during I/O discard the result without blocking mutations.
+Only GET requests run, with no signing/delivery/registration/lease changes.
+
+The UI labels source and time, keeps same-host subjects separate, ages leases
+conservatively with monotonic elapsed time, and clears old observations on failed
+reads, source/group/policy changes, close and logout. It stays separate from Echo
+chat members. The suite contains 296 tests (21 new monitoring checks), plus a
+Chromium monitoring/race regression alongside existing signing/delivery coverage.
+Peer presence replication, continuous revocation monitoring, real product adapters
+and physical LAN/tailnet trials remain open. See [monitoring](runtime-monitoring.md).
+v0.24.0 is not published or tagged.
 
 ## Documentation maintenance rule
 

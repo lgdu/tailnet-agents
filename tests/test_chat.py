@@ -71,6 +71,10 @@ class ChatTests(unittest.TestCase):
             self.assertEqual(error.exception.code, 403)
             client = Client(base, 't'*32)
             self.assertEqual(len(client.request('/api/members')['members']), 3)
+            with self.assertRaises(HTTPError) as error:
+                client.request('/api/runtime-presence?group_id=legacy&target_id=unknown')
+            self.assertEqual(error.exception.code, 403)
+            error.exception.close()
             client.request('/api/messages', {'conversation':'dm:coder','text':'HTTP hello','request_id':'http-1'})
             self.assertEqual(len(client.request('/api/messages?conversation=dm:coder')['messages']), 2)
             request = Request(base+'/api/members', headers={'Authorization':'Bearer '+'t'*32, 'Origin':'https://evil.example'})

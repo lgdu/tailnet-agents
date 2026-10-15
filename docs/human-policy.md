@@ -155,7 +155,14 @@ it as a dedicated `policy-ui` job using the runner's Chrome installation.
 after credentials are cleared. Do not use production credentials for this check.
 
 No real product Agent is connected. Background policy delivery, automatic
-confidential credential transfer, live directory/revocation monitoring, browser
+confidential credential transfer, continuous directory/revocation monitoring, browser
 sessions, remote admin deployment, owner rotation/recovery, peer presence replication,
 mesh chat and durable tasks remain future work. Physical LAN/tailnet/WAN behavior
 is unvalidated; this change reuses the existing signed policy wire format.
+
+
+In v0.24 the same signing admin/group creator may explicitly read a configured
+directory's signed runtime observations through the [monitor](runtime-monitoring.md).
+It checks source/local policy agreement and expiry without signing, delivering,
+registering or changing the human group's Echo participants. This is a separate
+point-in-time read, not continuous policy/revocation convergence.

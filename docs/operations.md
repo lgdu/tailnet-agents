@@ -242,3 +242,20 @@ Only that directory's signed-runtime subjects appear. Pages and online status
 are point-in-time observations, not executor health or globally replicated state.
 The local Echo UI remains separate. See [runtime operations](agent-runtime.md)
 for commands, TLS, lease timing, retries, migration and backup limits.
+
+
+## Human gateway runtime monitoring (v0.24, unreleased)
+
+Reuse original signed groups, owner/admin configuration and explicit policy
+recipients. The new panel contacts one selected directory only when the signing
+admin/group creator requests a page. LAN/Tailscale origins use existing certificate
+and credential configuration; discoveries never become sources. Reads use only
+GET and do not apply policy or renew leases. Default core/local chat remains usable.
+
+Source policy mismatch requires diagnosis and a separate explicit delivery if
+appropriate; monitoring cannot reconcile it. Failure clears old online displays.
+Close/logout/policy changes invalidate in-flight results; reopening requires
+another explicit read. No new persistent tables or monitor cache need backup.
+Restart restores original group/configuration and starts without observations.
+Retain directory and runtime state as in v0.23. See [runtime monitoring](runtime-monitoring.md)
+for permission, clock, paging and receiver-observation limits.

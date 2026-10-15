@@ -340,3 +340,32 @@ observations. Current membership is still the configured receiver's authenticate
 observation; this is not a receiver-signed grant attestation or proof of executor
 health. Presence is not included in policy/revocation replication. See
 [runtime operations](agent-runtime.md) for migration and recovery boundaries.
+
+
+## Human gateway runtime monitor (v0.24, unreleased)
+
+GET `/api/runtime-presence` requires existing human Bearer, loopback Host/Origin,
+and the configured signing-admin/group-creator checks. Required query keys are
+`group_id` and configured `target_id`; optional `after` defaults to empty and must
+otherwise be an Ed25519 subject, and `limit` is an integer 1–20 (default 20).
+Repeated/unknown keys and caller URLs are rejected before source I/O.
+
+The gateway only GETs source policy, one signed presence page, then policy again.
+It verifies signatures, scope, metadata/cursors, signed policy/status consistency,
+deadlines and local policy agreement, then rechecks local policy/config/access
+after I/O. Different signed policies make online rows `unconfirmed`; concurrent
+changes return 409. Receiver authorization remains an authenticated observation.
+No grants, full presence tokens or source credentials are returned to the browser.
+No registry lease, local policy or membership is changed or replicated.
+
+The result contains `target`, `group_id`, `checked_at`, `observed_at`, `policy`,
+`entries`, `has_more`, `next_after`. Policy includes verified receiver status,
+`matches_local` and `policy_hash`. Entries include `subject`, canonical `record`,
+conservative `state`, `source_state`, effective `expires_at`, `observed_at`,
+`generation`, `boot_id`, `sequence` and `issued_at`. The response is `no-store`.
+States include online/offline/expired/unauthorized and monitor-only unconfirmed.
+
+Input, access, concurrent snapshot/config changes and source verification/transport
+failures return 400/403/409/502 respectively. Consumers clear previous online
+state on failed/superseded reads and expire cached observations conservatively.
+Pages are independent reads, not one atomic snapshot. See [monitoring](runtime-monitoring.md).

@@ -1,4 +1,4 @@
-# Human UI v0.22: credential issuance, signing and explicit delivery
+# Human UI v0.24 (unreleased): scoped runtime monitoring and human administration
 
 The UI is a local demonstration of the interaction model. It does
 not integrate the mesh simulator, registry, MCP tools or real agent adapters.
@@ -205,3 +205,16 @@ receiver revision/age receipts. It never registers an Agent or renews policy.
 Recipient configuration is off by default; credential issuance requires separate
 human consent and transfer remains a trusted manual step. Human
 role configuration and local group membership use the checks documented above. See [status](status.md) for the current integration boundary.
+
+
+## Explicit signed runtime monitoring (v0.24, unreleased)
+
+The signing admin/group creator can explicitly select and read a configured
+policy recipient in group management. The separate runtime panel validates signed
+presence and policy agreement, labels source/time, shows independent subjects
+on a shared host, and ages leases locally. Failed reads and stale responses after
+policy/source/group changes or logout cannot retain old online indicators.
+It is separate from the three Echo chat actors and their simulated online toggles.
+No startup/management polling contacts peers, no credential reaches browser
+storage, and reading cannot register an Agent or deliver/renew policy. See
+[runtime monitoring](runtime-monitoring.md) for configuration, states and limits.
