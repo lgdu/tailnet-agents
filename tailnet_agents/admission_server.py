@@ -15,9 +15,11 @@ from .verified_directory import VerifiedDirectory
 from .client import Client
 from .policy_sync import PolicySynchronizer,load_policy_sources
 from .discovery import DISCOVERY_PORT,LanBroadcaster,lan_config,origin
+from .peer_presence import PresenceSynchronizer
+from .policy_delivery import load_policy_targets
 
 
-def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=None,discovery=None):
+def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=None,discovery=None,*,presence_export=False,presence_synchronizer=None):
     allowed_hosts=allowed_hosts or ("127.0.0.1","localhost")
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
@@ -70,12 +72,20 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=N
                     if set(query)-{'after','limit'} or any(len(v)!=1 for v in query.values()):
                         raise ValueError('invalid revocation query')
                     return self.respond(200,directory.export_revocations(int(query.get('after',['0'])[0]),int(query.get('limit',['100'])[0])))
-                if parsed.path=='/v1/presence':
+                if parsed.path in ('/v1/presence','/v1/presence-export','/v1/peer-presence'):
                     self.read_auth()
+                    if parsed.path=='/v1/presence-export' and not presence_export:
+                        return self.respond(404,{'error':'presence export disabled'})
                     query=parse_qs(parsed.query,keep_blank_values=True)
                     if set(query)-{'after','limit'} or any(len(v)!=1 for v in query.values()):
                         raise ValueError('invalid presence query')
-                    return self.respond(200,directory.presence_status(query.get('after',[''])[0],int(query.get('limit',['20'])[0])))
+                    read={'/v1/presence':directory.presence_status,'/v1/presence-export':directory.export_presence,
+                          '/v1/peer-presence':directory.peer_presence_status}[parsed.path]
+                    return self.respond(200,read(query.get('after',[''])[0],int(query.get('limit',['20'])[0])))
+                if parsed.path=='/v1/presence-sync':
+                    self.read_auth()
+                    if parsed.query:raise ValueError('presence sync status takes no query')
+                    return self.respond(200,{'state':'disabled'} if presence_synchronizer is None else presence_synchronizer.status())
                 if parsed.path in ('/v1/policies','/v1/policy-sync'):
                     self.read_auth()
                     if parsed.query:
@@ -210,6 +220,9 @@ def main():
     parser.add_argument('--policy-peer-ca',help='trusted CA certificate PEM for the configured source')
     parser.add_argument('--policy-sync-interval',type=float,default=10,help='policy pull interval, 1..3600 seconds')
     parser.add_argument('--policy-max-age',type=int,help='maximum signed policy age, 1..86400 seconds; default 300 or persisted limit')
+    parser.add_argument('--presence-export',action='store_true',help='explicitly export local signed presence AND scoped grants to authenticated replicas')
+    parser.add_argument('--presence-sources-file',help='1..8 fixed sources: id, url, group_id, token_env and optional ca_cert')
+    parser.add_argument('--presence-sync-interval',type=float,default=5,help='presence pull interval, 1..3600 seconds')
     parser.add_argument('--discovery-agent-key',help='existing approved synthetic identity PEM; never an owner key')
     parser.add_argument('--discovery-endpoint',help='explicit advertised directory origin; enables credential-free /v1/discovery')
     parser.add_argument('--discovery-lan-interface',help='opt-in multicast on one explicit local IPv4 interface address')
@@ -225,6 +238,8 @@ def main():
         parser.error('--policy-peer-ca requires --policy-peer')
     if (args.policy_sources_file or args.policy_max_age is not None) and not (args.require_policy or args.policy_file):
         parser.error('policy sources and maximum age require policy mode')
+    if (args.presence_export or args.presence_sources_file) and not (args.require_policy or args.policy_file):
+        parser.error('presence export/sources require policy mode')
     if bool(args.discovery_agent_key)!=bool(args.discovery_endpoint):
         parser.error('discovery requires both an existing identity key and explicit endpoint')
     if args.discovery_agent_key and not (args.require_policy or args.policy_file):
@@ -233,6 +248,7 @@ def main():
         parser.error('LAN announcements require explicit discovery identity/endpoint')
     directory=None
     synchronizer=None
+    presence_synchronizer=None
     broadcaster=None
     server=None
     try:
@@ -253,12 +269,16 @@ def main():
             directory.apply_policy(Path(args.policy_file).read_text().strip())
         if peers:
             synchronizer=PolicySynchronizer(directory,peers[0],args.policy_sync_interval,fallback_clients=peers[1:])
+        if args.presence_sources_file:
+            presence_synchronizer=PresenceSynchronizer(directory,load_policy_targets(args.presence_sources_file),args.presence_sync_interval)
         discovery=None if discovery_key is None else lambda: directory.discovery_announcement(discovery_key,args.discovery_endpoint,args.audience)
         if args.discovery_lan_interface:
             broadcaster=LanBroadcaster(discovery,args.discovery_lan_interface,args.discovery_lan_port)
         scheme='https' if context else 'http'
-        server=AdmissionHTTPServer((args.host,args.port),handler(directory,token,allowed,scheme,synchronizer,discovery),context)
+        server=AdmissionHTTPServer((args.host,args.port),handler(directory,token,allowed,scheme,synchronizer,discovery,
+            presence_export=args.presence_export,presence_synchronizer=presence_synchronizer),context)
     except (ValueError,OSError):
+        if presence_synchronizer is not None:presence_synchronizer.stop()
         if broadcaster is not None:
             broadcaster.stop()
         if server is not None:
@@ -270,6 +290,7 @@ def main():
     try:
         if synchronizer is not None:
             synchronizer.start()
+        if presence_synchronizer is not None:presence_synchronizer.start()
         if broadcaster is not None:
             broadcaster.start()
         server.serve_forever()
@@ -281,6 +302,7 @@ def main():
             broadcaster.stop()
         if synchronizer is not None:
             synchronizer.stop()
+        if presence_synchronizer is not None:presence_synchronizer.stop()
         directory.close()
 
 

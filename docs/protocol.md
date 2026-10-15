@@ -369,3 +369,55 @@ Input, access, concurrent snapshot/config changes and source verification/transp
 failures return 400/403/409/502 respectively. Consumers clear previous online
 state on failed/superseded reads and expire cached observations conservatively.
 Pages are independent reads, not one atomic snapshot. See [monitoring](runtime-monitoring.md).
+
+
+## Configured peer presence replication (v0.25, unreleased)
+
+GET `/v1/presence-export?after=&limit=20` is disabled (404) unless the source
+explicitly enables `--presence-export`; enabled reads require the directory read
+Bearer and existing Host/Origin checks. Policy mode is mandatory. Its exact root
+fields are `owner`, `group_id`, `observed_at`, `entries`, `has_more`, `next_after`.
+The subject cursor/limit semantics match signed presence (1–20). Entries are
+`subject`, `public_key`, canonical `record`, Agent-signed `presence`, owner-signed
+`grant`, effective `expires_at`, original `observed_at`, `state`. Only direct local
+observations export, including historical offline/expired/unauthorized ordering.
+No cached peer data is re-exported. Ordinary `/v1/presence` stays unchanged.
+
+Receivers configure fixed same-group source IDs/origins, CA and credential
+environment names. They verify both signatures, grant/subject/scope binding,
+finite bounded deadlines, ordered cursor and current local policy/approved grant
+IDs/revocations. Pages commit atomically to a separate cache and durable heads.
+A repeated claim cannot extend expiry or promote a negative observation; receiver
+policy deadlines are also persisted at import so renewal cannot rearm old data.
+No import writes local registrations, membership, grants used for local admission
+or discovery candidates. Source status/receipt is authenticated transport data,
+not a receiver-signed admission attestation.
+
+GET `/v1/peer-presence?after=&limit=20` requires the receiver read Bearer and policy
+mode. Root fields are `owner`, `group_id`, `observed_at`, local `policy` status,
+`entries`, `has_more`, `next_after`. Each entry groups one public-key `subject`,
+merged `state`, durable `head` and up to nine `observations` (local plus eight
+configured sources). Heads contain `generation`, `boot_id`, `sequence`,
+`token_hash` and boolean `conflict`. Observations expose `source`, `subject`,
+`public_key`, canonical `record`, `presence`, `state`, `expires_at`, `observed_at`,
+`received_at`; they omit full grants and source credentials. Configured source
+metadata is its ID/origin/group/fingerprint; local uses ID `local`, null origin
+and null fingerprint. A subject-entry byte budget of 512 KiB can shorten a page;
+all observations of a subject stay together. Continue using the returned cursor.
+
+Merged states are online/offline/expired/unauthorized/superseded/conflict. Highest
+known generation then sequence orders observations; different boots at one
+generation or contradictory tokens at one sequence conflict until a higher
+generation. Removal of a source does not erase high-water history. Online requires
+an unexpired authorized observation matching the current nonconflicted head.
+Other sources/older counters cannot restore a superseded claim. Every read
+rechecks local policy and learned revocations. This does not alter local direct
+admission fencing or promise endpoint/executor/global reachability.
+
+GET `/v1/presence-sync` uses the same read/Host/Origin checks and accepts no query.
+It reports source IDs, synced/catching_up/error state, cursor and last completed
+scan time. Polls visit all sources with independent cursors, up to ten pages of
+twenty subjects each per source per poll. Completed scans restart from the
+beginning; incomplete scans continue next poll. Cached history persists through
+failure/restart and keeps its original deadlines. Shutdown blocks late writes.
+See [peer presence](peer-presence.md) for opt-in grant handling and limitations.

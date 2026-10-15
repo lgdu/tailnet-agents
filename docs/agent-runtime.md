@@ -190,9 +190,10 @@ Same-generation different-boot requests conflict and leave the incumbent intact;
 higher authorized generations supersede it. These are per-directory ordering
 checks, not distributed fencing or protection from a malicious holder of the same
 private key choosing larger counters. Local file/backup operators remain trusted.
-Presence is not replicated with policy/revocation synchronization. Peer presence
-replication, candidate-to-runtime trust
-handoff, real adapters, mesh chat/tasks and physical LAN/tailnet trials remain open.
+Presence is not copied by policy/revocation synchronization. v0.25 adds separate
+[one-hop peer observations](peer-presence.md) without creating remote admission
+leases or changing runtime fencing. Multi-hop presence, candidate-to-runtime
+trust handoff, real adapters, mesh chat/tasks and physical LAN/tailnet trials remain open.
 
 Tests use real HTTP/TLS services and distinct synthetic keys, including two live
 runtime processes on one host renewing independently, stopping one, restart,

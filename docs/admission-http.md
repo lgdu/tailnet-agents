@@ -162,3 +162,15 @@ existing authenticated GET routes with the original owner/group pins. No new
 admission-service write route or grant export is added. Directory versions with
 v0.23 signed presence are compatible sources; legacy unsigned registrations
 remain outside the monitor feed.
+
+
+## Separate one-hop presence copies (v0.25, unreleased)
+
+`--presence-export` explicitly exposes the new authenticated grant-bearing
+`/v1/presence-export` route. `--presence-sources-file` enables background pulls
+from fixed same-group origins; `--presence-sync-interval` defaults to five seconds.
+All require policy mode. Import does not implicitly enable export. New protected
+`/v1/peer-presence` and `/v1/presence-sync` routes show attributed observations and
+per-source collection state. They create no registration leases and expose no
+full grants. Existing direct presence/registration paths stay scoped as before.
+See [peer presence](peer-presence.md) and the [wire format](protocol.md#configured-peer-presence-replication-v025-unreleased).

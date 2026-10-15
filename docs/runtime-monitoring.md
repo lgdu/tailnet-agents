@@ -71,7 +71,8 @@ Grant approval/expiry/learned revocation are the authenticated receiver's
 observation, not a complete independently exported grant proof or receiver-signed
 attestation. The gateway does not possess peer revocation histories or infer
 execution permissions from this view. Legacy unsigned registrations stay outside
-this signed feed. Continuous cross-directory convergence remains future work.
+this signed feed. Continuous multi-hop convergence remains future work; v0.25 adds a separate
+[one-hop peer cache](peer-presence.md) with independent grant verification.
 
 The browser ages observations locally without further network requests and uses
 elapsed monotonic time plus conservative gateway/browser time bounds. Clock
@@ -103,7 +104,8 @@ uses existing two-second socket-operation timeouts and the 1 MiB response cap;
 these are not a strict whole-request bound. A browser abort does not guarantee
 server-side I/O cancellation; remaining work is read-only and cannot apply policy.
 
-This release does not replicate presence between directories, join candidates,
+This monitor does not itself replicate presence; v0.25 uses a separate API/CLI
+for attributed peer copies. It does not join candidates,
 add real product adapters, execute tasks or validate physical LAN/Tailscale/WAN
 behavior. Remote human sessions, source enrollment/rotation UX and global
 reachability consensus remain unimplemented.

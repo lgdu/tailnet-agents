@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.24 prototype.** Working components are listed below. The network mesh and
+**v0.25 prototype (unreleased).** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -16,14 +16,15 @@ action; agents may only discover or restore previously authorized groups.
 | MCP | Stdio discovery, delegation, result tools | 2025 handshake family; real client compatibility unvalidated |
 | Human UI | Explicit groups, scoped chat, opt-in owner-signed creation/approval/removal/renewal/dissolution, policy export, explicit recipient delivery and human-confirmed grant issuance | Trusted loopback gateway; private-file installer; manual trusted transfer; simulated agents |
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
-| Policy replication | Ordered HTTP/TLS source failover, independent revocation cursors, periodic pull and status | Configured sources only; no quorum, presence/chat/task replication |
+| Policy replication | Ordered HTTP/TLS source failover, independent revocation cursors, periodic pull and status | Configured policy sources only; no quorum, chat/task replication |
 | Candidate discovery | Signed UDP multicast with ingress filtering, HTTP/TLS seeds, sticky conflicts, synchronized policy/revocation checks | Existing directory/key required; Linux LAN receiver; candidates only, no auto-enrollment or policy-source promotion |
-| Runtime monitor | Explicit authenticated reads from configured directories, signature/policy verification, attributed paginated observations and expiry | Signing admin/group creator only; receiver observations, no peer presence replication or endpoint health proof |
-| Simulation runtime | Original key/group recovery, signed heartbeat leases (including 10-second TTL with fractional clocks), persisted instance ordering and authenticated presence pages | Explicit configured directory; POSIX state file; no executor or peer presence replication |
+| Peer presence | Explicit one-hop pulls, independent grant/policy/revocation checks, attributed cache, durable observation ordering and API/CLI | Export opt-in includes scoped grants; no local leases, membership changes, multi-hop gossip or relayed UI |
+| Runtime monitor | Explicit authenticated reads from configured directories, signature/policy verification, attributed paginated observations and expiry | Signing admin/group creator only; direct receiver observations; copied observations use separate API/CLI |
+| Simulation runtime | Original key/group recovery, signed heartbeat leases (including 10-second TTL with fractional clocks), persisted instance ordering and authenticated presence pages | Explicit configured directory; POSIX state file; no executor; one-hop observations are separate |
 | Mesh simulator | Restart, partition reconciliation, stale claims, dissolution rules | Deterministic state model, no network or cryptographic admission |
 | Signed group policy | Owner-signed snapshots, bounded signed age, approved grant IDs, rollback rejection, terminal dissolution | Opt-in verified admission; owner must renew policy, explicit UI signing/delivery and grant issuance |
 | Agent identity | Ed25519 identities, signed scoped grants, expiry/revocation checks, possession proof | Verified admission integrated; human policy approval and simulation heartbeat runtime integrated; mesh/product integration pending |
-| Verified directory | Proof-based registration, metadata binding, durable signed revocation | TLS service with optional durable signed member policy; human-confirmed policy delivery and signed-runtime presence; peer presence replication pending |
+| Verified directory | Proof-based registration, metadata binding, durable signed revocation | TLS service with optional durable signed member policy; human-confirmed policy delivery, signed-runtime presence and separate one-hop observation cache |
 
 Different product agents will connect through adapters. Grok model API access
 and Grok's product Agent are separate integration targets. No claim is made that
@@ -75,6 +76,9 @@ flowchart TB
     RUNTIME["Explicit simulation runtime / 原身份、原群组、持久运行序号"] -->|"Signed heartbeat + fresh proof"| API
     API --> OBS["Signed presence + bounded live lease / 目录观测"]
     OBS --> VIEW["Authenticated presence CLI / 在线、离线、过期、未授权"]
+    API -->|"Explicit export + scoped grant / 仅本机直接观测"| PULL["Configured presence pull / 所有来源、独立校验"]
+    PULL --> CACHE[("Receiver cache + durable observation heads / 不创建注册租约")]
+    CACHE --> PV["Attributed peer API + CLI / 来源、时效与冲突"]
     UI -->|"Explicit selected source read / 明确读取"| MON["Authenticated runtime monitor / 来源、时刻、策略与签名校验"]
     MON -->|"GET only / 固定目录"| API
     OBS --> MON
@@ -293,6 +297,18 @@ view neither contacts advertised Agent endpoints nor changes leases, policy or
 Echo participants. Source credentials remain on the trusted gateway. See
 [runtime monitoring](docs/runtime-monitoring.md) for roles, pagination and limits.
 
+## Configured peer presence replication (v0.25, unreleased)
+
+Explicitly enable `--presence-export` on a source to expose its local signed
+heartbeats and scoped grants to authenticated replicas. Receivers configure
+`--presence-sources-file` with fixed LAN/Tailscale origins, group, CA and credential
+environment names. They independently check signatures, local policy, approved
+grants and learned revocations, persisting attributed observations and ordering.
+Copies cannot create members or local leases, extend deadlines, replay older
+instances or relay onward. `tailnet-peer-presence` reads the merged source-scoped
+view; the existing human monitor retains its direct-directory scope. See
+[peer presence](docs/peer-presence.md) for opt-in disclosure, restart and limits.
+
 ## Verification
 
 ```bash
@@ -305,8 +321,8 @@ are explicitly skipped. CI runs both core and identity installations. The new si
 visual/accessibility coverage and real-agent compatibility remain outstanding.
 The dedicated CI browser job also delays policy reads and checks that download
 never uses a pre-mutation snapshot; failed refreshes keep exports disabled.
-v0.24 includes 296 tests: the 275-test v0.23 baseline plus 21 runtime-monitor
-checks. Separate Chromium coverage verifies source selection, same-host identities,
+v0.25 includes 322 tests: the 296-test v0.24 baseline plus 26 peer-presence
+checks. v0.24 added 21 runtime-monitor checks. Separate Chromium coverage verifies source selection, same-host identities,
 expiry/clock rollback, read failures and stale responses after target, policy,
 close and logout changes. v0.23 added 41 simulation-runtime
 and signed-presence checks, including minimum ten-second TTL with fractional
@@ -324,12 +340,12 @@ state/lease preservation, mid-scan updates, service shutdown and restart recover
 - [Current status and next work](docs/status.md)
 - [Prioritized remaining work](docs/roadmap.md)
 
-Next: replicate signed presence between peers and add explicit candidate enrollment, connect verified
+Next: cross-node group/direct messages, durable tasks and explicit candidate enrollment; connect verified
 identity and candidate discovery to the mesh engine, broaden browser QA,
 and then add real product adapters and durable tasks.
 The working registry mode remains available during mesh development.
 v0.24.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.24.0)
-with a matching annotated version tag. Release checks and tag synchronization are described
+with a matching annotated version tag. v0.25.0 is unreleased and untagged in this PR. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 
 No open-source license has been selected yet. Public release requires an owner

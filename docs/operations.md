@@ -259,3 +259,28 @@ another explicit read. No new persistent tables or monitor cache need backup.
 Restart restores original group/configuration and starts without observations.
 Retain directory and runtime state as in v0.23. See [runtime monitoring](runtime-monitoring.md)
 for permission, clock, paging and receiver-observation limits.
+
+
+## Peer presence cache and export (v0.25, unreleased)
+
+Enable grant-bearing `--presence-export` only for explicitly trusted replicas.
+Configure `--presence-sources-file` separately using existing groups and original
+owner pins. Sources are not learned from discovery; ordinary presence reads and
+the human monitor do not export grants. Existing directory read credentials are
+required on export and merged-view/status routes. See [peer presence](peer-presence.md).
+
+Back up the directory SQLite database and its observation heads together. Cache
+rows now contain copied scoped grants: preserve private permissions and consistent
+WAL/journal backups. Source removal hides cached rows but does not reset ordering.
+Do not drop heads or change identities/groups to recover from a conflict. A higher
+signed runtime generation resolves observation conflict; malicious cloned keys,
+backup rollback and automated lost-counter recovery remain unsolved.
+
+Cached remote observations retain deadlines on restart; they are historical
+source observations, not restored local live leases. Local direct leases still
+invalidate at directory restart. A receiver with missing/stale/unapproved policy
+keeps unauthorized cache data without granting membership; fresh authorization
+and a higher heartbeat are needed before negative cached data can become online.
+Watch per-source catching_up/error and original receipt/expiry times; poll success
+is not fresh Agent possession or policy renewal. Physical network validation is
+still outstanding, and bounded scans may lag large source histories.
