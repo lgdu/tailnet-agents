@@ -116,3 +116,12 @@ file persists generations/sequences, and the directory rejects stale instances
 while continuing policy/grant/revocation checks. These observations do not issue
 authority, execute tasks or establish product health. Same-host Agents retain
 independent keys and approvals; peer presence replication remains future work.
+
+## Signed task scope (v0.27, unreleased)
+
+[Durable signed Echo tasks](durable-tasks.md) require separate current `task.echo`
+grants/approval for caller and original executor. Admission/discovery/chat scope
+alone is insufficient. Original Agent keys sign task intent and executor receipts;
+operation-bound proof binds a fresh nonce, current grant and audience. No owner
+private key, automatically created group or real product Agent is involved.
+Legacy bearer bridge/MCP tasks remain separate.

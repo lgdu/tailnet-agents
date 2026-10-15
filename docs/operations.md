@@ -321,3 +321,38 @@ plaintext cannot be revoked. Restoring older snapshots, losing store disks or
 changing origin/audience/CA without a migration plan can lose receipt/cursor
 meaning; rollback recovery and HA replication are not implemented. Production
 quotas, rate limits, key rotation and physical LAN/Tailscale trials remain open.
+
+## Signed durable task state (v0.27, unreleased)
+
+Explicit task mode adds a fixed executor identity/audience/adapter context and
+immutable request/status/signed-receipt tables to the private admission database.
+Its POSIX file lock prevents concurrent executor recovery; run one service per DB.
+Use original executor key/grant/group/audience on restart. Multiple executors on
+one host use separate keys, databases and listener ports; callers keep independent
+private `--state` files, distinct from heartbeat and messaging state. See
+[durable tasks](durable-tasks.md) for TLS configuration and CLI commands.
+
+Consistently back up executor SQLite and caller intent/receipt SQLite with their
+original key references; preserve all deduplication IDs and terminal receipts.
+Use SQLite backup, not a standalone live WAL main-file copy. Input/output is
+plaintext trusted storage material. Queued rows do not execute after restart;
+original explicit authorized flush can resume them. Running rows without committed
+results become uncertain and must not be reset/requeued/migrated automatically.
+Loss/rollback of durable state can invalidate the at-most-one-attempt boundary.
+
+Lost ACK or failed caller receipt commit retains original pending ID and fixed
+executor. Use the local paginated `list` command to recover saved IDs if terminal
+output was lost. Retry/refresh that same intent; never create a new ID to "recover" a
+possibly executed task. Capacity counts retained history (default 256), with no
+automatic eviction; existing retries and reads still work at capacity. Stop and
+plan explicit retention/migration before exhaustion; deleting rows breaks durable
+deduplication. No retention/cancellation/uncertainty-resolution UI exists yet.
+
+Grant expiry/revocation, stale policy, removal and dissolution block later task
+operations. Work already started can finish and persist an outcome; it cannot be
+undone by authorization changes. Credentials/policy renewal remains a separate
+human action; original identity and intent state survive replacement grants for
+the same subject. Graceful shutdown drains active task calls; forced termination
+leaves running work uncertain. This Echo-only prototype is not ready for real
+side-effect adapters, and physical LAN/Tailscale/WAN validation remains open.
+The old bearer bridge and MCP delegation still use their separate in-memory API.

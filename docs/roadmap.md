@@ -1,4 +1,4 @@
-# Remaining work for the v0.26 development line
+# Remaining work for the v0.27 development line
 
 The verified directory can persist and exchange signed policy and credential
 revocations between configured peers. The human UI remains a local simulated chat application, with an optional
@@ -29,12 +29,15 @@ Copied observations never become local admission leases or automatic membership.
 v0.26 adds signed group/direct text through one designated trusted store, scoped
 operation proofs, durable outbox/receiver deduplication and atomic catch-up cursors.
 The simulation CLI remains separate from Human UI chat; store operators hold plaintext.
+v0.27 adds an explicit signed Echo executor and durable caller/executor state.
+Running work interrupted before result commit becomes uncertain and cannot be
+automatically rerun or migrated; queued work requires an explicit authorized retry.
 
 | Priority | Work | Acceptance evidence |
 |---|---|---|
 | P1 | Discovery operations and explicit runtime enrollment | Validate physical LAN/tailnet behavior, optional mDNS/peer enumeration and a separately authorized handoff from candidate to admitted runtime |
-| P1 | Durable tasks | Executor persists request/result identity; caller recovery cannot silently execute uncertain side effects twice |
 | P1 | Multi-source reconciliation and policy renewal UX | Compare sources beyond ordered failover, diagnose equivocation, renew signed authorization through explicit human-controlled administration |
+| P2 | Task operations | Explicit human uncertain-result resolution/cancellation, retention/quotas, scheduling and MCP/UI integration; no automatic replay of possible side effects |
 | P2 | Message operations | Human UI integration, explicit blocked-outbox cancellation, retention/quotas, push and multi-store routing; any relay privacy claim requires E2E encryption |
 | P2 | Presence operations | Multi-hop propagation and relayed UI preserve original deadlines, provenance and observed conflicts |
 | P2 | Real adapters | Validate available OpenClaw, Codex, Claude Code, Qoder and Grok interfaces individually; model APIs and product Agents are distinct |
@@ -42,8 +45,9 @@ The simulation CLI remains separate from Human UI chat; store operators hold pla
 | P2 | Operational deployment | Actual household LAN and cross-region tailnet trials, certificate/key renewal, backups, rate limits and service packaging |
 | P2 | Release readiness | Browser interaction QA, interoperability/security review, installation instructions and owner-selected open-source license |
 
-Suggested order after the signed messaging stage: durable execution → real adapters and deployment trials.
-Multi-source reconciliation and renewal UX remain independent administration work.
+Suggested order after durable signed simulation tasks: multi-source reconciliation
+and human renewal UX → adapter contracts/probing → real adapters and deployment trials.
+Real product connections remain conditional on actual interface access.
 Discovery is separate from authorization. A fresh or isolated Agent waits for
 human approval or restores existing valid qualification; it never creates a group.
 

@@ -140,3 +140,12 @@ chat scope and key possession; direct history is participant-only. New persisten
 message tables pin the original audience and retain immutable IDs/receipts across
 restart. No read bearer shortcut or owner private key is used. See
 [network messages](network-messages.md).
+
+## Separate signed task plane (v0.27, unreleased)
+
+`TaskExecutor` reuses current signed policy, scoped grants, learned revocations,
+the directory lock and SQLite connection, with a separate exclusive executor file
+lock. Task identity/audience is pinned; request/running/result boundaries and
+signed terminal receipts persist. Running work interrupted before result commit
+becomes uncertain, not a new invocation. No task adds admission records/leases or
+creates groups. See [durable tasks](durable-tasks.md).

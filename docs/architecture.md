@@ -551,6 +551,50 @@ be durable before real side effects. Do not automatically migrate an uncertain
 task to another executor. Model permissions and network permissions are both
 necessary; network membership never grants filesystem or secret access.
 
+### Implemented signed task boundary (v0.27, unreleased)
+
+The opt-in task plane uses a configured original executor key and approved grant,
+not a discovered host or owner key. Every submit/query verifies both caller and
+executor against current scoped grants, policy freshness, approved IDs and learned
+revocations. Fresh proof binds the operation and immutable task intent/ID or exact
+query. Group creation and grant issuance remain separate human actions. This
+executor exposes only Echo simulation; chat does not implicitly submit work.
+
+```mermaid
+flowchart LR
+  C["Caller key + original task/executor"] --> O[("Private outbox / signed intent before I/O")]
+  O -->|"Scoped grant + fresh proof / explicit TLS origin"| E["Original executor key / current authorization"]
+  E --> Q[("Commit queued request / durable ID deduplication")]
+  Q -->|"Explicit submit only / recheck authorization"| R[("Commit running marker")]
+  R --> A["Simulated Echo / outside policy and DB lock"]
+  A --> T[("Commit signed terminal result")]
+  T -->|"Original receipt / caller verifies key + intent hash"| O
+  R -->|"Crash before terminal commit"| U[("Persist uncertain on restart / never automatically execute again")]
+```
+
+One POSIX-locked executor owns each directory database and pins its original
+identity/audience/adapter semantics. Multiple executors on one host have separate
+keys/databases/listeners; no host uniqueness rule exists. Queued tasks do not run
+on startup or query; a fresh explicit original submission can claim them. Running
+marker commits before the adapter; completed/failed receipts persist byte-identical.
+On restart, running without a committed outcome becomes terminal uncertain, even
+if the adapter may not have started. No implicit retry, new ID or alternate executor
+is allowed to resolve that uncertainty. Graceful close rejects new operations and
+drains active work before releasing the database lock.
+
+Caller state pins owner/group/caller/executor/origin/audience/CA, validates signed
+receipts against original intent, and refuses running→queued or terminal receipt
+replacement. Lost ACK/local receipt commit failures retain original pending intent.
+Authorization changes can deny result access after already-started work finishes;
+the actual outcome is still persisted. Reads are caller-only, with no implicit
+owner/read-bearer access. Plaintext local/executor storage and clocks are trusted.
+This is not a general exactly-once side-effect guarantee: lost/rolled-back storage,
+cloned keys and nontransactional external actions require additional recovery.
+
+Legacy bearer bridge/MCP tasks retain their earlier in-memory protocol. Real
+adapters, Human UI/MCP routing, asynchronous scheduling, uncertain resolution and
+physical LAN/tailnet validation are future work. See [durable tasks](durable-tasks.md).
+
 ## Implementation stages
 
 - v0.4: central directory, Echo bridges and MCP tools (existing).
@@ -587,7 +631,9 @@ necessary; network membership never grants filesystem or secret access.
   checks, attributed cache and durable merged-view ordering.
 - v0.26: signed group/direct text at a configured trusted store,
   scoped operation proofs, durable outbox/deduplication and catch-up cursors.
-- Next: durable task execution and candidate-to-runtime trust handoff.
+- v0.27 (unreleased): signed Echo task/executor identities, durable intent and
+  result boundaries, signed receipts, explicit queued recovery and crash-to-uncertain.
+- Next: multi-source policy reconciliation, human renewal UX and candidate-to-runtime trust handoff.
 - Next: integrated mesh transport with cryptographic admission.
 - Then: validated agent adapters and real LAN/tailnet trials.
 
@@ -633,7 +679,8 @@ in verified admission, including member removal and terminal dissolution.
 v0.16 adds configured-peer policy replication, including removals and dissolution.
 v0.17 also replicates signed credential revocations. v0.25 adds a separate
 one-hop presence-observation cache. v0.26 adds designated-store signed messages;
-durable tasks, multi-store messages and multi-hop presence remain unimplemented.
+v0.27 adds separate signed durable Echo tasks; multi-store messages, real
+execution adapters and multi-hop presence remain unimplemented.
 The mesh simulator remains separate. The UI can now sign/export these snapshots
 with an existing local authority; runtime enrollment remains separate.
 v0.18 bounds active-policy age and adds source failover; it does not connect those

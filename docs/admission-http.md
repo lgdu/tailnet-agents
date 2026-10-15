@@ -184,3 +184,14 @@ existing owner/Agent keys and policy delivery stay explicit. Message history and
 service audience are persistent; restart cannot replace that audience. See
 [network messages](network-messages.md) for participant-only direct reads, durable
 outbox, catch-up, TLS deployment and trusted-plaintext-store limits.
+
+## Explicit signed Echo executor (v0.27, unreleased)
+
+`--tasks --task-agent-key ORIGINAL.pem --task-grant-file APPROVED.grant` requires
+signed policy mode and enables POST `/v1/task-challenges` and `/v1/agent-tasks`.
+Both caller and executor need current `task.echo` authority; directory read
+credentials do not confer access. The original executor signs intent-bound
+receipts. Private database context and process lock prevent identity replacement
+or concurrent recovery. Interrupted running work becomes uncertain without
+another invocation; queued tasks need an explicit fresh submission. The CLI
+starts only Echo simulation. See [durable tasks](durable-tasks.md).

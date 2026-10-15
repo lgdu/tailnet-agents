@@ -499,3 +499,73 @@ IDs; no automatic alternate-store delivery occurs. History sender signatures are
 independently verified, but authorization-at-insertion depends on the trusted
 store, not attached historical policy proofs. Plaintext storage operators are
 trusted. See [network messages](network-messages.md) for recovery and privacy limits.
+
+## Signed durable Echo tasks (v0.27, unreleased)
+
+Separate custom API on admission, default disabled. Explicit `--tasks` requires
+signed policy mode plus original approved executor key/grant. Legacy bridge
+`/v1/tasks` and MCP tools keep their existing bearer/in-memory contract.
+
+POST `/v1/task-challenges` takes `{request}`, where the exact operation is either
+`{operation:"submit",task:"SIGNED_TASK_JWS"}` or
+`{operation:"get",task_id:"32_LOWERCASE_HEX"}`. Unknown fields/kinds/operations
+are invalid. It returns `{nonce,context}`; context is `tasks-v1:` plus SHA-256 of
+sorted compact JSON request. The nonce is single-use, expires in 30 seconds and
+shares the admission engine's bounded 256 outstanding challenge pool. A message
+or admission proof cannot substitute for a task-operation proof.
+
+POST `/v1/agent-tasks` takes exact
+`{request,grant,public_key,proof,nonce}`. Existing possession proof binds caller,
+nonce, current grant hash, explicit service audience and full operation context.
+Both caller and executor require current approved `join`/`task.echo` grants,
+fresh active policy and no locally learned revocation. Directory read tokens and
+chat permission do not authorize tasks. Results are visible only to the caller;
+unknown or other-caller IDs return the same 404.
+
+Task JWS type `tailnet-agent-task+jwt` has exact claims:
+`{version:1,owner,group_id,audience,caller,executor,task_id,kind:"echo",input,created_at}`.
+Caller/executor are public-key identities. Context must match the pinned existing
+service/group/executor; creation time is integer 0..2^53−1 and at most receiver
+time +30 seconds. IDs are 32 lowercase hex, input is a nonempty UTF-8 string up
+to 2048 bytes, within 16 KiB token bounds. Current authorization can submit an
+older saved intent after manual grant renewal; creation time is not a historical
+authorization proof. No arbitrary command, model call or product adapter kind exists.
+
+All successful submit/get responses are HTTP 200 with exact `{receipt:"JWS"}`.
+Receipt JWS type `tailnet-agent-task-result+jwt`, signed by the pinned executor,
+has exact claims:
+`{version:1,owner,group_id,audience,executor,caller,task_id,request_hash,status,output,error,issued_at}`.
+`request_hash` is SHA-256 of the original signed task token. Statuses:
+
+| Status | Output | Error |
+|---|---|---|
+| `queued` / `running` | null | null |
+| `completed` | Nonempty UTF-8 string, at most 2048 bytes | null |
+| `failed` | null | `execution_failed` |
+| `uncertain` | null | `execution_interrupted` |
+
+Receipt time is integer 0..2^53−1; terminal receipts are durable historical signed
+statements without their own expiry. Readers still need current network authorization.
+Caller independently verifies executor signature, context, both identities, original
+task/hash, state/output/error schema, and refuses running→queued or any change to a
+stored terminal receipt. Such failures leave original local intent/result intact.
+A receipt is not an independently reconstructed historical policy proof.
+
+Executor commits immutable queued intent before running; commits `running` before
+adapter invocation outside the directory lock; commits signed terminal outcome
+before returning it. Exact ID/envelope retries return original state/receipt without
+another invocation. Conflicting ID reuse returns 409. Concurrent duplicates cannot
+claim running work. On startup `running` without a terminal receipt becomes terminal
+`uncertain`, while `queued` stays unstarted. Startup/query never executes. Only
+explicit fresh authorized submission can claim queued work, rechecking both
+principals immediately before the running marker. Authorization loss during work
+does not erase the outcome; it is committed but not returned without valid access.
+
+No eviction: default 256 retained tasks, then 429 for new IDs, while existing reads/
+retries work. No automatic uncertain retry, cancellation, resolution or alternate
+executor exists. Graceful shutdown rejects new task operations and drains active
+ones. Errors are sanitized: 400 malformed request, 403 authorization/signature/
+context, 404 disabled/unknown/other-caller ID, 409 conflicting ID, 413 body outside
+1..65536 bytes, 429 retained capacity, 503 unavailable storage or stopping executor.
+TLS, Host/Origin and proxy/redirect rules match admission. See
+[durable tasks](durable-tasks.md) for actual command/recovery and current bounds.

@@ -1,4 +1,4 @@
-# Implementation status — v0.26
+# Implementation status — v0.27 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -6,7 +6,7 @@ its future requirements must not be read as implemented security guarantees.
 | Area | Current state | Next work |
 |---|---|---|
 | Registry | Durable central directory | Distributed discovery/anti-entropy |
-| Task transport | Echo, bearer authentication, in-memory deduplication | Durable state and real adapters |
+| Signed tasks | Opt-in scoped Echo executor/caller identities, durable task intent/results, signed receipts, crash-to-uncertain recovery, no implicit retry/migration | No real adapters, uncertain resolution/cancellation UI, HA, Human UI/MCP task bridge; legacy bearer API remains in memory |
 | MCP | Local tools subset | Real client interoperability verification |
 | Human UI | Local roles/chat and opt-in signed policy creation/approval/removal/renewal/dissolution/export and explicit recipient delivery; separate grant issuance/download | Automatic secure provisioning, broader browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
@@ -19,7 +19,7 @@ its future requirements must not be read as implemented security guarantees.
 | Signed group policy | Durable snapshots, bounded signed age, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | Live receiver monitoring and candidate-to-runtime trust handoff |
 | Policy replication | Ordered source failover, independent revocation cursors, HTTP/TLS pull and read-protected status | Multi-source reconciliation/quorum and explicit source enrollment |
 | Candidate discovery | Opt-in signed IPv4 multicast, credential-free HTTP/TLS seeds, local-policy checks, expiry and identity merging | Physical LAN/tailnet trials, mDNS/peer enumeration and explicit runtime enrollment |
-| Mesh | State simulator, separate candidate discovery and one-hop signed observation replication | Integrated network group engine, multi-store messages and durable tasks |
+| Mesh | State simulator, separate candidate discovery and one-hop signed observation replication | Integrated network group engine, multi-store messages and real executors |
 | Product agents | None | OpenClaw/Claude Code/Codex/Qoder/Grok interface validation |
 
 New groups are human-created. Agent restart recovery retains an existing group
@@ -206,7 +206,7 @@ service/reader CLIs, replay/conflict, independent multi-Agent identities, bounde
 scans, transaction rollback, partitions, restart and shutdown. Multi-hop gossip,
 relayed UI, real adapters and physical LAN/tailnet validation
 remain unimplemented; v0.26 adds separate designated-store network messages, while
-network task execution remains the earlier Echo prototype. See [peer presence](peer-presence.md). v0.25.0 is published as a GitHub prerelease with a matching annotated tag.
+v0.27 adds a separate durable signed Echo task executor. See [peer presence](peer-presence.md). v0.25.0 is published as a GitHub prerelease with a matching annotated tag.
 Merged main verification: 322 identity tests pass without skips; core passes 50
 with 272 expected skips; both Chromium checks pass. The policy browser first
 hit a five-second download-button assertion timeout; isolated retry and a
@@ -235,11 +235,45 @@ regressions, mesh simulator, dependency and documentation-link checks pass. See
 [network messages](network-messages.md).
 
 Unimplemented: E2E encryption, Human UI integration, push/automatic polling,
-multi-store replication/failover, explicit cancellation/retention UX, durable task
-execution, real product adapters and physical LAN/Tailscale/WAN trials. v0.26.0
+multi-store replication/failover, explicit cancellation/retention UX, real product
+adapters and physical LAN/Tailscale/WAN trials; v0.27 adds separate signed durable Echo tasks. v0.26.0
 is published as a GitHub prerelease with a matching annotated tag. Merged-main
 verification: all 355 identity tests pass without skips; core passes 50 with 305
 expected skips; both Chromium regressions pass on their first run.
+
+## v0.27 durable signed Echo tasks (unreleased)
+
+The admission service explicitly enables a simulation executor with an existing
+Agent key and approved `task.echo` grant. Caller and executor independently require
+current policy, permissions and unrevoked credentials; fresh operation-bound
+proofs gate submissions/queries. IDs, intent hashes, both identities and context
+are covered by task/receipt signatures. Directory read credentials and chat scopes
+confer no task access. Results are caller-only.
+
+Caller state persists original intent/ID and fixed executor/origin before sending;
+a local paginated list recovers saved IDs if terminal output was lost.
+Executor state commits queued/running/result boundaries. Lost responses and
+both-end restart return the same completed/failed receipt; interrupted running
+work becomes terminal `uncertain` without another adapter invocation. Queued
+work never starts on startup/query; explicit authorized flush can retry it.
+Private POSIX state and exclusive executor locks preserve original identities,
+group, audience and caller service/CA pins. Same-host multiple executors use
+independent keys/databases/listeners. Graceful close drains active calls.
+
+The suite contains 390 tests, including 35 durable-task cases with real HTTP/TLS,
+service/client processes, a subprocess exiting after a simulated side effect,
+transaction failures before invocation/after execution, duplicate concurrency,
+revocation/expiry/dissolution, result signature/conflict checks and recovery.
+Local verification: all 390 identity tests pass without skips; core passes 50
+with 340 expected skips; both Chromium regressions pass. CLI, dependencies,
+package/MCP version, mesh simulator and 24-document link/anchor checks pass.
+See [durable tasks](durable-tasks.md). No real product Agent is connected.
+
+Unimplemented: real side-effect adapters, general exactly-once execution, database
+rollback/key-clone recovery, MCP/Human UI integration, asynchronous scheduling,
+automatic retry/polling, cancellation/uncertain resolution, retention/quota UI,
+HA and physical LAN/Tailscale/WAN trials. The legacy bearer bridge remains
+in-memory and independent. v0.27.0 is not published or tagged.
 
 ## Documentation maintenance rule
 

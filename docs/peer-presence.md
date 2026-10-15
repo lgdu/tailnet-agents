@@ -156,5 +156,6 @@ member removal or terminal offline assertion.
 No copied row enters `/v1/agents`, local registration, discovery announcements,
 Echo chat, task execution or group creation. Network messages use the separate
 [v0.26 designated-store transport](network-messages.md), not presence replication.
-No real product Agent, durable task executor, multi-hop gossip, relayed human UI,
+[v0.27 signed Echo tasks](durable-tasks.md) likewise use a separate explicit path.
+No real product Agent, multi-hop gossip, relayed human UI,
 key rotation or physical LAN/Tailscale/WAN validation is included. Those are later stages.

@@ -139,8 +139,11 @@ visible preview, explicit confirmation, lost delivery acknowledgment/retry and
 terminal delivery; the same check runs in CI.
 
 Automatic confidential credential transfer, runtime enrollment, continuous receiver monitoring,
-owner recovery/rotation, distributed presence/chat and durable tasks remain future
-work. No real product Agent or physical LAN/WAN/tailnet trial is included.
+owner recovery/rotation and integrated multi-hop mesh remain future work.
+[Configured presence](peer-presence.md), [network text](network-messages.md) and
+[signed durable Echo tasks](durable-tasks.md) use separate explicit paths; policy
+delivery does not start them. No real product Agent or physical LAN/WAN/tailnet
+trial is included.
 
 
 The v0.24 [runtime monitor](runtime-monitoring.md) reuses configured recipients for

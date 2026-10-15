@@ -91,3 +91,11 @@ validated. Sources used for the protocol subset:
 - https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle
 - https://modelcontextprotocol.io/specification/2025-11-25/basic/transports
 - https://modelcontextprotocol.io/specification/2025-11-25/server/tools
+
+## Separate signed durable executor (v0.27, unreleased)
+
+The new [signed task CLI/service](durable-tasks.md) is independent. These MCP tools
+still call the legacy bearer Echo bridge, whose task identity/results are in
+memory. They do not automatically select the new executor, acquire `task.echo`
+grants or gain durable caller state. A future explicit bridge must preserve the
+original task ID/executor and uncertainty semantics; no implicit migration exists.

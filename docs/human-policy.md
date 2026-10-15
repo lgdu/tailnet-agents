@@ -156,9 +156,11 @@ after credentials are cleared. Do not use production credentials for this check.
 
 No real product Agent is connected. Background policy delivery, automatic
 confidential credential transfer, continuous directory/revocation monitoring, browser
-sessions, remote admin deployment, owner rotation/recovery, peer presence replication,
-mesh chat and durable tasks remain future work. Physical LAN/tailnet/WAN behavior
-is unvalidated; this change reuses the existing signed policy wire format.
+sessions, remote admin deployment, owner rotation/recovery and integrated mesh
+remain future work. [Peer presence](peer-presence.md), [network text](network-messages.md)
+and [durable signed Echo tasks](durable-tasks.md) are separate explicitly enabled
+paths; human policy signing alone does not start them. Physical LAN/tailnet/WAN
+behavior is unvalidated; this workflow reuses the existing signed policy wire format.
 
 
 In v0.24 the same signing admin/group creator may explicitly read a configured

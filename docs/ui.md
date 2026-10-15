@@ -234,3 +234,12 @@ durable browser outbox. Downloading/approving `chat.group` or `chat.direct` gran
 does not automatically send text, start a client or expose private history to the
 signing administrator. Run the separate client explicitly with its original key,
 group and private messaging state.
+
+## Separate signed tasks (v0.27, unreleased)
+
+[Durable signed Echo tasks](durable-tasks.md) use the separate CLI and configured
+simulation executor. Human UI can issue/approve `task.echo` credentials through
+its existing explicit workflow, but its Echo chat does not submit those tasks.
+There is no task dashboard, automatic executor startup or uncertain-task recovery
+button. A future UI must preserve original task IDs/executors and distinguish
+queued, running and terminal uncertainty without offering silent replay.
