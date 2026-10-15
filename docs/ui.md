@@ -225,7 +225,7 @@ continues to read the selected source's direct presence; it does not mix copied
 observations into Echo members or imply that a remote row has a local live lease.
 A relayed-observation UI remains future work.
 
-## Separate network message clients (v0.26, unreleased)
+## Separate network message clients (v0.26)
 
 [Signed network messaging](network-messages.md) uses simulated cryptographic
 Agent identities and a designated HTTP/TLS store. Human UI chat still uses its

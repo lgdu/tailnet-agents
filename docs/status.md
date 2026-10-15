@@ -1,4 +1,4 @@
-# Implementation status — v0.26 (unreleased)
+# Implementation status — v0.26
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -212,7 +212,7 @@ with 272 expected skips; both Chromium checks pass. The policy browser first
 hit a five-second download-button assertion timeout; isolated retry and a
 second repeat pass. This timing failure remains recorded in release notes.
 
-## v0.26 signed group/direct network messages (unreleased)
+## v0.26 signed group/direct network messages
 
 Opt-in `--messages` adds a designated conversation store to policy-enforced
 admission. Existing human-approved simulated Agent identities send signed text
@@ -237,7 +237,9 @@ regressions, mesh simulator, dependency and documentation-link checks pass. See
 Unimplemented: E2E encryption, Human UI integration, push/automatic polling,
 multi-store replication/failover, explicit cancellation/retention UX, durable task
 execution, real product adapters and physical LAN/Tailscale/WAN trials. v0.26.0
-is not published or tagged; publish only after merge and release verification.
+is published as a GitHub prerelease with a matching annotated tag. Merged-main
+verification: all 355 identity tests pass without skips; core passes 50 with 305
+expected skips; both Chromium regressions pass on their first run.
 
 ## Documentation maintenance rule
 

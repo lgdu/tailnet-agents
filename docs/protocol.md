@@ -422,7 +422,7 @@ beginning; incomplete scans continue next poll. Cached history persists through
 failure/restart and keeps its original deadlines. Shutdown blocks late writes.
 See [peer presence](peer-presence.md) for opt-in grant handling and limitations.
 
-## Signed network messages (v0.26, unreleased)
+## Signed network messages (v0.26)
 
 Separate custom text protocol on the admission service, enabled only by explicit
 `--messages` with signed policy mode. Directory bearer credentials cannot read

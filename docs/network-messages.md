@@ -1,4 +1,4 @@
-# Signed network messages (v0.26, unreleased)
+# Signed network messages (v0.26)
 
 The opt-in admission service can act as one designated conversation store for an
 existing human-created group. Independent synthetic Agent clients on different
@@ -154,5 +154,5 @@ share the admission engine's 256 outstanding-challenge bound; per-peer rate limi
 and production DoS hardening remain future operations work. Trusted clocks and
 fresh signed policy/revocation delivery are required. Learned changes take effect
 on subsequent operations; a member already holding plaintext cannot be made to
-forget it. See [operations](operations.md#signed-message-store-and-client-state-v026-unreleased)
-and [protocol](protocol.md#signed-network-messages-v026-unreleased).
+forget it. See [operations](operations.md#signed-message-store-and-client-state-v026)
+and [protocol](protocol.md#signed-network-messages-v026).

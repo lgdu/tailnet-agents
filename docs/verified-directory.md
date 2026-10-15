@@ -131,7 +131,7 @@ opt-in. Imports never populate `agents`/`admission_grants` or change local proof
 verification. Merged ordering/conflicts persist across restart and source changes;
 this is not distributed operational fencing. See [peer presence](peer-presence.md).
 
-## Separate signed message plane (v0.26, unreleased)
+## Separate signed message plane (v0.26)
 
 The opt-in HTTP handler attaches `MessageStore` to the existing directory lock,
 private SQLite connection, signed policy and learned revocations. It does not

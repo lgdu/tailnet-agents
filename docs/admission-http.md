@@ -175,7 +175,7 @@ per-source collection state. They create no registration leases and expose no
 full grants. Existing direct presence/registration paths stay scoped as before.
 See [peer presence](peer-presence.md) and the [wire format](protocol.md#configured-peer-presence-replication-v025).
 
-## Opt-in signed messages (v0.26, unreleased)
+## Opt-in signed messages (v0.26)
 
 `--messages` requires policy mode and adds only POST `/v1/messages/challenges`
 and `/v1/messages`. Without it both are 404. Clients use scoped grants and fresh

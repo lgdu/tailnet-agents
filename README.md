@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.26 prototype (unreleased).** Working components are listed below. The network mesh and
+**v0.26 prototype.** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -314,7 +314,7 @@ instances or relay onward. `tailnet-peer-presence` reads the merged source-scope
 view; the existing human monitor retains its direct-directory scope. See
 [peer presence](docs/peer-presence.md) for opt-in disclosure, restart and limits.
 
-## Signed network messages (v0.26, unreleased)
+## Signed network messages (v0.26)
 
 Explicit `--messages` enables group/direct text for existing human-approved
 synthetic identities at one configured admission service. `tailnet-messages`
@@ -364,8 +364,8 @@ Next: durable tasks and explicit candidate enrollment; connect verified
 identity and candidate discovery to the mesh engine, broaden browser QA,
 and then add real product adapters and deployment trials.
 The working registry mode remains available during mesh development.
-v0.25.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.25.0)
-with a matching annotated version tag. v0.26.0 remains unreleased and untagged in this PR. Release checks and tag synchronization are described
+v0.26.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.26.0)
+with a matching annotated version tag. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 
 No open-source license has been selected yet. Public release requires an owner

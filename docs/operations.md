@@ -285,7 +285,7 @@ Watch per-source catching_up/error and original receipt/expiry times; poll succe
 is not fresh Agent possession or policy renewal. Physical network validation is
 still outstanding, and bounded scans may lag large source histories.
 
-## Signed message store and client state (v0.26, unreleased)
+## Signed message store and client state (v0.26)
 
 `--messages` explicitly adds conversation tables to the policy-enforced admission
 database. Default disabled startup preserves tables without exposing message

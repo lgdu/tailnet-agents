@@ -472,7 +472,7 @@ grants and must preserve the private cache/head transaction boundary. Trusted
 clocks/local database operators and rollback limits remain unchanged. See
 [peer presence](peer-presence.md).
 
-### Signed messages at a designated store (v0.26, unreleased)
+### Signed messages at a designated store (v0.26)
 
 Synthetic Agent keys explicitly select one existing group and trusted history
 origin/audience/CA. The opt-in admission service checks current signed policy,
@@ -585,7 +585,7 @@ necessary; network membership never grants filesystem or secret access.
   human gateway, with source/time attribution and signature/policy/expiry guards.
 - v0.25: explicit one-hop presence exports/pulls, independent grant
   checks, attributed cache and durable merged-view ordering.
-- v0.26 (unreleased): signed group/direct text at a configured trusted store,
+- v0.26: signed group/direct text at a configured trusted store,
   scoped operation proofs, durable outbox/deduplication and catch-up cursors.
 - Next: durable task execution and candidate-to-runtime trust handoff.
 - Next: integrated mesh transport with cryptographic admission.
