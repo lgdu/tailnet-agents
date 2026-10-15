@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.25 prototype.** Working components are listed below. The network mesh and
+**v0.26 prototype (unreleased).** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -18,6 +18,7 @@ action; agents may only discover or restore previously authorized groups.
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
 | Policy replication | Ordered HTTP/TLS source failover, independent revocation cursors, periodic pull and status | Configured policy sources only; no quorum, chat/task replication |
 | Candidate discovery | Signed UDP multicast with ingress filtering, HTTP/TLS seeds, sticky conflicts, synchronized policy/revocation checks | Existing directory/key required; Linux LAN receiver; candidates only, no auto-enrollment or policy-source promotion |
+| Network messages | Opt-in signed group/direct text, scoped possession checks, durable sender outbox, committed receiver deduplication and paginated catch-up | One explicitly configured trusted plaintext store; simulation CLI, no E2E, Human UI bridge or automatic reply |
 | Peer presence | Explicit one-hop pulls, independent grant/policy/revocation checks, attributed cache, durable observation ordering and API/CLI | Export opt-in includes scoped grants; no local leases, membership changes, multi-hop gossip or relayed UI |
 | Runtime monitor | Explicit authenticated reads from configured directories, signature/policy verification, attributed paginated observations and expiry | Signing admin/group creator only; direct receiver observations; copied observations use separate API/CLI |
 | Simulation runtime | Original key/group recovery, signed heartbeat leases (including 10-second TTL with fractional clocks), persisted instance ordering and authenticated presence pages | Explicit configured directory; POSIX state file; no executor; one-hop observations are separate |
@@ -34,7 +35,7 @@ OpenClaw, Claude Code, Codex or Qoder already interoperate through this project.
 
 ### Current prototype / 当前已实现
 
-Chat and task runtimes remain separate. The opt-in human signing gateway exports
+Human chat, signed network text and task runtimes remain separate. The opt-in human signing gateway exports
 policies for manual application or human-confirmed delivery to configured directories. Solid arrows show
 implemented calls and the labeled human-operated policy handoff.
 
@@ -66,6 +67,10 @@ flowchart TB
     direction TB
     INSTALL -->|"Separate explicit client run / 另行运行准入客户端"| VC
     VC["Verified client / 持有身份私钥"] -->|"TLS + grant + proof"| API["Admission HTTP service"]
+    MSG["Synthetic message clients / 同机多个独立密钥、持久 outbox"] -->|"Signed text + operation proof / 显式配置 HTTPS"| API
+    API --> MS["Opt-in message store / 当前授权、私聊参与者 ACL"]
+    MS --> MDB[("SQLite / 已提交消息、去重与序号")]
+    MDB -->|"Signed history pages / 持久补读游标"| MSG
     API --> SYNC["Ordered source failover / 来源故障切换"]
     SYNC -->|"Policy + revocation pull / 主来源"| PEER["Primary admission service / 主策略副本"]
     SYNC -->|"Fallback / 备用来源"| BACKUP["Backup admission services / 备用策略副本"]
@@ -309,6 +314,19 @@ instances or relay onward. `tailnet-peer-presence` reads the merged source-scope
 view; the existing human monitor retains its direct-directory scope. See
 [peer presence](docs/peer-presence.md) for opt-in disclosure, restart and limits.
 
+## Signed network messages (v0.26, unreleased)
+
+Explicit `--messages` enables group/direct text for existing human-approved
+synthetic identities at one configured admission service. `tailnet-messages`
+persists signed pending messages, retries the original envelope after lost
+acknowledgments and commits verified catch-up pages with durable cursors.
+Every send/read requires a current scoped grant, fresh policy and possession
+proof. Private history is limited to participants; the trusted store holds
+plaintext, so this is not E2E encryption. Same-host clients retain separate keys
+and state. No automatic group creation, replies or task execution occurs. See
+[network messaging](docs/network-messages.md) for LAN/Tailscale TLS configuration,
+commands, recovery and limits. Local Human UI Echo chat remains separate.
+
 ## Verification
 
 ```bash
@@ -321,8 +339,10 @@ are explicitly skipped. CI runs both core and identity installations. The new si
 visual/accessibility coverage and real-agent compatibility remain outstanding.
 The dedicated CI browser job also delays policy reads and checks that download
 never uses a pre-mutation snapshot; failed refreshes keep exports disabled.
-v0.25 includes 322 tests: the 296-test v0.24 baseline plus 26 peer-presence
-checks. v0.24 added 21 runtime-monitor checks. Separate Chromium coverage verifies source selection, same-host identities,
+v0.26 includes 355 tests: the 322-test v0.25 baseline plus 33 network-message
+checks covering actual HTTP/TLS and service/client processes, participant isolation,
+current authorization, same-host identities, lost-ACK deduplication, offline/restart
+recovery and atomic catch-up cursors. v0.24 added 21 runtime-monitor checks. Separate Chromium coverage verifies source selection, same-host identities,
 expiry/clock rollback, read failures and stale responses after target, policy,
 close and logout changes. v0.23 added 41 simulation-runtime
 and signed-presence checks, including minimum ten-second TTL with fractional
@@ -340,12 +360,12 @@ state/lease preservation, mid-scan updates, service shutdown and restart recover
 - [Current status and next work](docs/status.md)
 - [Prioritized remaining work](docs/roadmap.md)
 
-Next: cross-node group/direct messages, durable tasks and explicit candidate enrollment; connect verified
+Next: durable tasks and explicit candidate enrollment; connect verified
 identity and candidate discovery to the mesh engine, broaden browser QA,
-and then add real product adapters and durable tasks.
+and then add real product adapters and deployment trials.
 The working registry mode remains available during mesh development.
 v0.25.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.25.0)
-with a matching annotated version tag. Release checks and tag synchronization are described
+with a matching annotated version tag. v0.26.0 remains unreleased and untagged in this PR. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 
 No open-source license has been selected yet. Public release requires an owner

@@ -1,4 +1,4 @@
-# Remaining work for the v0.25 development line
+# Remaining work for the v0.26 development line
 
 The verified directory can persist and exchange signed policy and credential
 revocations between configured peers. The human UI remains a local simulated chat application, with an optional
@@ -26,20 +26,24 @@ response guards. The monitor does not copy presence into another directory.
 v0.25 adds separate opt-in one-hop presence exports/pulls, independent scoped
 grant verification, source attribution and durable merged-observation ordering.
 Copied observations never become local admission leases or automatic membership.
+v0.26 adds signed group/direct text through one designated trusted store, scoped
+operation proofs, durable outbox/receiver deduplication and atomic catch-up cursors.
+The simulation CLI remains separate from Human UI chat; store operators hold plaintext.
 
 | Priority | Work | Acceptance evidence |
 |---|---|---|
 | P1 | Discovery operations and explicit runtime enrollment | Validate physical LAN/tailnet behavior, optional mDNS/peer enumeration and a separately authorized handoff from candidate to admitted runtime |
-| P1 | Cross-node group/direct messages | Authenticated identities, group scopes, recipient privacy, durable outbox, deduplication and reconnect catch-up are verified across nodes |
 | P1 | Durable tasks | Executor persists request/result identity; caller recovery cannot silently execute uncertain side effects twice |
 | P1 | Multi-source reconciliation and policy renewal UX | Compare sources beyond ordered failover, diagnose equivocation, renew signed authorization through explicit human-controlled administration |
+| P2 | Message operations | Human UI integration, explicit blocked-outbox cancellation, retention/quotas, push and multi-store routing; any relay privacy claim requires E2E encryption |
 | P2 | Presence operations | Multi-hop propagation and relayed UI preserve original deadlines, provenance and observed conflicts |
 | P2 | Real adapters | Validate available OpenClaw, Codex, Claude Code, Qoder and Grok interfaces individually; model APIs and product Agents are distinct |
 | P2 | Secure provisioning operations | Authenticated confidential transfer, credential retention/pruning, recovery and key rotation are verified without confusing installation with admission |
 | P2 | Operational deployment | Actual household LAN and cross-region tailnet trials, certificate/key renewal, backups, rate limits and service packaging |
 | P2 | Release readiness | Browser interaction QA, interoperability/security review, installation instructions and owner-selected open-source license |
 
-Suggested order after the configured presence stage: messages → durable execution → real adapters and deployment trials.
+Suggested order after the signed messaging stage: durable execution → real adapters and deployment trials.
+Multi-source reconciliation and renewal UX remain independent administration work.
 Discovery is separate from authorization. A fresh or isolated Agent waits for
 human approval or restores existing valid qualification; it never creates a group.
 

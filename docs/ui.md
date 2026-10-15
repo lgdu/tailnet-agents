@@ -224,3 +224,13 @@ The v0.25 [peer-observation API/CLI](peer-presence.md) is separate. This panel
 continues to read the selected source's direct presence; it does not mix copied
 observations into Echo members or imply that a remote row has a local live lease.
 A relayed-observation UI remains future work.
+
+## Separate network message clients (v0.26, unreleased)
+
+[Signed network messaging](network-messages.md) uses simulated cryptographic
+Agent identities and a designated HTTP/TLS store. Human UI chat still uses its
+existing human roles and Echo participants; it has no network message bridge or
+durable browser outbox. Downloading/approving `chat.group` or `chat.direct` grants
+does not automatically send text, start a client or expose private history to the
+signing administrator. Run the separate client explicitly with its original key,
+group and private messaging state.

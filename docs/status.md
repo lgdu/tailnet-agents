@@ -1,4 +1,4 @@
-# Implementation status — v0.25
+# Implementation status — v0.26 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -11,6 +11,7 @@ its future requirements must not be read as implemented security guarantees.
 | Human UI | Local roles/chat and opt-in signed policy creation/approval/removal/renewal/dissolution/export and explicit recipient delivery; separate grant issuance/download | Automatic secure provisioning, broader browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
 | Agent identity | Optional Ed25519 keys, human-issued scoped grants, verified private-file installation and possession proofs | Trusted manual transfer, owner rotation and key renewal |
+| Network messages | Explicit configured HTTP/TLS store, signed group/direct text, current scoped proof authorization, durable outbox/deduplication and catch-up cursors | Trusted plaintext storage; no E2E, Human UI integration, multi-store failover or automatic replies |
 | Peer presence | Opt-in one-hop direct exports and configured multi-source pulls; independent signed grant/policy/revocation checks, bounded attributed cache and durable observation heads | No local lease/permission creation, onward gossip, relayed UI or distributed admission fencing |
 | Runtime monitoring | Explicit signing-admin/creator reads from configured sources; signature/policy checks, scoped pages and browser expiry/race guards | Direct receiver observations only; peer copies use a separate API/CLI |
 | Simulation runtime | Existing identity/group, signed heartbeat leases, durable boot/sequence ordering, graceful offline and paginated observations | POSIX; configured directory; authenticated manual UI monitoring; separate one-hop observation replication |
@@ -18,7 +19,7 @@ its future requirements must not be read as implemented security guarantees.
 | Signed group policy | Durable snapshots, bounded signed age, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | Live receiver monitoring and candidate-to-runtime trust handoff |
 | Policy replication | Ordered source failover, independent revocation cursors, HTTP/TLS pull and read-protected status | Multi-source reconciliation/quorum and explicit source enrollment |
 | Candidate discovery | Opt-in signed IPv4 multicast, credential-free HTTP/TLS seeds, local-policy checks, expiry and identity merging | Physical LAN/tailnet trials, mDNS/peer enumeration and explicit runtime enrollment |
-| Mesh | State simulator, separate candidate discovery and one-hop signed observation replication | Integrated network group engine, cross-node messages and tasks |
+| Mesh | State simulator, separate candidate discovery and one-hop signed observation replication | Integrated network group engine, multi-store messages and durable tasks |
 | Product agents | None | OpenClaw/Claude Code/Codex/Qoder/Grok interface validation |
 
 New groups are human-created. Agent restart recovery retains an existing group
@@ -203,12 +204,40 @@ forward cached rows; ordinary presence/browser reads still omit grants. The suit
 contains 322 tests, including 26 replication cases covering actual HTTP/TLS and
 service/reader CLIs, replay/conflict, independent multi-Agent identities, bounded
 scans, transaction rollback, partitions, restart and shutdown. Multi-hop gossip,
-relayed UI, cross-node chat/tasks, real adapters and physical LAN/tailnet validation
-remain unimplemented. See [peer presence](peer-presence.md). v0.25.0 is published as a GitHub prerelease with a matching annotated tag.
+relayed UI, real adapters and physical LAN/tailnet validation
+remain unimplemented; v0.26 adds separate designated-store network messages, while
+network task execution remains the earlier Echo prototype. See [peer presence](peer-presence.md). v0.25.0 is published as a GitHub prerelease with a matching annotated tag.
 Merged main verification: 322 identity tests pass without skips; core passes 50
 with 272 expected skips; both Chromium checks pass. The policy browser first
 hit a five-second download-button assertion timeout; isolated retry and a
 second repeat pass. This timing failure remains recorded in release notes.
+
+## v0.26 signed group/direct network messages (unreleased)
+
+Opt-in `--messages` adds a designated conversation store to policy-enforced
+admission. Existing human-approved simulated Agent identities send signed text
+and use single-use proofs bound to each send/read operation. Current grant,
+policy age, permissions, approved IDs and revocations gate retries and history.
+Direct messages require an approved recipient and are read only by participants;
+neither bearer readers nor the owner get implicit read access. The store holds
+plaintext, so E2E privacy is not implemented. Group readers see retained history.
+
+The CLI persists original envelopes before sending, keeps uncertain messages
+pending, deduplicates committed messages across both-end restarts and verifies
+full history pages before atomically storing inbox entries/cursors. State pins
+original key/owner/group/origin/audience/CA, with private POSIX files and exclusive
+process locks. Same-host independent clients use different keys/state files.
+No message creates a group/member, lease, Agent reply or task. Local Echo UI
+remains separate. The suite contains 355 tests including 33 messaging cases with
+real HTTP/TLS and service/client processes. Local validation: all 355 identity
+tests pass without skips; core passes 50 with 305 expected skips; both Chromium
+regressions, mesh simulator, dependency and documentation-link checks pass. See
+[network messages](network-messages.md).
+
+Unimplemented: E2E encryption, Human UI integration, push/automatic polling,
+multi-store replication/failover, explicit cancellation/retention UX, durable task
+execution, real product adapters and physical LAN/Tailscale/WAN trials. v0.26.0
+is not published or tagged; publish only after merge and release verification.
 
 ## Documentation maintenance rule
 

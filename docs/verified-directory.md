@@ -120,7 +120,7 @@ ordering through legacy registration. See [runtime operations](agent-runtime.md)
 for expiry, offline, same-host concurrency, restart and fencing limits.
 
 
-## Peer observation cache (v0.25, unreleased)
+## Peer observation cache (v0.25)
 
 `configure_presence_sources`, `apply_peer_presence`, `export_presence` and
 `peer_presence_status` add an explicit separate observation plane. Pages validate
@@ -130,3 +130,13 @@ scoped grants and only local direct history, so HTTP exposure needs a separate
 opt-in. Imports never populate `agents`/`admission_grants` or change local proof
 verification. Merged ordering/conflicts persist across restart and source changes;
 this is not distributed operational fencing. See [peer presence](peer-presence.md).
+
+## Separate signed message plane (v0.26, unreleased)
+
+The opt-in HTTP handler attaches `MessageStore` to the existing directory lock,
+private SQLite connection, signed policy and learned revocations. It does not
+populate admission records or local leases. Every operation independently checks
+chat scope and key possession; direct history is participant-only. New persistent
+message tables pin the original audience and retain immutable IDs/receipts across
+restart. No read bearer shortcut or owner private key is used. See
+[network messages](network-messages.md).
