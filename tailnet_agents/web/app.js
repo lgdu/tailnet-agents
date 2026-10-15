@@ -3,6 +3,7 @@ let me = null, token = '', conversation = 'group', members = [], pending = null,
 let groups=[], activeGroup=null, creationKey=null;
 let policyConfig={can_sign:false}, currentPolicy=null, policyPreview=null, policyPending=null;
 let policyRefresh=0, policyDissolving=false;
+let reviewGeneration=0,reviewBusy=false,sourceReport=null,renewalPreview=null,renewalMono=0,renewalWall=0;
 let deliveryTargets=[], deliveryPreview=null, deliveryPending=null;
 let credentialPreview=null, credentialPending=null, issuedCredential=null, credentialGeneration=0, credentialStates=new Map();
 let runtimeRequest=0, runtimeLoading=false, runtimePage=null, runtimeReceived=0, runtimeRendered='', runtimeLatestNow=0;
@@ -145,7 +146,7 @@ function renderGroups(){
 }
 async function chooseGroup(id){
   if(busy||pending||policyPending||policyDissolving||deliveryPending||credentialPending){$('group-select').value=activeGroup||'';$('delivery-status').textContent='请先处理待确认消息或策略操作。';return;}
-  invalidateRuntime(true);activeGroup=id;credentialPreview=null;issuedCredential=null;credentialGeneration++;credentialStates.clear();$('credential-result').textContent='';currentPolicy=null;policyPreview=null;deliveryTargets=[];deliveryPreview=null;view++;loading=false;history=new Map();members=[];moreOlder=false;$('older').hidden=true;$('messages').replaceChildren();renderGroups();
+  invalidateRuntime(true);invalidateReview();activeGroup=id;credentialPreview=null;issuedCredential=null;credentialGeneration++;credentialStates.clear();$('credential-result').textContent='';currentPolicy=null;policyPreview=null;deliveryTargets=[];deliveryPreview=null;view++;loading=false;history=new Map();members=[];moreOlder=false;$('older').hidden=true;$('messages').replaceChildren();renderGroups();
   if(!id){renderMembers();$('messages').append(node('div',me?.role==='admin'?'点击「创建群组」开始。Agent 不会自动创建。':'等待管理员将你加入一个群组。','empty'));$('sync-status').textContent='尚未加入群组';return;}
   const current=session,selected=id;
   try{const result=await api('/api/members');if(current!==session||selected!==activeGroup)return;members=result.members;await select('group');}
@@ -171,7 +172,7 @@ $('login-form').onsubmit=async e=>{
     $('human-name').textContent=me.id;$('human-role').textContent={admin:'管理员',participant:'参与者',observer:'观察者'}[me.role];$('login').hidden=true;$('workspace').hidden=false;$('token').value='';await chooseGroup(groups[0]?.id||null);
   }catch(error){if(current!==session)return;token='';me=null;$('workspace').hidden=true;$('login').hidden=false;$('login-error').textContent=error.message;}
 };
-$('logout').onclick=()=>{invalidateRuntime(true);session++;view++;policyRefresh++;activeGroup=null;groups=[];$('group-dialog').close();$('manage-dialog').close();token='';me=null;pending=null;currentPolicy=null;policyPreview=null;policyPending=null;policyDissolving=false;deliveryTargets=[];deliveryPreview=null;deliveryPending=null;credentialPending=null;credentialPreview=null;issuedCredential=null;credentialGeneration++;credentialStates.clear();$('credential-public-key').value='';$('credential-result').textContent='';$('credential-consent').textContent='';$('credential-history').replaceChildren();$('policy-grant').value='';busy=false;loading=false;history=new Map();conversation='group';$('workspace').hidden=true;$('login').hidden=false;$('message').value='';$('message').disabled=false;$('send-button').disabled=false;$('send-button').textContent='发送 ↑';$('messages').replaceChildren();$('group-button').classList.add('active');$('conversation-title').textContent='群组讨论';$('conversation-kind').textContent='GROUP CONVERSATION';};
+$('logout').onclick=()=>{invalidateRuntime(true);invalidateReview();session++;view++;policyRefresh++;activeGroup=null;groups=[];$('group-dialog').close();$('manage-dialog').close();token='';me=null;pending=null;currentPolicy=null;policyPreview=null;policyPending=null;policyDissolving=false;deliveryTargets=[];deliveryPreview=null;deliveryPending=null;credentialPending=null;credentialPreview=null;issuedCredential=null;credentialGeneration++;credentialStates.clear();$('credential-public-key').value='';$('credential-result').textContent='';$('credential-consent').textContent='';$('credential-history').replaceChildren();$('policy-grant').value='';busy=false;loading=false;history=new Map();conversation='group';$('workspace').hidden=true;$('login').hidden=false;$('message').value='';$('message').disabled=false;$('send-button').disabled=false;$('send-button').textContent='发送 ↑';$('messages').replaceChildren();$('group-button').classList.add('active');$('conversation-title').textContent='群组讨论';$('conversation-kind').textContent='GROUP CONVERSATION';};
 $('group-button').onclick=()=>select('group');$('older').onclick=()=>refreshMessages('older');
 $('compose').onsubmit=async e=>{
   e.preventDefault();if(busy||!me||!activeGroup||me.role==='observer')return;if(!pending&&!$('message').value.trim())return;
@@ -197,7 +198,7 @@ setInterval(async()=>{
 },2000);
 
 async function refreshManagement(){
-  invalidateRuntime(true);
+  invalidateRuntime(true);invalidateReview();
   const current=session,selected=activeGroup,refresh=++policyRefresh;
   currentPolicy=null;policyPreview=null;deliveryPreview=null;credentialPreview=null;credentialGeneration++;credentialStates.clear();$('credential-consent').textContent='';policyControls();
   $('policy-error').classList.remove('success');
@@ -223,7 +224,7 @@ async function refreshManagement(){
 }
 $('manage-group').onclick=async()=>{try{$('manage-error').textContent='';$('dissolve-name').value='';await refreshManagement();if(me)$('manage-dialog').showModal();}catch(error){$('network-error').textContent=error.message;}};
 $('close-manage').onclick=()=>$('manage-dialog').close();
-$('manage-dialog').onclose=()=>invalidateRuntime();
+$('manage-dialog').onclose=()=>{invalidateRuntime();invalidateReview();};
 $('add-member').onclick=async()=>{const current=session;try{await api('/api/group-members',{group_id:activeGroup,subject:$('add-human').value,operation:'add'});if(current===session)await refreshManagement();}catch(error){if(current===session)$('manage-error').textContent=error.message;}};
 $('dissolve-group').onclick=async()=>{
   if(policyPending||policyDissolving||deliveryPending||credentialPending)return;
@@ -246,17 +247,17 @@ $('dissolve-group').onclick=async()=>{
 };
 
 function policyControls(){
-  const disabled=!!policyPending||policyDissolving||!!deliveryPending||!!credentialPending||!currentPolicy||currentPolicy.claims.state==='dissolved';
+  const disabled=reviewBusy||!!policyPending||policyDissolving||!!deliveryPending||!!credentialPending||!currentPolicy||currentPolicy.claims.state==='dissolved'||!!currentPolicy.evidence?.conflicts.length;
   document.querySelectorAll('.policy-action').forEach(button=>button.disabled=disabled);
   $('policy-approve').disabled=disabled||!policyPreview;
   $('policy-retry').hidden=!policyPending;
   $('policy-grant').disabled=disabled;
   $('policy-export').disabled=!!policyPending||policyDissolving||!!deliveryPending||!!credentialPending||!currentPolicy;
-  $('dissolve-group').disabled=!!policyPending||policyDissolving||!!deliveryPending||!!credentialPending||!!groups.find(g=>g.id===activeGroup)?.dissolved;
+  $('dissolve-group').disabled=!!currentPolicy?.evidence?.conflicts.length||reviewBusy||!!policyPending||policyDissolving||!!deliveryPending||!!credentialPending||!!groups.find(g=>g.id===activeGroup)?.dissolved;
   deliveryControls();
   credentialControls();
   if((!currentPolicy||policyPending||policyDissolving||deliveryPending||credentialPending)&&(runtimePage||runtimeLoading))invalidateRuntime();
-  runtimeControls();
+  runtimeControls();reviewControls();
 }
 async function refreshPolicy(current,selected,refresh){
   $('policy-panel').hidden=!policyConfig.can_sign;
@@ -312,7 +313,7 @@ async function retryPolicyAction(){
   }finally{if(current===session&&selected===activeGroup){$('policy-retry').disabled=false;policyControls();}}
 }
 $('policy-retry').onclick=retryPolicyAction;
-$('policy-renew').onclick=()=>runPolicyAction('/api/policy-renew');
+$('policy-renew').onclick=()=>runReview(true);
 $('policy-grant').oninput=()=>{policyPreview=null;$('policy-preview-result').textContent='';policyControls();};
 $('policy-preview').onclick=async()=>{
   const current=session,selected=activeGroup,grant=$('policy-grant').value.trim();
@@ -498,3 +499,62 @@ $('credential-use').onclick=()=>{
   $('policy-grant').value=issuedCredential.grant;policyPreview=null;$('policy-preview').click();
 };
 setInterval(credentialControls,1000);
+
+
+function invalidateReview(){
+  reviewGeneration++;reviewBusy=false;sourceReport=null;renewalPreview=null;
+  $('source-results').replaceChildren();$('source-status').textContent='尚未核对。';
+  $('source-error').textContent='';$('renewal-consent').textContent='';$('renewal-confirm').disabled=true;
+}
+function reviewControls(){
+  const busy=reviewBusy||!!policyPending||policyDissolving||!!deliveryPending||!!credentialPending||!currentPolicy;
+  $('source-check').disabled=busy;
+  if(renewalPreview){
+    const now=Math.max(Date.now(),renewalWall+performance.now()-renewalMono);
+    if(now>=renewalPreview.preview_expires_at*1000||Date.now()<renewalPreview.issued_at*1000){
+      renewalPreview=null;$('renewal-consent').textContent='续期预览已失效或时钟回退，请重新预览。';
+    }
+  }
+  $('renewal-confirm').disabled=busy||!renewalPreview||renewalPreview.policy_hash!==currentPolicy?.policy_hash||currentPolicy?.evidence?.can_renew===false;
+  if(!sourceReport&&currentPolicy?.evidence?.conflicts.length)$('source-status').textContent='已保存的签名历史阻止签名：'+currentPolicy.evidence.conflicts.join(', ')+'。请恢复权威历史后再操作。';
+}
+function renderReview(report){
+  const conflicts=report.evidence.conflicts;
+  const incomplete=report.sources.filter(row=>!['read','missing'].includes(row.state)).length;
+  $('source-status').textContent=`核对时刻 ${new Date(report.checked_at*1000).toLocaleString()} · 本机第 ${report.local.revision} 版 · 已知最高第 ${report.evidence.head_revision} 版 · ${report.sources.length} 个配置来源，${incomplete} 个未能稳定读取。`+
+    (conflicts.length?' 签名受阻：'+conflicts.join(', ')+'；不会自动选择或应用来源。':' 仅表示本次观测，不能证明未发现的来源没有更新。');
+  $('source-results').replaceChildren();
+  for(const row of report.sources){
+    const text=`${row.target.id} · ${row.target.url} · ${row.state} · ${row.relation}`+
+      (row.policy?` · 第 ${row.policy.revision} 版 · 签发 ${new Date(row.policy.issued_at*1000).toLocaleString()} · ${row.policy.policy_hash}`:'')+
+      (row.freshness?.expires_at?` · 检查时 ${row.freshness.state} · 此目录期限 ${new Date(row.freshness.expires_at*1000).toLocaleString()}`:'');
+    $('source-results').append(node('li',text));
+  }
+}
+async function runReview(renewal=false){
+  if(reviewBusy||policyPending||policyDissolving||deliveryPending||credentialPending||!currentPolicy)return;
+  const current=session,selected=activeGroup,hash=currentPolicy.policy_hash,generation=++reviewGeneration;
+  reviewBusy=true;sourceReport=null;renewalPreview=null;$('source-results').replaceChildren();$('renewal-consent').textContent='';
+  $('source-error').textContent='';$('source-status').textContent='正在读取所有配置来源；旧观测与续期预览已清除…';policyControls();
+  try{
+    const result=await api(renewal?'/api/policy-renew-preview':'/api/policy-source-check',
+      {group_id:selected,expected_revision:currentPolicy.claims.revision,policy_hash:hash});
+    if(current!==session||selected!==activeGroup||generation!==reviewGeneration||currentPolicy?.policy_hash!==hash||!$('manage-dialog').open)return;
+    sourceReport=result.report;currentPolicy.evidence=result.report.evidence;renderReview(result.report);
+    if(renewal&&result.preview){
+      renewalPreview=result.preview;renewalMono=performance.now();renewalWall=Date.now();
+      $('renewal-consent').textContent=`只为原群组 ${selected} 续期：第 ${result.preview.expected_revision} 版变为第 ${result.preview.expected_revision+1} 版；原成员、权限和凭证 ID 不变。固定签发时刻 ${new Date(result.preview.issued_at*1000).toLocaleString()}；确认期限 ${new Date(result.preview.preview_expires_at*1000).toLocaleString()}。凭证不会续期，目录期限各自独立；签名后仍须另行明确送达。来源读取失败不代表没有更高版本，请先核对本机权威历史。`;
+    }else if(renewal)$('renewal-consent').textContent='已知签名历史不允许续期，请核对并恢复权威历史；不会自动应用远端策略。';
+  }catch(error){
+    if(current===session&&selected===activeGroup&&generation===reviewGeneration){
+      sourceReport=null;renewalPreview=null;$('source-results').replaceChildren();$('source-status').textContent='本次核对未完成；旧观测不能继续使用。';$('source-error').textContent=error.message;
+    }
+  }finally{if(current===session&&selected===activeGroup&&generation===reviewGeneration){reviewBusy=false;policyControls();}}
+}
+$('source-check').onclick=()=>runReview(false);
+$('renewal-confirm').onclick=()=>{
+  reviewControls();if($('renewal-confirm').disabled||!renewalPreview)return;
+  const {group_id,owner,...consent}=renewalPreview;
+  runPolicyAction('/api/policy-renew-confirm',consent);
+};
+setInterval(()=>{if(me&&$('manage-dialog').open)reviewControls();},250);

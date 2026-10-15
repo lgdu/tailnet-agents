@@ -147,6 +147,8 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('.runtime-entry')).to_have_count(0)
             heartbeat();begin_hold()
             page.locator('#policy-renew').click()
+            expect(page.locator('#renewal-confirm')).to_be_enabled()
+            page.locator('#renewal-confirm').click()
             expect(page.locator('#policy-status')).to_contain_text('第 4 版')
             release()
             expect(page.locator('.runtime-entry')).to_have_count(0)

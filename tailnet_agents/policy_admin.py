@@ -37,6 +37,8 @@ class PolicyAuthority:
         return cls(key, principal)
 
     def bind(self, db):
+        from .policy_review import bind
+        bind(db, self.key.public_key())
         db.execute('CREATE TABLE IF NOT EXISTS ui_policy_authority (id INTEGER PRIMARY KEY CHECK(id=1), owner TEXT NOT NULL, principal TEXT NOT NULL)')
         saved = db.execute('SELECT owner,principal FROM ui_policy_authority WHERE id=1').fetchone()
         if saved is not None and saved != (self.owner, self.principal):
@@ -53,6 +55,8 @@ class PolicyAuthority:
             group = db.execute('SELECT name,creator,dissolved FROM chat_groups WHERE id=?', (group_id,)).fetchone()
             if group != (claims['name'], self.principal, int(claims['state'] == 'dissolved')):
                 raise AdmissionError('signed policy and local group state disagree')
+            from .policy_review import remember
+            remember(db, self.key.public_key(), group_id, token, 'local', self.clock())
 
     def require_actor(self, actor):
         if actor != self.principal:
@@ -66,6 +70,8 @@ class PolicyAuthority:
 
     def _save(self, db, group_id, token, action, subject):
         policy = verify_policy(token, self.key.public_key(), group_id)
+        from .policy_review import remember
+        remember(db, self.key.public_key(), group_id, token, 'local', self.clock())
         digest = hashlib.sha256(token.encode()).hexdigest()
         db.execute('INSERT INTO ui_group_policies VALUES(?,?) ON CONFLICT(group_id) DO UPDATE SET token=excluded.token', (group_id, token))
         db.execute('INSERT INTO ui_policy_events(group_id,actor,action,subject,revision,policy_hash,created) VALUES(?,?,?,?,?,?,?)',
@@ -81,7 +87,8 @@ class PolicyAuthority:
     def export(self, db, group_id):
         token, policy = self.current(db, group_id)
         events = db.execute('SELECT actor,action,subject,revision,policy_hash,created FROM ui_policy_events WHERE group_id=? ORDER BY id DESC LIMIT 50', (group_id,)).fetchall()
-        return {'group_id': group_id, 'owner_public_key': encode(public_bytes(self.key.public_key())),
+        from .policy_review import evidence
+        return {'evidence': evidence(db, self.key.public_key(), group_id, token), 'group_id': group_id, 'owner_public_key': encode(public_bytes(self.key.public_key())),
                 'policy': token, 'policy_hash': hashlib.sha256(token.encode()).hexdigest(), 'claims': policy,
                 'audit': [dict(zip(('actor', 'action', 'subject', 'revision', 'policy_hash', 'created'), row)) for row in reversed(events)]}
 
@@ -119,6 +126,8 @@ class PolicyAuthority:
         token, policy = self.current(db, group_id)
         if policy['state'] != 'active':
             raise PermissionError('signed group is dissolved')
+        from .policy_review import require_safe
+        require_safe(db, self.key.public_key(), group_id, token)
         if revision != policy['revision']:
             raise FileExistsError('policy changed; refresh and confirm the current revision')
         members = policy['members'].copy()
@@ -143,5 +152,7 @@ class PolicyAuthority:
     def dissolve(self, db, group_id):
         token, policy = self.current(db, group_id)
         if policy['state'] != 'dissolved':
+            from .policy_review import require_safe
+            require_safe(db, self.key.public_key(), group_id, token)
             updated = revise_policy(self.key, token, {}, dissolve=True, now=int(self.clock()))
             self._save(db, group_id, updated, 'dissolve', group_id)

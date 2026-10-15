@@ -282,3 +282,13 @@ one selected snapshot to a recipient fixed in the human UI's startup configurati
 and records signed readback and age metadata. These recipients are separate from
 configured pull sources and discovery candidates. Opening or previewing the UI
 does not synchronize, and no discovered endpoint is promoted to either trust list.
+
+## Separate all-source human diagnosis (v0.28, unreleased)
+
+The gateway's [policy review](policy-review.md) explicitly compares all configured
+recipients, including backups hidden by a healthy primary. It persists verified
+signed conflict/terminal history and provides fixed-time human renewal consent.
+Gateway recipients and directory pull sources are independently configured; there
+is no discovery promotion, newest-source selection, quorum or automatic adoption.
+Normal directory pulls still follow the ordered failover rules above. Renewed
+policy needs separate explicit delivery/pull, and grants retain their own expiry.

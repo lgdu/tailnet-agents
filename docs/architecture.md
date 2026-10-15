@@ -685,3 +685,39 @@ The mesh simulator remains separate. The UI can now sign/export these snapshots
 with an existing local authority; runtime enrollment remains separate.
 v0.18 bounds active-policy age and adds source failover; it does not connect those
 independent paths or grant membership through discovery.
+
+### Implemented all-source diagnosis and renewal consent (v0.28, unreleased)
+
+Ordered replica failover is unchanged. A separate human action compares **all**
+explicit gateway recipients, including backups. Owner/group signatures establish
+signed facts; recipient freshness is only a transport-authenticated observation.
+GET policy/status/policy plus local expiry checks detect unstable reads. Network
+I/O runs outside the chat lock, followed by a local snapshot/configuration recheck.
+
+```mermaid
+flowchart LR
+  HUMAN["Configured signer admin + group creator"] --> REVIEW["Explicit all-source check / GET only at fixed origins"]
+  TARGETS["Configured LAN or Tailscale recipients / Credentials + CA remain local"] --> REVIEW
+  REVIEW --> VERIFY["Owner/group signature + semantic comparison / Age + stable read checks"]
+  VERIFY --> LEDGER[("Durable signed facts / Partial-read evidence + local signatures")]
+  LEDGER --> GATE["Higher history, forks or terminal evidence block new signing"]
+  GATE --> PREVIEW["Known-safe original group / Fixed timestamp + 60-second consent"]
+  HUMAN --> CONFIRM["Separate explicit confirmation"]
+  PREVIEW --> CONFIRM
+  CONFIRM --> CHECK["Recheck snapshot, evidence, target bindings and retry ID"]
+  CHECK --> TX[("Atomic policy + evidence + audit + acknowledgment")]
+  TX --> EXPORT["Read acknowledged snapshot / Separate explicit export or delivery"]
+```
+
+No source is elected, adopted or promoted from discovery. Equivalent signed
+claims with different serialization are not equivocation. Known unsafe facts
+persist across failures, source removal and restart, gating every new policy
+signature, including legacy manual renewal and dissolution. A previously committed
+identical request only recovers its original result. Renewal leaves members,
+permissions and grant IDs unchanged; it does not renew credentials or deliver.
+
+The ledger is private local membership metadata, not an independently witnessed
+log. Startup revalidates signed facts, but an operator-controlled database rollback
+can erase history. Unreachable sources do not prove an authority head. Explicit
+history import/fork resolution, pruning, quorum and automatic reconciliation are
+future work. See [policy review](policy-review.md) for consent and recovery bounds.

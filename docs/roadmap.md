@@ -1,4 +1,4 @@
-# Remaining work for the v0.27 development line
+# Remaining work for the v0.28 development line
 
 The verified directory can persist and exchange signed policy and credential
 revocations between configured peers. The human UI remains a local simulated chat application, with an optional
@@ -36,7 +36,7 @@ automatically rerun or migrated; queued work requires an explicit authorized ret
 | Priority | Work | Acceptance evidence |
 |---|---|---|
 | P1 | Discovery operations and explicit runtime enrollment | Validate physical LAN/tailnet behavior, optional mDNS/peer enumeration and a separately authorized handoff from candidate to admitted runtime |
-| P1 | Multi-source reconciliation and policy renewal UX | Compare sources beyond ordered failover, diagnose equivocation, renew signed authorization through explicit human-controlled administration |
+| P1 | Policy history reconciliation and recovery | Explicit safe authority-history import/fork resolution, evidence retention, and quorum semantics; v0.28 delivers all-source diagnosis and human renewal consent |
 | P2 | Task operations | Explicit human uncertain-result resolution/cancellation, retention/quotas, scheduling and MCP/UI integration; no automatic replay of possible side effects |
 | P2 | Message operations | Human UI integration, explicit blocked-outbox cancellation, retention/quotas, push and multi-store routing; any relay privacy claim requires E2E encryption |
 | P2 | Presence operations | Multi-hop propagation and relayed UI preserve original deadlines, provenance and observed conflicts |
@@ -45,8 +45,10 @@ automatically rerun or migrated; queued work requires an explicit authorized ret
 | P2 | Operational deployment | Actual household LAN and cross-region tailnet trials, certificate/key renewal, backups, rate limits and service packaging |
 | P2 | Release readiness | Browser interaction QA, interoperability/security review, installation instructions and owner-selected open-source license |
 
-Suggested order after durable signed simulation tasks: multi-source reconciliation
-and human renewal UX → adapter contracts/probing → real adapters and deployment trials.
+v0.28 adds explicit all-source policy diagnosis, persistent conflict/terminal
+evidence and fixed-time human renewal consent, without automatic snapshot adoption.
+Suggested next order: adapter contracts/probing → real adapters and deployment trials.
+History reconciliation, safe fork resolution and physical enrollment remain open.
 Real product connections remain conditional on actual interface access.
 Discovery is separate from authorization. A fresh or isolated Agent waits for
 human approval or restores existing valid qualification; it never creates a group.
