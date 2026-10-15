@@ -196,7 +196,7 @@ or concurrent recovery. Interrupted running work becomes uncertain without
 another invocation; queued tasks need an explicit fresh submission. The CLI
 starts only Echo simulation. See [durable tasks](durable-tasks.md).
 
-## Explicit reference adapter metadata (v0.29, unreleased)
+## Explicit reference adapter metadata (v0.29)
 
 With `--tasks`, the default Echo executor additionally accepts read-token protected
 `POST /v1/task-adapter-probe` with only a fresh 64-character lowercase hex `nonce`.

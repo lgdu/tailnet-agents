@@ -635,7 +635,7 @@ physical LAN/tailnet validation are future work. See [durable tasks](durable-tas
   result boundaries, signed receipts, explicit queued recovery and crash-to-uncertain.
 - v0.28: explicit all-source policy comparison, durable signed conflict/terminal
   evidence and fixed-time human renewal preview/confirmation.
-- v0.29 (unreleased): reference Echo contract, offline inventory and explicit signed
+- v0.29: reference Echo contract, offline inventory and explicit signed
   metadata probe; no product executables or caller authority from metadata.
 - Next: real interface validation when available, safe task operations and candidate-to-runtime trust handoff.
 - Next: integrated mesh transport with cryptographic admission.
@@ -726,7 +726,7 @@ can erase history. Unreachable sources do not prove an authority head. Explicit
 history import/fork resolution, pruning, quorum and automatic reconciliation are
 future work. See [policy review](policy-review.md) for consent and recovery bounds.
 
-### Implemented reference adapter contract/probe (v0.29, unreleased)
+### Implemented reference adapter contract/probe (v0.29)
 
 The default durable executor uses a fixed Echo reference adapter. Its contract
 shares the existing `echo-v1` persisted identity and 2048-byte text bounds. No

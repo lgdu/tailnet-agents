@@ -172,7 +172,7 @@ leaves uncertainty. Unit tests inject simulation callbacks only to verify crash
 boundaries, not to claim production side-effect safety. Trusted clocks, private
 storage and timely human-controlled policy/revocation delivery remain required.
 
-## Reference adapter inspection (v0.29, unreleased)
+## Reference adapter inspection (v0.29)
 
 The default Echo implementation now has an explicit [adapter contract](adapters.md)
 with the same `echo-v1` persisted identity and unchanged signed task wire format.

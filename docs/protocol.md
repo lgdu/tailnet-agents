@@ -620,7 +620,7 @@ errors return 400, authorization failures 403 and changed bindings/unsafe histor
 409. Individual source failures are attributed report rows, not whole-request 502.
 This is manual diagnosis/consent, not quorum or automatic reconciliation.
 
-## Reference adapter metadata (v0.29, unreleased)
+## Reference adapter metadata (v0.29)
 
 With an explicit default Echo task executor, `POST /v1/task-adapter-probe` accepts
 exactly `{nonce}` where nonce is 64 lowercase hex characters. Existing Host/Origin

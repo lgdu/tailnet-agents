@@ -1,4 +1,4 @@
-# Reference adapter contracts and inspection (v0.29, unreleased)
+# Reference adapter contracts and inspection (v0.29)
 
 Only synthetic Echo is implemented. An existing human-approved executor retains
 its own original key, group and database; discovery, inventory and probing never

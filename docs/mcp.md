@@ -100,7 +100,7 @@ memory. They do not automatically select the new executor, acquire `task.echo`
 grants or gain durable caller state. A future explicit bridge must preserve the
 original task ID/executor and uncertainty semantics; no implicit migration exists.
 
-## Separate adapter contract inspection (v0.29, unreleased)
+## Separate adapter contract inspection (v0.29)
 
 The [adapter catalog/probe](adapters.md) is separate from these MCP tools. It can
 inspect a pinned simulation executor's metadata but cannot delegate or approve a

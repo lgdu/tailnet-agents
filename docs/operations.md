@@ -375,7 +375,7 @@ never establish history completeness. Human renewal has a fixed timestamp and
 separate. The legacy manual renew API performs no implicit scan. See
 [policy review](policy-review.md) for exact guards and test coverage.
 
-## Adapter inventory and metadata operations (v0.29, unreleased)
+## Adapter inventory and metadata operations (v0.29)
 
 Use the offline [catalog](adapters.md) to inspect implementation status, and probe
 only an explicitly configured original executor with existing public pins and a

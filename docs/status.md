@@ -1,4 +1,4 @@
-# Implementation status — v0.29 (unreleased)
+# Implementation status — v0.29
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -324,7 +324,7 @@ adapters and physical LAN/Tailscale/WAN trials. The evidence ledger contains sig
 member snapshots; protect its consistent backups. Database rollback or deletion
 cannot safely resolve a conflict. Normal directory pulls retain ordered failover.
 
-## v0.29 reference adapter contracts and probing (unreleased)
+## v0.29 reference adapter contracts and probing
 
 The default durable executor uses an explicit Echo reference adapter with the
 existing `echo-v1` identity and unchanged task wire format/SQLite context. Contract
@@ -354,7 +354,10 @@ Unimplemented: real OpenClaw/Codex/Claude Code/Qoder/Grok interfaces, executable
 product/plugin selection, arbitrary task kinds or filesystem/tool authority,
 product login/session provisioning, model API integration, cancellation/timeouts
 for real adapters, owner/key recovery and physical LAN/Tailscale trials. The Human
-UI and MCP still use their separate simulated/legacy paths. v0.29 is unreleased.
+UI and MCP still use their separate simulated/legacy paths. v0.29.0 is published
+as a GitHub prerelease with a matching annotated tag. PR #17 passed all six CI
+checks. Merged-main validation: all 453 identity tests pass without skips; core
+passes 55 with 398 expected skips; all three Chromium checks pass on their first run.
 
 ## Documentation maintenance rule
 
