@@ -6,6 +6,7 @@ import os
 import ipaddress
 import re
 import ssl
+import sqlite3
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs,urlparse
@@ -19,7 +20,9 @@ from .peer_presence import PresenceSynchronizer
 from .policy_delivery import load_policy_targets
 
 
-def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=None,discovery=None,*,presence_export=False,presence_synchronizer=None):
+def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=None,discovery=None,*,presence_export=False,presence_synchronizer=None,messages=False):
+    from .network_messages import MessageStore
+    message_store=MessageStore(directory) if messages else None
     allowed_hosts=allowed_hosts or ("127.0.0.1","localhost")
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
@@ -109,7 +112,9 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=N
         def do_POST(self):
             try:
                 self.local()
-                if self.path not in ('/v1/challenges','/v1/registrations','/v1/revocations','/v1/policies'):
+                if self.path in ('/v1/messages/challenges','/v1/messages') and message_store is None:
+                    return self.respond(404,{'error':'messages disabled'})
+                if self.path not in ('/v1/challenges','/v1/registrations','/v1/revocations','/v1/policies','/v1/messages/challenges','/v1/messages'):
                     return self.respond(404,{'error':'not found'})
                 if self.path in ('/v1/revocations','/v1/policies'):
                     self.read_auth()
@@ -119,6 +124,14 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=N
                 payload=json.loads(self.rfile.read(size))
                 if not isinstance(payload,dict):
                     raise ValueError('object required')
+                if self.path=='/v1/messages/challenges':
+                    if set(payload)!={'request'}:raise ValueError('invalid message challenge')
+                    return self.respond(200,message_store.challenge(payload['request']))
+                if self.path=='/v1/messages':
+                    if set(payload)!={'request','grant','public_key','proof','nonce'} or not all(isinstance(payload[k],str) for k in ('grant','public_key','proof','nonce')):
+                        raise ValueError('invalid authenticated message operation')
+                    key=Ed25519PublicKey.from_public_bytes(decode(payload['public_key']))
+                    return self.respond(200,message_store.execute(payload['request'],payload['grant'],key,payload['proof'],payload['nonce']))
                 if self.path=='/v1/policies':
                     if set(payload)!={'policy'}:
                         raise ValueError('invalid policy fields')
@@ -149,10 +162,12 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=N
                 directory.revoke(payload['revocation'])
                 self.respond(200,{'revoked':True})
             except FileExistsError:
-                self.respond(409,{'error':'stale or conflicting runtime incarnation'})
+                self.respond(409,{'error':'stale or conflicting identity/message'})
             except (PermissionError,AdmissionError):
                 # Do not expose grant, proof, keys, prompts or detailed verifier errors.
                 self.respond(403,{'error':'request not authorized'})
+            except sqlite3.Error:
+                self.respond(503,{'error':'storage unavailable; retry original request'})
             except (ValueError,UnicodeError,TypeError):
                 self.respond(400,{'error':'invalid request'})
     return Handler
@@ -220,6 +235,7 @@ def main():
     parser.add_argument('--policy-peer-ca',help='trusted CA certificate PEM for the configured source')
     parser.add_argument('--policy-sync-interval',type=float,default=10,help='policy pull interval, 1..3600 seconds')
     parser.add_argument('--policy-max-age',type=int,help='maximum signed policy age, 1..86400 seconds; default 300 or persisted limit')
+    parser.add_argument('--messages',action='store_true',help='opt-in signed group/direct text store; requires policy mode')
     parser.add_argument('--presence-export',action='store_true',help='explicitly export local signed presence AND scoped grants to authenticated replicas')
     parser.add_argument('--presence-sources-file',help='1..8 fixed sources: id, url, group_id, token_env and optional ca_cert')
     parser.add_argument('--presence-sync-interval',type=float,default=5,help='presence pull interval, 1..3600 seconds')
@@ -238,6 +254,8 @@ def main():
         parser.error('--policy-peer-ca requires --policy-peer')
     if (args.policy_sources_file or args.policy_max_age is not None) and not (args.require_policy or args.policy_file):
         parser.error('policy sources and maximum age require policy mode')
+    if args.messages and not (args.require_policy or args.policy_file):
+        parser.error('messages require signed policy mode')
     if (args.presence_export or args.presence_sources_file) and not (args.require_policy or args.policy_file):
         parser.error('presence export/sources require policy mode')
     if bool(args.discovery_agent_key)!=bool(args.discovery_endpoint):
@@ -276,7 +294,7 @@ def main():
             broadcaster=LanBroadcaster(discovery,args.discovery_lan_interface,args.discovery_lan_port)
         scheme='https' if context else 'http'
         server=AdmissionHTTPServer((args.host,args.port),handler(directory,token,allowed,scheme,synchronizer,discovery,
-            presence_export=args.presence_export,presence_synchronizer=presence_synchronizer),context)
+            presence_export=args.presence_export,presence_synchronizer=presence_synchronizer,messages=args.messages),context)
     except (ValueError,OSError):
         if presence_synchronizer is not None:presence_synchronizer.stop()
         if broadcaster is not None:

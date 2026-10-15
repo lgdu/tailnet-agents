@@ -421,3 +421,81 @@ twenty subjects each per source per poll. Completed scans restart from the
 beginning; incomplete scans continue next poll. Cached history persists through
 failure/restart and keeps its original deadlines. Shutdown blocks late writes.
 See [peer presence](peer-presence.md) for opt-in grant handling and limitations.
+
+## Signed network messages (v0.26, unreleased)
+
+Separate custom text protocol on the admission service, enabled only by explicit
+`--messages` with signed policy mode. Directory bearer credentials cannot read
+message content. Origin/Host/Origin-header checks and HTTP/TLS transport rules
+are the same as admission; default is disabled (404). No endpoint calls product
+Agents, generates groups/keys/grants, enrolls members or starts an automatic reply.
+
+POST `/v1/messages/challenges` takes `{request}`. Two exact request schemas:
+
+```json
+{"operation":"send","message":"AGENT_SIGNED_TEXT_JWS"}
+```
+
+```json
+{"operation":"read","scope":"direct","peer":"ed25519:OTHER_ID_HASH","after":0,"limit":20}
+```
+
+Group reads use `scope:"group", peer:null`. Direct reads require one exact peer
+identity. `after` is an integer 0..2^53−1, `limit` an integer 1..20; booleans,
+extra fields, unknown scopes/operations and inconsistent peers are invalid.
+The challenge returns `{nonce,context}` with a 30-second single-use nonce and
+`messages-v1:` plus SHA-256 of the sorted compact JSON request. Challenges share
+the bounded admission nonce pool. They do not authorize any message read/write.
+
+POST `/v1/messages` takes exact fields
+`{request,grant,public_key,proof,nonce}`. The proof uses existing possession-proof
+JWS semantics: subject, grant hash, nonce, pinned service audience and context.
+It binds the complete send envelope or read scope/peer/cursor/limit, so a read
+proof cannot be replayed as a send or broadened to another conversation. Verify
+current grant (`join` and `chat.group`/`chat.direct`), signed policy age, approved
+credential ID and learned revocations on every operation, including duplicate
+sends. Recipient policy approval with direct scope and an unrevoked approved ID
+is required for direct sends; valid recipient credentials are checked when read.
+
+Text JWS type `tailnet-agent-message+jwt` has exact claims:
+`version:1, owner, group_id, audience, sender, recipient, message_id,
+conversation_id, reply_to, kind:"text", text, created_at`. Header binds the Agent
+key as in existing Ed25519 tokens. Owner/group/audience must match the existing
+store, sender must match the verified key/grant, recipient is null (group) or an
+Ed25519 subject, IDs/reply references are 32 lowercase hex characters, and text
+is nonblank, at most 4096 UTF-8 bytes within the shared 16 KiB token bound.
+Creation time is a nonnegative integer up to 2^53−1 and at send cannot exceed
+receiver time +30 seconds. It has no delivery TTL: a valid current manually
+renewed grant can submit its original old queued envelope. Authorization is at
+acceptance, not inferred from an untrusted historical creation timestamp.
+
+Conversation ID is SHA-256 of compact JSON `[owner,group_id,scope,parties]`;
+`scope` is `group` with `parties:[]`, or `direct` with the sorted unique sender/
+recipient identities. Replies must reference a stored message in the same
+conversation. A successful send returns exact
+`{state:"stored",message_id,sequence,message_hash}` after durable commit.
+`message_hash` is SHA-256 of the original compact JWS token. An exact retry gives
+the original sequence/hash. A reused ID with any different envelope returns 409.
+This receipt is a trusted store/TLS statement, not proof of recipient reading.
+
+Read result exact fields:
+`{owner,group_id,audience,conversation_id,after,next_after,has_more,messages}`.
+Each entry is `{sequence,message,public_key,stored_at}`; no grant or private key
+is returned. Sequences are positive increasing integers, scoped by the selected
+conversation with possible gaps from other conversations. `next_after` is the
+last returned sequence (or original cursor for an empty page). `has_more` is
+boolean and only true for a full page. No private conversations are enumerable
+through group reads or directory bearer APIs. An authorized group reader sees
+all retained group history; a direct reader must be one of its participants.
+Sender removal does not delete a still-authorized recipient's private history.
+
+Client validates full page context, signatures, conversation, participant,
+sequences, timestamps and cursor before atomically committing inbox/cursor.
+An exception cannot advance its cursor past unsaved text. Errors are sanitized:
+400 malformed requests, 403 invalid authorization/signature/context/recipient/
+reply, 404 disabled or unknown routes, 409 conflicting ID, 413 body size outside
+1..65536 bytes and 503 unavailable storage. Failed sends retain original pending
+IDs; no automatic alternate-store delivery occurs. History sender signatures are
+independently verified, but authorization-at-insertion depends on the trusted
+store, not attached historical policy proofs. Plaintext storage operators are
+trusted. See [network messages](network-messages.md) for recovery and privacy limits.

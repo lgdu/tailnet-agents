@@ -472,6 +472,52 @@ grants and must preserve the private cache/head transaction boundary. Trusted
 clocks/local database operators and rollback limits remain unchanged. See
 [peer presence](peer-presence.md).
 
+### Signed messages at a designated store (v0.26, unreleased)
+
+Synthetic Agent keys explicitly select one existing group and trusted history
+origin/audience/CA. The opt-in admission service checks current signed policy,
+scoped grants, revocations and an operation-bound fresh possession proof for every
+send/read. Text envelopes bind owner/group/audience, stable message/conversation
+IDs, sender/recipient, optional reply reference, kind and signed creation time.
+The store commits an immutable envelope before acknowledging `stored`; it does
+not assert recipient delivery or execute text. Direct reads require a current
+participant credential; group readers may read all retained group history.
+Owners and directory bearer readers have no implicit private-history read API.
+Trusted store operators hold plaintext. No E2E confidentiality is claimed.
+
+```mermaid
+sequenceDiagram
+  participant A as Agent A / key A + durable outbox
+  participant S as Explicit HTTPS store / current policy + private SQLite
+  participant B as Agent B / key B + durable cursor
+  A->>A: Commit signed envelope + stable ID as pending
+  A->>S: Challenge for exact send operation
+  S-->>A: Single-use nonce + context hash
+  A->>S: Grant + key + operation-bound proof + signed text
+  S->>S: Verify authorization and commit/deduplicate immutable message
+  S-->>A: stored + ID + sequence + envelope hash
+  A->>A: Commit receipt (lost response keeps pending)
+  B->>S: Fresh challenge and scoped proof for conversation + cursor
+  S-->>B: Participant-authorized signed history page
+  B->>B: Verify every entry, atomically commit inbox + cursor
+```
+
+Both-end restart preserves pending IDs, receiver deduplication and per-conversation
+catch-up. Lost acknowledgments retry the original envelope at the original store;
+conflicting reuse fails, not a second send. Full-page verification and inbox/cursor
+commit share a transaction. Expiry/removal/dissolution block subsequent operations
+without deleting retained history. A still-authorized participant can read old
+private messages after the other participant leaves. The service's message
+audience and client key/group/origin/audience/CA are pinned in private state.
+Independent keys on the same host remain distinct; this polling transport requires
+no per-Agent listener. No discovery/source promotion, group creation, enrollment,
+policy signing, reply loop or task execution occurs.
+
+This is a designated-store network path, separate from human-principal Echo chat,
+MCP tasks and presence. Human UI routing, multi-store replication/failover, push,
+E2E encryption, retention/cancellation UX and physical LAN/tailnet trials remain
+future work. See [network messaging](network-messages.md) for deployment and limits.
+
 ## Human interaction
 
 The human UI shows groups, verified members, local reachability, capabilities,
@@ -493,7 +539,8 @@ privacy based only on UI filtering. No group administrator implicit read access.
 
 Conversation history uses a designated store initially. Its downtime does not
 stop discovery or peer tasks, but history/delivery can be unavailable. A UI outbox
-holds unsent messages and shows pending status. No false "delivered" acknowledgment.
+is a target requirement for the browser. v0.26 implements a separate Agent CLI
+outbox with committed/pending state; browser integration remains future work. No false "delivered" acknowledgment.
 Group dissolution does not imply irreversible deletion of history; retention is
 an explicit separate human action.
 
@@ -538,9 +585,11 @@ necessary; network membership never grants filesystem or secret access.
   human gateway, with source/time attribution and signature/policy/expiry guards.
 - v0.25: explicit one-hop presence exports/pulls, independent grant
   checks, attributed cache and durable merged-view ordering.
-- Next: cross-node messages and candidate-to-runtime trust handoff.
+- v0.26 (unreleased): signed group/direct text at a configured trusted store,
+  scoped operation proofs, durable outbox/deduplication and catch-up cursors.
+- Next: durable task execution and candidate-to-runtime trust handoff.
 - Next: integrated mesh transport with cryptographic admission.
-- Then: validated agent adapters, durable tasks and real LAN/tailnet trials.
+- Then: validated agent adapters and real LAN/tailnet trials.
 
 Do not replace working registry mode until mesh fault and authorization tests pass.
 
@@ -583,8 +632,8 @@ v0.15 implements durable owner-signed group snapshots and opt-in enforcement
 in verified admission, including member removal and terminal dissolution.
 v0.16 adds configured-peer policy replication, including removals and dissolution.
 v0.17 also replicates signed credential revocations. v0.25 adds a separate
-one-hop presence-observation cache; chat/tasks and multi-hop presence remain
-unimplemented.
+one-hop presence-observation cache. v0.26 adds designated-store signed messages;
+durable tasks, multi-store messages and multi-hop presence remain unimplemented.
 The mesh simulator remains separate. The UI can now sign/export these snapshots
 with an existing local authority; runtime enrollment remains separate.
 v0.18 bounds active-policy age and adds source failover; it does not connect those

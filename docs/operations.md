@@ -284,3 +284,40 @@ and a higher heartbeat are needed before negative cached data can become online.
 Watch per-source catching_up/error and original receipt/expiry times; poll success
 is not fresh Agent possession or policy renewal. Physical network validation is
 still outstanding, and bounded scans may lag large source histories.
+
+## Signed message store and client state (v0.26, unreleased)
+
+`--messages` explicitly adds conversation tables to the policy-enforced admission
+database. Default disabled startup preserves tables without exposing message
+routes. Keep its owner/group/audience and existing key files; changing the saved
+message audience fails. `tailnet-messages` requires a separate private state file
+per independent Agent and fixed origin/audience/CA. Multiple keys on one machine
+are supported; one exclusive client process uses each state file at a time.
+Do not point it at heartbeat state. No product adapter or model executor starts.
+See [network messages](network-messages.md) for complete service/client commands.
+
+Back up both databases consistently with SQLite backup. The receiver includes
+immutable text, IDs, deduplication receipts and sequence; client state includes
+pending/stored envelopes, receipts, verified inbox and per-conversation cursors.
+Plaintext private messages are sensitive: preserve 0600 files and private parent
+directories, including journals/WAL and backups. No retention/deletion command or
+E2E encryption is implemented. Administrative directory bearer credentials grant
+no implicit message API access, but trusted filesystem operators can read data.
+
+On recovery, restart the original configured service and client with their old
+files. Retry pending sends using `flush`, read subsequent pages using `sync` until
+`has_more:false`. `stored` means committed by the fixed service, not recipient
+read/execution. A response loss safely retries the same signed envelope and ID.
+Earlier acknowledged entries remain stored if a later flush fails; failed entries
+remain pending in order. Diagnose expired/revoked/unapproved credentials and stale
+policy separately with human-approved issuance/renewal/delivery; the message client
+never signs policy or grants. A replacement approved grant for the same subject
+can resume the same state. Recipient membership/policy, reply-reference or ID
+conflicts require operator diagnosis; no implicit cancellation or alternate-store
+rerouting occurs. Do not reset state to bypass a conflict or policy expiry.
+
+Dissolution blocks later sends/reads without deleting history. Existing downloaded
+plaintext cannot be revoked. Restoring older snapshots, losing store disks or
+changing origin/audience/CA without a migration plan can lose receipt/cursor
+meaning; rollback recovery and HA replication are not implemented. Production
+quotas, rate limits, key rotation and physical LAN/Tailscale trials remain open.
