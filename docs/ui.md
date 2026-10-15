@@ -243,3 +243,21 @@ its existing explicit workflow, but its Echo chat does not submit those tasks.
 There is no task dashboard, automatic executor startup or uncertain-task recovery
 button. A future UI must preserve original task IDs/executors and distinguish
 queued, running and terminal uncertainty without offering silent replay.
+
+## Explicit all-source policy review and renewal (v0.28, unreleased)
+
+Signed-group management adds **核对所有配置来源** and a two-step fixed-time
+renewal workflow. It uses the existing explicitly configured policy recipients,
+checks every source including backups and retains verified higher/conflicting/
+terminal history in the gateway database. Known unsafe history blocks new policy
+signatures even after a source is removed or the page is closed. Opening this
+panel alone performs no remote reads. Checking writes local signed evidence,
+while remote requests remain GET only.
+
+**预览人工续期（先核对来源）** checks sources, then shows unchanged membership,
+fixed issue time and a 60-second confirmation deadline. Separate confirmation
+signs the original group's next revision; export/delivery remains explicit and
+grants are not renewed. Old reports/consent clear on failures, refresh, group
+change, closing management or logout; browser clock changes cannot revive expired
+consent. A missing source is an incomplete observation, not proof of no update.
+See [policy review](policy-review.md) for persistent conflicts, retries and limits.

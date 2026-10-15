@@ -32,3 +32,5 @@ jobs:
         run: python scripts/check_policy_ui.py --browser /usr/bin/google-chrome
       - name: Check source-scoped runtime monitoring in runner Chrome
         run: python scripts/check_runtime_ui.py --browser /usr/bin/google-chrome
+      - name: Check all-source policy review and human renewal consent
+        run: python scripts/check_policy_review_ui.py --browser /usr/bin/google-chrome

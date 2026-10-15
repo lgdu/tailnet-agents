@@ -151,3 +151,13 @@ separate explicit GET-only observation reads. Opening management/listing targets
 still performs no remote requests. Monitoring does not deliver policy; a policy
 mismatch requires a separate human decision. Receiver credentials stay on the
 gateway and signed observations remain separate from delivery receipts.
+
+## Separate source review (v0.28, unreleased)
+
+The same explicit recipients can be compared through [policy review](policy-review.md).
+Opening management and delivery previews still perform no network I/O; the source
+check and renewal preview are distinct explicit actions that perform remote GETs
+and retain local signed evidence. They do not deliver or choose a source. Renewal
+confirmation signs only; a subsequent delivery needs its own recipient/snapshot
+consent. Known unsafe signed history blocks new signing without deleting existing
+policies or silently replacing them. Delivery receipts remain historical observations.

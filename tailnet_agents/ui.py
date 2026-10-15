@@ -167,10 +167,14 @@ def handler(store, users):
                 if not isinstance(group_id,str):
                     raise ValueError('invalid group id')
                 store.require_group(principal,group_id)
-                if self.path in ('/api/policy-preview', '/api/policy-approve', '/api/policy-remove', '/api/policy-renew', '/api/policy-delivery-preview', '/api/policy-deliver', '/api/credential-preview', '/api/credential-issue'):
+                if self.path in ('/api/policy-preview', '/api/policy-approve', '/api/policy-remove', '/api/policy-renew', '/api/policy-delivery-preview', '/api/policy-deliver', '/api/credential-preview', '/api/credential-issue', '/api/policy-source-check', '/api/policy-renew-preview', '/api/policy-renew-confirm'):
                     authority = store.policy_authority
                     if role != 'admin' or authority is None or principal != authority.principal:
                         raise PermissionError('configured policy administrator required')
+                    if self.path in ('/api/policy-source-check', '/api/policy-renew-preview'):
+                        return self.response(200, store.policy_review(principal, group_id, payload, renewal=self.path == '/api/policy-renew-preview'))
+                    if self.path == '/api/policy-renew-confirm':
+                        return self.response(200, store.policy_renew_confirm(principal, group_id, payload))
                     if self.path in ('/api/credential-preview', '/api/credential-issue'):
                         method = store.credential_preview if self.path == '/api/credential-preview' else store.credential_issue
                         return self.response(200, method(principal, group_id, payload))

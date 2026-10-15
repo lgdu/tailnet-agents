@@ -1,4 +1,4 @@
-# Human policy signing — v0.22
+# Human policy signing — v0.28 (unreleased)
 
 The local UI can optionally act as a trusted human signing gateway. An explicitly
 configured admin can create a new signed group, preview and approve pre-issued
@@ -36,7 +36,8 @@ No HTTP route accepts or returns a private key or changes signer configuration.
 The database pins both the owner public identity and human administrator.
 Subsequent starts require the same key, pin, principal and admin role. Omitting
 signing flags or changing the persisted identity fails startup, preserving state.
-Startup verifies saved signed policies against their original local group state;
+Startup verifies saved signed policies and retained source evidence against the
+pinned owner; it also checks the current policy against original local group state;
 it never re-signs or renews them. Existing local-only groups remain local-only.
 There is no implicit conversion or reassignment of their IDs.
 
@@ -61,10 +62,14 @@ There is no implicit conversion or reassignment of their IDs.
    directory through its authenticated policy route or startup `--policy-file`.
    Alternatively, explicitly configure and preview/confirm [recipient delivery](policy-delivery.md).
    Signing alone does not contact a directory, discovered URL or policy source.
-5. Use **明确续期策略** before the directory's signed-age deadline. This explicitly
-   signs a higher revision without changing members, even if the old policy has
-   expired. Reading, polling, restart and discovery cannot renew policy. Grant
-   lifetime and the directory's learned revocations still apply independently.
+5. Use **预览人工续期（先核对来源）** before the directory's signed-age deadline.
+   Review all configured recipients and retained signed history, then explicitly
+   **确认续期** within the fixed 60-second preview. Confirmation signs the next
+   revision of this same group with unchanged members and grant IDs, even if the
+   old policy expired. Grants are not renewed; delivery remains separate. Known
+   higher/conflicting/terminal history blocks new signing. Missing sources do not
+   prove history complete. See [policy review](policy-review.md) for failure and
+   recovery limits. Reading, polling, restart and discovery cannot renew policy.
 6. Removing a signed identity removes all its approved grant IDs. Those IDs are
    retained locally as retired and cannot be approved again in this UI; readmission
    requires a newly issued grant. Other credentials for a member merge up to the
@@ -121,7 +126,7 @@ response itself was lost, it retries the original idempotent mutation first.
 Dissolution likewise blocks downloads until its terminal snapshot is read.
 
 Policy audit records include actor, operation, subject, revision, policy hash
-and time. The policy, requests and audit commit in the same SQLite transaction.
+and time. The policy, requests, evidence and audit commit in the same SQLite transaction.
 The original grant is neither stored in SQLite nor returned in exports; retry
 deduplication stores its hash. Audit is local plaintext data, not a tamper-proof
 log against the database operator. Protect consistent backups; restoring an old

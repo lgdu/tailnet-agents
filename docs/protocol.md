@@ -190,7 +190,7 @@ recipient or register an Agent. Signer configuration loads only from trusted sta
 |---|---|
 | GET `/api/policy-config` | Authenticated enabled/can_sign flags; no key material |
 | POST `/api/groups` | Optional boolean `signed_policy`; true requires configured signer admin; creates an empty signed policy with the local group's exact ID |
-| GET `/api/group-policy?group_id=...` | Signer admin + creator only; signed policy, claims, owner public pin and latest 50 policy audit records |
+| GET `/api/group-policy?group_id=...` | Signer admin + creator only; signed policy, claims, owner public pin, latest 50 policy audit records and v0.28 evidence summary |
 | POST `/api/policy-preview` | `group_id`, `grant`; verifies pre-issued grant and returns subject, expiry, grant permissions, proposed complete membership scope and current revision without mutation |
 | POST `/api/policy-approve` | `group_id`, `grant`, `expected_revision`, `request_id`; approve its scoped identity/grant ID |
 | POST `/api/policy-remove` | `group_id`, `subject`, `expected_revision`, `request_id`; remove all that identity's approved IDs and retire them locally |
@@ -198,7 +198,7 @@ recipient or register an Agent. Signer configuration loads only from trusted sta
 | POST `/api/group-dissolve` | Existing exact-name confirmation also signs terminal policy when this is a signed group |
 
 All policy operations require the configured signer admin and group creator.
-Only active groups can change or retry policy operations. Expected revision and changed retry-payload
+Only active groups can create new policy changes. A committed identical retry makes no new signature. Expected revision and changed retry-payload
 conflicts return 409; identical committed retries return the original acknowledgment
 without signing again. Invalid schema/grants return 400 and unauthorized access
 returns 403. Removal retires IDs within this UI database, not a new distributed
@@ -569,3 +569,53 @@ context, 404 disabled/unknown/other-caller ID, 409 conflicting ID, 413 body outs
 1..65536 bytes, 429 retained capacity, 503 unavailable storage or stopping executor.
 TLS, Host/Origin and proxy/redirect rules match admission. See
 [durable tasks](durable-tasks.md) for actual command/recovery and current bounds.
+
+## All-source policy review and reviewed renewal (v0.28)
+
+Three loopback UI POST routes require the configured signing admin/group creator,
+with existing Host/Origin and bearer checks. They accept no arbitrary destination,
+private key, discovery candidate or new identity. Signed directory policy format
+and normal ordered failover are unchanged.
+
+| Route | Exact request fields |
+|---|---|
+| `/api/policy-source-check` | `group_id`, `expected_revision`, `policy_hash` |
+| `/api/policy-renew-preview` | Same fields; additionally prepares fixed renewal consent if known safe |
+| `/api/policy-renew-confirm` | `group_id`, `expected_revision`, `policy_hash`, `issued_at`, `preview_expires_at`, `evidence_hash`, `targets_fingerprint`, `consent_hash`, `request_id` |
+
+Check/preview return `{report, preview}`. The report includes `group_id`, local
+snapshot summary, `checked_at`, ordered per-target `sources` and `evidence`.
+Each source has public target binding, `state`, `relation`, optional policy and
+freshness summaries, check time and an optional fixed diagnostic. Valid signed
+facts from partial/changing reads persist atomically; a local-policy/configuration
+race returns 409 and discards that scan. No remote POST is performed. Missing or
+failed sources do not establish complete history and are not automatically chosen.
+
+Policy summaries contain revision, exact-token `policy_hash`, verified-claims
+`semantic_hash`, `issued_at` and policy state, omitting members/full JWS/grants.
+The exact-token hash remains SHA-256 of the token bytes; semantic/evidence/consent
+hashes use SHA-256 of Python `json.dumps(value, sort_keys=True, separators=(',', ':'),
+allow_nan=False).encode()` (default ASCII escaping). The evidence digest covers
+sorted `(revision, semantic_hash)` entries, deduplicating equivalent claims.
+Evidence summaries include `head_revision`, `conflicts`, `terminal_known`,
+`can_renew`, `digest` and `statements`. Group-policy exports add the same summary.
+See [reason codes and persistence](policy-review.md#durable-signed-evidence).
+
+A non-null preview includes group/owner, expected revision, exact token hash,
+fixed integer issue time, `preview_expires_at = issued_at + 60`, evidence hash,
+ordered public-target fingerprint digest and consent hash of those fields.
+Confirmation sends all preview fields except `owner`, plus one stable request ID;
+owner/group are rebound from the authenticated authority/context. Target bindings
+include ID, URL, group and CA fingerprint, never credential values. The server
+rejects changed/expired/future consent, evidence, targets or local snapshots;
+confirmation time must fall in `[issued_at, preview_expires_at)` and not precede
+the current snapshot's issue time. Membership/grant IDs are unchanged. Response
+is the ordinary revision/hash/state acknowledgment. No delivery occurs.
+
+Known unsafe signed history blocks every new policy signature, including the
+legacy explicit `/api/policy-renew`. Identical already committed requests return
+the original acknowledgment before current-history/expiry checks; changed reuse
+of a request ID conflicts across legacy and reviewed operations. Schema/expiry
+errors return 400, authorization failures 403 and changed bindings/unsafe history
+409. Individual source failures are attributed report rows, not whole-request 502.
+This is manual diagnosis/consent, not quorum or automatic reconciliation.

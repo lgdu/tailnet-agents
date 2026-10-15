@@ -236,6 +236,42 @@ class ChatStore:
             self.policy_authority.current(self.db, group_id)
             return {'targets': [target.public() for target in self.policy_targets.values() if target.group_id == group_id]}
 
+    def policy_review(self, actor, group_id, payload, *, renewal=False):
+        from .policy_review import evidence, preview, read_sources, remember, summary
+        from .policy_delivery import policy_hash
+        if (set(payload) != {'expected_revision', 'policy_hash'} or type(payload['expected_revision']) is not int or
+                not isinstance(payload['policy_hash'], str) or len(payload['policy_hash']) != 64):
+            raise ValueError('current policy revision/hash required')
+        with self.lock:
+            self._require_policy_admin(actor, group_id)
+            token, claim = self.policy_authority.current(self.db, group_id)
+            if claim['revision'] != payload['expected_revision'] or policy_hash(token) != payload['policy_hash']:
+                raise FileExistsError('本地策略已变化，请重新读取。')
+            targets = tuple(target for target in self.policy_targets.values() if target.group_id == group_id)
+            owner, clock = self.policy_authority.key.public_key(), self.policy_authority.clock
+        reads = read_sources(targets, owner, token, clock)
+        with self.lock, self.db:
+            self._require_policy_admin(actor, group_id)
+            latest, _ = self.policy_authority.current(self.db, group_id)
+            current_targets = tuple(target for target in self.policy_targets.values() if target.group_id == group_id)
+            if latest != token or len(current_targets) != len(targets) or any(a is not b for a, b in zip(current_targets, targets)):
+                raise FileExistsError('策略或来源配置在读取期间变化，请重新核对。')
+            for target, (_, tokens) in zip(targets, reads):
+                for observed in tokens:remember(self.db, owner, group_id, observed, target.fingerprint, clock())
+            known = evidence(self.db, owner, group_id, token)
+            result = {'group_id': group_id, 'local': summary(token, claim), 'checked_at': clock(),
+                      'sources': [row for row, _ in reads], 'evidence': known}
+            consent = preview(self.policy_authority, self.db, group_id, targets) if renewal and known['can_renew'] else None
+            return {'report': result, 'preview': consent}
+
+    def policy_renew_confirm(self, actor, group_id, payload):
+        from .policy_review import confirm
+        with self.lock, self.db:
+            self.db.execute('BEGIN IMMEDIATE')
+            self._require_policy_admin(actor, group_id)
+            targets = tuple(target for target in self.policy_targets.values() if target.group_id == group_id)
+            return confirm(self.policy_authority, self.db, group_id, payload, targets)
+
     def runtime_presence(self, actor, group_id, target_id, *, after='', limit=20):
         with self.lock:
             self._require_policy_admin(actor, group_id)

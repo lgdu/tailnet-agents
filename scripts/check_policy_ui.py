@@ -222,14 +222,18 @@ with tempfile.TemporaryDirectory() as folder:
                     route.abort()
                 else:
                     route.continue_()
-            page.route('**/api/policy-renew', lose_response)
+            page.route('**/api/policy-renew-confirm', lose_response)
             page.locator('#policy-renew').click()
+            expect(page.locator('#renewal-confirm')).to_be_enabled()
+            page.locator('#renewal-confirm').click()
             expect(page.locator('#policy-retry')).to_be_enabled()
             assert store.policy_export('owner',group)['claims']['revision']==3
             page.locator('#policy-retry').click()
             expect(page.locator('#policy-status')).to_contain_text('第 3 版')
             assert store.policy_export('owner',group)['claims']['revision']==3
-            change_with_delayed_read(lambda: page.locator('#policy-renew').click(), 4, fail=True)
+            page.locator('#policy-renew').click()
+            expect(page.locator('#renewal-confirm')).to_be_enabled()
+            change_with_delayed_read(lambda: page.locator('#renewal-confirm').click(), 4, fail=True)
             page.on('dialog', lambda dialog: dialog.accept())
             change_with_delayed_read(lambda: page.locator('#policy-members button').click(), 5)
             expect(page.locator('#policy-status')).to_contain_text('第 5 版')

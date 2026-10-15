@@ -356,3 +356,21 @@ the same subject. Graceful shutdown drains active task calls; forced termination
 leaves running work uncertain. This Echo-only prototype is not ready for real
 side-effect adapters, and physical LAN/Tailscale/WAN validation remains open.
 The old bearer bridge and MCP delegation still use their separate in-memory API.
+
+## Policy review evidence and renewal (v0.28, unreleased)
+
+Preserve the original owner key/public pin, admin principal, group IDs and gateway
+SQLite database. Upgrading creates `ui_policy_evidence` and seeds current signed
+snapshots; it cannot reconstruct earlier unknown history. Explicit checks retain
+additional signed snapshots (including member grant IDs), even when a later
+source read fails. Use consistent protected backups; no retention/pruning tool is
+implemented. Startup verifies saved evidence, and known newer/conflicting/terminal
+history blocks new policy signatures across source removal and restart.
+
+Do not delete the ledger or roll back the database to bypass a conflict. Preserve
+signed facts and stop signing until authority history is reconciled. Safe history
+import, fork resolution and owner/key recovery remain future work. Missing sources
+never establish history completeness. Human renewal has a fixed timestamp and
+60-second confirmation window; grant expiry stays unchanged and distribution is
+separate. The legacy manual renew API performs no implicit scan. See
+[policy review](policy-review.md) for exact guards and test coverage.

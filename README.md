@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.27 prototype.** Working components are listed below. The network mesh and
+**v0.28 prototype (unreleased).** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -18,6 +18,7 @@ action; agents may only discover or restore previously authorized groups.
 | Human UI | Explicit groups, scoped chat, opt-in owner-signed creation/approval/removal/renewal/dissolution, policy export, explicit recipient delivery and human-confirmed grant issuance | Trusted loopback gateway; private-file installer; manual trusted transfer; simulated agents |
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
 | Policy replication | Ordered HTTP/TLS source failover, independent revocation cursors, periodic pull and status | Configured policy sources only; no quorum, chat/task replication |
+| Human policy review | Explicit all-source comparison, durable signed conflict/terminal evidence and fixed-time renewal preview/confirmation | Configured recipients only; no automatic adoption, quorum, fork repair or grant renewal |
 | Candidate discovery | Signed UDP multicast with ingress filtering, HTTP/TLS seeds, sticky conflicts, synchronized policy/revocation checks | Existing directory/key required; Linux LAN receiver; candidates only, no auto-enrollment or policy-source promotion |
 | Network messages | Opt-in signed group/direct text, scoped possession checks, durable sender outbox, committed receiver deduplication and paginated catch-up | One explicitly configured trusted plaintext store; simulation CLI, no E2E, Human UI bridge or automatic reply |
 | Peer presence | Explicit one-hop pulls, independent grant/policy/revocation checks, attributed cache, durable observation ordering and API/CLI | Export opt-in includes scoped grants; no local leases, membership changes, multi-hop gossip or relayed UI |
@@ -54,6 +55,10 @@ flowchart TB
     ISSUE --> SIGN
     SIGN --> GRANT["Human downloads scoped grant / 不改变成员策略"]
     GRANT --> INSTALL["Recipient validates own key / 新文件 0600 保存"]
+    UI --> REVIEW["Explicit all-source policy check / 配置来源、签名与时效核对"]
+    REVIEW -->|"Verified signed history / 保存冲突与终止证据"| DB
+    REVIEW --> CONSENT["Fixed-time renewal preview / 人工确认、不改变成员或凭证"]
+    CONSENT --> SIGN
     SIGN --> EXPORT["Download signed policy / 明确导出"]
     UI --> DELIVERY["Explicit recipient + snapshot consent / 接收方与快照确认"]
     DB --> DELIVERY
@@ -84,6 +89,8 @@ flowchart TB
     EXPORT --> APPLY["Human-operated client / 手动应用到已配置目录"]
     APPLY -->|"Read token + signed policy"| API
     DELIVERY -->|"Configured TLS + signed readback / 明确送达与确认"| API
+    REVIEW -->|"GET policy + status + policy / 所有配置来源"| API
+    REVIEW -->|"GET only / 同样核对备用来源"| BACKUP
     RUNTIME["Explicit simulation runtime / 原身份、原群组、持久运行序号"] -->|"Signed heartbeat + fresh proof"| API
     API --> OBS["Signed presence + bounded live lease / 目录观测"]
     OBS --> VIEW["Authenticated presence CLI / 在线、离线、过期、未授权"]
@@ -347,6 +354,20 @@ current `task.echo` permission. Same-host Agents/executors retain independent
 keys and private state. See [durable tasks](docs/durable-tasks.md) for commands,
 TLS, recovery and bounds. Legacy bearer bridge/MCP tasks remain separate.
 
+## All-source policy review and human renewal (v0.28, unreleased)
+
+In signed-group management, **核对所有配置来源** reads every configured recipient,
+including backups hidden by healthy-primary failover. The panel compares signed
+revisions, semantic conflicts and each directory's age bound. It retains verified
+higher revisions, equivocation and terminal evidence across source failure/removal
+and gateway restart; known unsafe history blocks new policy signatures.
+**预览人工续期（先核对来源）** prepares a fixed timestamp and 60-second confirmation
+window. A separate confirmation signs only the original group's next revision,
+with unchanged members and credential IDs; it never renews grants or delivers
+policy. A failed source cannot prove history complete. No snapshot is automatically
+chosen or adopted, and discovery cannot add sources. See [policy review](docs/policy-review.md)
+for incomplete reads, persistent evidence, retry semantics and recovery limits.
+
 ## Verification
 
 ```bash
@@ -359,7 +380,11 @@ are explicitly skipped. CI runs both core and identity installations. The new si
 visual/accessibility coverage and real-agent compatibility remain outstanding.
 The dedicated CI browser job also delays policy reads and checks that download
 never uses a pre-mutation snapshot; failed refreshes keep exports disabled.
-v0.27 includes 390 tests: the 355-test v0.26 baseline plus 35 durable-task
+v0.28 includes 423 tests: the 390-test v0.27 baseline plus 33 policy-review
+checks for all-source HTTP/TLS reads, durable conflicts/terminal evidence, partial
+failures, transaction rollback, fixed-time consent and concurrency/retry guards.
+A third Chromium check covers the review/renewal panel and stale responses.
+v0.27 added 35 durable-task
 checks, including a real process crash after a simulated side effect, conservative
 uncertainty, transaction failures, signed receipt checks and independent same-host
 executors/callers. v0.26 added 33 network-message checks covering actual HTTP/TLS and service/client processes, participant isolation,
@@ -382,9 +407,10 @@ state/lease preservation, mid-scan updates, service shutdown and restart recover
 - [Current status and next work](docs/status.md)
 - [Prioritized remaining work](docs/roadmap.md)
 
-Next: multi-source policy reconciliation, human renewal UX and explicit candidate enrollment; connect verified
-identity and candidate discovery to the mesh engine, broaden browser QA,
-and then add real product adapters and deployment trials.
+Next: adapter contracts and interface probing, then real adapters when available
+and physical deployment trials. Quorum/automatic policy reconciliation, safe fork
+resolution and explicit candidate enrollment remain open; connect verified identity
+and candidate discovery to the mesh engine and broaden browser QA.
 The working registry mode remains available during mesh development.
 v0.27.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.27.0)
 with a matching annotated version tag. Release checks and tag synchronization are described

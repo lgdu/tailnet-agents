@@ -1,4 +1,4 @@
-# Implementation status — v0.27
+# Implementation status — v0.28 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -17,7 +17,8 @@ its future requirements must not be read as implemented security guarantees.
 | Simulation runtime | Existing identity/group, signed heartbeat leases, durable boot/sequence ordering, graceful offline and paginated observations | POSIX; configured directory; authenticated manual UI monitoring; separate one-hop observation replication |
 | Verified directory | Library + HTTP/TLS admission, read token, durable signed revocation and signed-runtime presence | Real LAN/tailnet trial, physical transport trials and mesh replication |
 | Signed group policy | Durable snapshots, bounded signed age, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | Live receiver monitoring and candidate-to-runtime trust handoff |
-| Policy replication | Ordered source failover, independent revocation cursors, HTTP/TLS pull and read-protected status | Multi-source reconciliation/quorum and explicit source enrollment |
+| Policy replication | Ordered source failover, independent revocation cursors, HTTP/TLS pull and read-protected status | Automatic reconciliation/quorum and explicit source enrollment |
+| Human policy review | All configured recipients compared on explicit request; persistent signed history guards; fixed-time renewal preview/confirmation | No automatic source choice/adoption, fork recovery, grant renewal or delivery; failures leave history incomplete |
 | Candidate discovery | Opt-in signed IPv4 multicast, credential-free HTTP/TLS seeds, local-policy checks, expiry and identity merging | Physical LAN/tailnet trials, mDNS/peer enumeration and explicit runtime enrollment |
 | Mesh | State simulator, separate candidate discovery and one-hop signed observation replication | Integrated network group engine, multi-store messages and real executors |
 | Product agents | None | OpenClaw/Claude Code/Codex/Qoder/Grok interface validation |
@@ -276,6 +277,49 @@ HA and physical LAN/Tailscale/WAN trials. The legacy bearer bridge remains
 in-memory and independent. v0.27.0 is published as a GitHub prerelease with a matching annotated tag.
 Merged main validation: 390 identity tests pass without skips; core passes 50
 with 340 expected skips; both Chromium regressions pass on their first run.
+
+## v0.28 all-source review and human renewal (unreleased)
+
+The configured signing admin/group creator can explicitly compare every configured
+policy recipient, including backups an available primary would hide. The gateway
+verifies scoped owner signatures, reads freshness metadata between two snapshot
+reads and reports attributed revision/semantic agreement and conservative age.
+Every remote call is GET; source observations never alter local membership, grants,
+leases, selected sources or active policy. Valid signed facts from partial or
+changing reads still enter an atomic durable evidence ledger.
+
+Known higher history, same-revision semantic conflict, timestamp rollback,
+post-dissolution revisions or a learned terminal policy block new signatures,
+including legacy manual renew/approval/removal/dissolution. Source failure/removal
+and restart cannot erase those facts. Equivalent differently serialized tokens
+are not semantic conflicts. No policy is automatically imported or selected.
+
+The browser prepares a fixed-time, 60-second renewal consent after explicit reads.
+Separate confirmation rechecks original snapshot, evidence and source bindings,
+signs unchanged members/grant IDs, and commits audit/evidence/deduplication together.
+An identical committed retry recovers the original acknowledgment after expiry or
+new evidence, without a second signature. Expiry, browser clock rollback and late
+responses after group/close/policy changes invalidate pending consent. Failed reads
+clear earlier source rows. Unreachable sources cannot establish complete history;
+human renewal may proceed only when the retained signed history is safe.
+
+The suite contains 423 tests (33 new source-review/consent checks), with a third
+Chromium workflow for explicit reads, confirmation, expiry, races, sticky conflicts
+and narrow-screen layout. Full local rerun: all 423 identity tests pass without
+skips; core passes 50 with 373 expected skips. The initial full run had one existing
+runtime-monitor registration failure (`waiting` instead of `registered`) alongside
+a server-side BrokenPipe; timeout is suspected but unconfirmed. Its isolated
+21-test file passed, as did the complete rerun. See [policy review](policy-review.md)
+for behavior and limits. All three final serial Chromium regressions passed;
+JS syntax, dependencies, package/MCP version, mesh simulation and 25-document
+link/anchor checks pass. See the PR for remote CI results. This version has not
+been released.
+
+Unimplemented: automatic reconciliation/quorum, authority-history import and fork
+resolution, evidence pruning/retention, owner rotation/recovery, real product
+adapters and physical LAN/Tailscale/WAN trials. The evidence ledger contains signed
+member snapshots; protect its consistent backups. Database rollback or deletion
+cannot safely resolve a conflict. Normal directory pulls retain ordered failover.
 
 ## Documentation maintenance rule
 
