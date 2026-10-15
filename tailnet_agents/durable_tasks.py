@@ -11,6 +11,7 @@ import threading
 import time
 
 from .identity import (AdmissionError, GRANT_TYPE, identity_id, sign, verify, verify_grant)
+from .adapters import CONTRACT_ID, MAX_TEXT_BYTES, EchoAdapter
 
 TASK_TYPE = 'tailnet-agent-task+jwt'
 RESULT_TYPE = 'tailnet-agent-task-result+jwt'
@@ -32,7 +33,7 @@ def task_id(value):
 
 
 def bounded_text(value):
-    return isinstance(value, str) and 1 <= len(value.encode('utf-8')) <= 2048
+    return isinstance(value, str) and 1 <= len(value.encode('utf-8')) <= MAX_TEXT_BYTES
 
 
 def verify_task(token, key, owner, group, audience, executor, *, now=None):
@@ -106,7 +107,7 @@ class TaskExecutor:
             raise AdmissionError('existing executor key must match grant and differ from owner')
         self.directory, self.key, self.grant = directory, key, grant
         self.db, self.capacity = directory._registry.db, capacity
-        self.adapter = (lambda text: text) if adapter is None else adapter
+        self.adapter = EchoAdapter() if adapter is None else adapter
         self.condition, self.active, self.closing = threading.Condition(), 0, False
         self.descriptor = None
         try:
@@ -122,7 +123,7 @@ class TaskExecutor:
                 self.db.execute('PRAGMA synchronous=FULL')
                 with self.db:
                     self.db.execute('CREATE TABLE IF NOT EXISTS task_executor_context (id INTEGER PRIMARY KEY CHECK(id=1),executor TEXT NOT NULL,audience TEXT NOT NULL,adapter TEXT NOT NULL)')
-                    context = (self.subject, directory._admission.audience, 'echo-v1')
+                    context = (self.subject, directory._admission.audience, CONTRACT_ID)
                     previous = self.db.execute('SELECT executor,audience,adapter FROM task_executor_context WHERE id=1').fetchone()
                     if previous and previous != context:raise AdmissionError('cannot replace original executor/audience/adapter')
                     self.db.execute('INSERT OR IGNORE INTO task_executor_context VALUES(1,?,?,?)', context)
@@ -148,6 +149,14 @@ class TaskExecutor:
         context = validate_request(request)
         with self._live(), self.directory.lock:
             return {'nonce': self.directory._admission.challenge(context), 'context': context}
+
+    def probe(self, nonce, source):
+        from .adapter_probe import signed_descriptor
+        with self._live(), self.directory.lock:
+            # In-process test callbacks are not verified product adapters. Never
+            # call plugin hooks, describe methods or task code while inspecting.
+            if type(self.adapter) is not EchoAdapter:raise TaskUnavailable('unverified adapter contract')
+            return {'descriptor': signed_descriptor(self, nonce, source)}
 
     def _authorize(self, grant, subject):
         directory = self.directory

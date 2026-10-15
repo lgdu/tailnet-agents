@@ -171,3 +171,14 @@ a future blocking adapter could delay shutdown, and forced termination deliberat
 leaves uncertainty. Unit tests inject simulation callbacks only to verify crash
 boundaries, not to claim production side-effect safety. Trusted clocks, private
 storage and timely human-controlled policy/revocation delivery remain required.
+
+## Reference adapter inspection (v0.29, unreleased)
+
+The default Echo implementation now has an explicit [adapter contract](adapters.md)
+with the same `echo-v1` persisted identity and unchanged signed task wire format.
+A read-authenticated metadata probe can inspect its signed contract without
+submitting a task, advancing execution state or recovering uncertain work. Opening
+a service, catalog lookup and discovery do not probe automatically. Existing
+in-process Python test callbacks are not verified product adapters and cannot
+advertise the reference contract. All submit/query permission and recovery rules
+above remain in force; compatible metadata gives callers no execution permission.

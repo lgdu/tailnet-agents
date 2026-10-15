@@ -1,4 +1,4 @@
-# Remaining work for the v0.28 development line
+# Remaining work for the v0.29 development line
 
 The verified directory can persist and exchange signed policy and credential
 revocations between configured peers. The human UI remains a local simulated chat application, with an optional
@@ -40,14 +40,19 @@ automatically rerun or migrated; queued work requires an explicit authorized ret
 | P2 | Task operations | Explicit human uncertain-result resolution/cancellation, retention/quotas, scheduling and MCP/UI integration; no automatic replay of possible side effects |
 | P2 | Message operations | Human UI integration, explicit blocked-outbox cancellation, retention/quotas, push and multi-store routing; any relay privacy claim requires E2E encryption |
 | P2 | Presence operations | Multi-hop propagation and relayed UI preserve original deadlines, provenance and observed conflicts |
-| P2 | Real adapters | Validate available OpenClaw, Codex, Claude Code, Qoder and Grok interfaces individually; model APIs and product Agents are distinct |
+| P2 | Real adapters | Build on the reference contract/probe; validate available product interfaces individually, explicit task scopes and recovery behavior; model APIs and product Agents are distinct |
 | P2 | Secure provisioning operations | Authenticated confidential transfer, credential retention/pruning, recovery and key rotation are verified without confusing installation with admission |
 | P2 | Operational deployment | Actual household LAN and cross-region tailnet trials, certificate/key renewal, backups, rate limits and service packaging |
 | P2 | Release readiness | Browser interaction QA, interoperability/security review, installation instructions and owner-selected open-source license |
 
 v0.28 adds explicit all-source policy diagnosis, persistent conflict/terminal
 evidence and fixed-time human renewal consent, without automatic snapshot adoption.
-Suggested next order: adapter contracts/probing → real adapters and deployment trials.
+v0.29 adds a strict Echo reference contract, offline implementation inventory and
+explicit signed metadata probe. Real product interfaces remain unvalidated; no
+installed product is scanned or launched, and metadata grants no task rights.
+Suggested next order: validate available product interfaces → explicitly scoped
+real adapters → physical deployment trials. If product access remains unavailable,
+continue with explicit task cancellation/uncertain-result operations using simulation.
 History reconciliation, safe fork resolution and physical enrollment remain open.
 Real product connections remain conditional on actual interface access.
 Discovery is separate from authorization. A fresh or isolated Agent waits for

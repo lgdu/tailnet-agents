@@ -374,3 +374,18 @@ never establish history completeness. Human renewal has a fixed timestamp and
 60-second confirmation window; grant expiry stays unchanged and distribution is
 separate. The legacy manual renew API performs no implicit scan. See
 [policy review](policy-review.md) for exact guards and test coverage.
+
+## Adapter inventory and metadata operations (v0.29, unreleased)
+
+Use the offline [catalog](adapters.md) to inspect implementation status, and probe
+only an explicitly configured original executor with existing public pins and a
+read credential from an environment binding. Keep secrets out of CLI arguments
+and reports. Probing creates no caller state, task, identity or group and does not
+scan installed products. The default Echo contract keeps the existing `echo-v1`
+SQLite binding; no migration is required for existing durable Echo state.
+
+A metadata result expires within its signed interval (at most 15 seconds after
+issue, capped by local policy/grant deadlines) and never proves task permission or
+product health. Re-probing is another explicit read; no automatic scheduling,
+fallback product or retry of uncertain work occurs. Real interfaces, process/session
+management, external cancellation and physical LAN/Tailscale trials are unvalidated.

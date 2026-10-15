@@ -619,3 +619,30 @@ of a request ID conflicts across legacy and reviewed operations. Schema/expiry
 errors return 400, authorization failures 403 and changed bindings/unsafe history
 409. Individual source failures are attributed report rows, not whole-request 502.
 This is manual diagnosis/consent, not quorum or automatic reconciliation.
+
+## Reference adapter metadata (v0.29, unreleased)
+
+With an explicit default Echo task executor, `POST /v1/task-adapter-probe` accepts
+exactly `{nonce}` where nonce is 64 lowercase hex characters. Existing Host/Origin
+checks and the directory **read bearer token** protect this route; it does not
+allocate admission/task challenges. The normal JSON body bound is 1..65536 bytes.
+Without `--tasks` it is 404. Response is exactly `{descriptor: JWS}` with no-store
+headers. Bad schema is 400, read/authorization denial 403, and unavailable/closed/
+unverified callback executors return 503. No task request or policy mutation occurs.
+
+The descriptor JWS type is `tailnet-agent-adapter-descriptor+jwt`, signed by the
+original executor. Payload fields are exactly `version` (integer 1), `owner`,
+`group_id`, `audience`, `executor`, canonical `source` origin, requested `nonce`,
+`issued_at`, `expires_at` and `contract`. Timestamps accept finite nonnegative
+JSON numbers up to 2^53-1, preserving fractions; booleans are rejected. The signed
+interval is positive and at most 15 seconds, clipped to executor grant and local
+policy deadlines after server-side current authorization. The verifier accepts
+at most five seconds of future issue time and requires its post-response clock
+strictly before expiry. Original source/context/key/nonce must match.
+
+The strict Echo contract and canonical hash are specified in [adapter contracts](adapters.md).
+Unknown versions/products/fields/types fail closed; there is no fallback to product
+execution. The descriptor proves possession for this metadata response, not an
+owner-signed admission chain or the caller's execution permission. It cannot be
+used as a task grant, intent or operation proof. Task requests/receipts, SQLite
+executor identity `echo-v1` and `task.echo` authorization remain unchanged.

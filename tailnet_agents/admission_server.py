@@ -115,13 +115,13 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=N
         def do_POST(self):
             try:
                 self.local()
-                if self.path in ('/v1/task-challenges','/v1/agent-tasks') and task_executor is None:
+                if self.path in ('/v1/task-challenges','/v1/agent-tasks','/v1/task-adapter-probe') and task_executor is None:
                     return self.respond(404,{'error':'tasks disabled'})
                 if self.path in ('/v1/messages/challenges','/v1/messages') and message_store is None:
                     return self.respond(404,{'error':'messages disabled'})
-                if self.path not in ('/v1/challenges','/v1/registrations','/v1/revocations','/v1/policies','/v1/messages/challenges','/v1/messages','/v1/task-challenges','/v1/agent-tasks'):
+                if self.path not in ('/v1/challenges','/v1/registrations','/v1/revocations','/v1/policies','/v1/messages/challenges','/v1/messages','/v1/task-challenges','/v1/agent-tasks','/v1/task-adapter-probe'):
                     return self.respond(404,{'error':'not found'})
-                if self.path in ('/v1/revocations','/v1/policies'):
+                if self.path in ('/v1/revocations','/v1/policies','/v1/task-adapter-probe'):
                     self.read_auth()
                 size=int(self.headers.get('Content-Length','0'))
                 if not 0<size<=65536:
@@ -129,6 +129,9 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=N
                 payload=json.loads(self.rfile.read(size))
                 if not isinstance(payload,dict):
                     raise ValueError('object required')
+                if self.path=='/v1/task-adapter-probe':
+                    if set(payload)!={'nonce'}:raise ValueError('invalid adapter probe')
+                    return self.respond(200,task_executor.probe(payload['nonce'],scheme+'://'+self.headers['Host'].lower()))
                 if self.path=='/v1/task-challenges':
                     if set(payload)!={'request'}:raise ValueError('invalid task challenge')
                     return self.respond(200,task_executor.challenge(payload['request']))

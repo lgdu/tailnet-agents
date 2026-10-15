@@ -4,11 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tailnet-agents"
-version = "0.28.0"
+version = "0.29.0"
 description = "Discover heterogeneous agents across a Tailscale network"
 requires-python = ">=3.11"
 
 [project.scripts]
+tailnet-adapters = "tailnet_agents.adapters:main"
 tailnet-agent-registry = "tailnet_agents.registry:main"
 tailnet-agent-bridge = "tailnet_agents.bridge:main"
 tailnet-agents = "tailnet_agents.cli:main"
