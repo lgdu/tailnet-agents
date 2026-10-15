@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.25 prototype (unreleased).** Working components are listed below. The network mesh and
+**v0.25 prototype.** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -297,7 +297,7 @@ view neither contacts advertised Agent endpoints nor changes leases, policy or
 Echo participants. Source credentials remain on the trusted gateway. See
 [runtime monitoring](docs/runtime-monitoring.md) for roles, pagination and limits.
 
-## Configured peer presence replication (v0.25, unreleased)
+## Configured peer presence replication (v0.25)
 
 Explicitly enable `--presence-export` on a source to expose its local signed
 heartbeats and scoped grants to authenticated replicas. Receivers configure
@@ -344,8 +344,8 @@ Next: cross-node group/direct messages, durable tasks and explicit candidate enr
 identity and candidate discovery to the mesh engine, broaden browser QA,
 and then add real product adapters and durable tasks.
 The working registry mode remains available during mesh development.
-v0.24.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.24.0)
-with a matching annotated version tag. v0.25.0 is unreleased and untagged in this PR. Release checks and tag synchronization are described
+v0.25.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.25.0)
+with a matching annotated version tag. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 
 No open-source license has been selected yet. Public release requires an owner

@@ -1,4 +1,4 @@
-# Configured peer presence replication — v0.25 (unreleased)
+# Configured peer presence replication — v0.25
 
 Directories can explicitly pull signed heartbeat observations from configured
 sources in the same existing human-created group. The receiver independently

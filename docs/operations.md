@@ -261,7 +261,7 @@ Retain directory and runtime state as in v0.23. See [runtime monitoring](runtime
 for permission, clock, paging and receiver-observation limits.
 
 
-## Peer presence cache and export (v0.25, unreleased)
+## Peer presence cache and export (v0.25)
 
 Enable grant-bearing `--presence-export` only for explicitly trusted replicas.
 Configure `--presence-sources-file` separately using existing groups and original

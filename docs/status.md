@@ -1,4 +1,4 @@
-# Implementation status — v0.25 (unreleased)
+# Implementation status — v0.25
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -187,7 +187,7 @@ At v0.24, peer presence replication, continuous revocation monitoring, real prod
 and physical LAN/tailnet trials remain open. See [monitoring](runtime-monitoring.md).
 v0.24.0 is published as a GitHub prerelease with a matching annotated tag.
 
-## v0.25 configured peer presence replication (unreleased)
+## v0.25 configured peer presence replication
 
 Sources explicitly opt in to exporting local signed heartbeats and scoped grants.
 Receivers pull all configured same-group sources, independently verify Agent and
@@ -204,7 +204,11 @@ contains 322 tests, including 26 replication cases covering actual HTTP/TLS and
 service/reader CLIs, replay/conflict, independent multi-Agent identities, bounded
 scans, transaction rollback, partitions, restart and shutdown. Multi-hop gossip,
 relayed UI, cross-node chat/tasks, real adapters and physical LAN/tailnet validation
-remain unimplemented. See [peer presence](peer-presence.md). v0.25.0 is not published or tagged.
+remain unimplemented. See [peer presence](peer-presence.md). v0.25.0 is published as a GitHub prerelease with a matching annotated tag.
+Merged main verification: 322 identity tests pass without skips; core passes 50
+with 272 expected skips; both Chromium checks pass. The policy browser first
+hit a five-second download-button assertion timeout; isolated retry and a
+second repeat pass. This timing failure remains recorded in release notes.
 
 ## Documentation maintenance rule
 

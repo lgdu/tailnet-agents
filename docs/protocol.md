@@ -371,7 +371,7 @@ state on failed/superseded reads and expire cached observations conservatively.
 Pages are independent reads, not one atomic snapshot. See [monitoring](runtime-monitoring.md).
 
 
-## Configured peer presence replication (v0.25, unreleased)
+## Configured peer presence replication (v0.25)
 
 GET `/v1/presence-export?after=&limit=20` is disabled (404) unless the source
 explicitly enables `--presence-export`; enabled reads require the directory read

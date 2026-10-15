@@ -435,7 +435,7 @@ expired cached display. The receiver's grant/revocation decision remains its
 authenticated observation; no independent grant proof or global/executor health
 attestation is implied. See [runtime monitoring](runtime-monitoring.md).
 
-### Configured one-hop presence observations (v0.25, unreleased)
+### Configured one-hop presence observations (v0.25)
 
 ```mermaid
 flowchart LR
@@ -536,7 +536,7 @@ necessary; network membership never grants filesystem or secret access.
   signed heartbeat leases and authenticated paginated presence observations.
 - v0.24: authenticated, explicitly read runtime monitoring on the
   human gateway, with source/time attribution and signature/policy/expiry guards.
-- v0.25 (unreleased): explicit one-hop presence exports/pulls, independent grant
+- v0.25: explicit one-hop presence exports/pulls, independent grant
   checks, attributed cache and durable merged-view ordering.
 - Next: cross-node messages and candidate-to-runtime trust handoff.
 - Next: integrated mesh transport with cryptographic admission.
