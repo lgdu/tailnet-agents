@@ -278,7 +278,7 @@ in-memory and independent. v0.27.0 is published as a GitHub prerelease with a ma
 Merged main validation: 390 identity tests pass without skips; core passes 50
 with 340 expected skips; both Chromium regressions pass on their first run.
 
-## v0.28 all-source review and human renewal (unreleased)
+## v0.28 all-source review and human renewal
 
 The configured signing admin/group creator can explicitly compare every configured
 policy recipient, including backups an available primary would hide. The gateway
