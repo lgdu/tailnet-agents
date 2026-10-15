@@ -133,16 +133,21 @@ class VerifiedDirectory:
                     raise AdmissionError('cannot downgrade persisted signed presence to legacy registration')
                 if observed['generation']<old[0] or (observed['generation']==old[0] and (observed['boot_id']!=old[1] or observed['sequence']<=old[2])):
                     raise FileExistsError('stale or conflicting runtime incarnation')
-            remaining=math.floor(grant['exp']-self.clock())
+            lease_now=self.clock()
+            remaining=math.floor(grant['exp']-lease_now)
             if policy is not None:
-                remaining=min(remaining,math.floor(policy['issued_at']+self.policy_max_age-self.clock()))
-            if observed is not None:
-                remaining=min(remaining,math.floor(observed['expires_at']-self.clock()))
+                remaining=min(remaining,math.floor(policy['issued_at']+self.policy_max_age-lease_now))
             offline=observed is not None and observed['state']=='offline'
             if remaining<10 and not offline:
                 raise AdmissionError('authorization too close to expiry for a directory lease')
+            if observed is not None and not offline:
+                # The requested TTL is at least ten seconds, but transport consumes
+                # its signed budget. Never round up or extend a signed deadline.
+                remaining=min(remaining,math.floor(observed['expires_at']-lease_now))
+                if remaining<1:
+                    raise AdmissionError('presence too close to expiry for a directory lease')
             metadata['ttl_seconds']=0 if offline else min(metadata['ttl_seconds'],remaining)
-            lease_expires=self.clock()+metadata['ttl_seconds']
+            lease_expires=lease_now+metadata['ttl_seconds']
             if observed is not None:
                 lease_expires=min(lease_expires,observed['expires_at'])
             registry=self._registry
@@ -157,7 +162,7 @@ class VerifiedDirectory:
                 if observed is not None:
                     expires=lease_expires
                     registry.db.execute('INSERT INTO agent_presence VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(subject) DO UPDATE SET generation=excluded.generation,boot_id=excluded.boot_id,sequence=excluded.sequence,token=excluded.token,public_key=excluded.public_key,record=excluded.record,expires=excluded.expires,observed=excluded.observed',
-                        (grant['sub'],observed['generation'],observed['boot_id'],observed['sequence'],presence,encode(public_bytes(subject_key)),json.dumps(canonical_record(record)),expires,self.clock()))
+                        (grant['sub'],observed['generation'],observed['boot_id'],observed['sequence'],presence,encode(public_bytes(subject_key)),json.dumps(canonical_record(record)),expires,lease_now))
             result={'id':agent_id,'ttl_seconds':metadata['ttl_seconds']}
             if observed is not None:
                 result['presence']={name:observed[name] for name in ('generation','boot_id','sequence','state')}|{'expires_at':expires}

@@ -237,6 +237,121 @@ class AgentRuntimeTests(unittest.TestCase):
         self.assertEqual(self.observation()[0]['state'], 'unauthorized')
         self.assertEqual(self.node.export_policy()['policy'], self.policy)
 
+    def test_minimum_ttl_registers_renews_and_expires_with_fractional_clock(self):
+        self.now = 1700000000.7
+        self.grant = issue_grant(self.owner, self.agent.public_key(), self.group, ['join'], now=int(self.now))
+        credential = verify_grant(self.grant, self.owner.public_key(), self.group, now=self.now)['jti']
+        members = {self.subject: {'permissions': ['join'], 'grant_ids': [credential]}}
+        self.node.apply_policy(revise_policy(self.owner, self.policy, members, now=int(self.now)))
+        runtime = self.runtime(record=self.record | {'ttl_seconds': 10}, interval=5)
+        for sequence in (1, 2):
+            result = runtime.step()
+            self.assertEqual(result['state'], 'registered')
+            self.assertEqual(result['sequence'], sequence)
+            self.assertEqual(result['lease_seconds'], 10)
+            self.assertEqual(result['expires_at'], self.now + 10)
+            page = read_presence(Client(self.url, 'r'*32), self.owner.public_key(), self.group, now=self.now)
+            self.assertEqual(page['entries'][0]['state'], 'online')
+            claims = verify_presence(page['entries'][0]['presence'], self.agent.public_key(),
+                                     self.owner.public_key(), self.group, runtime.record)
+            self.assertEqual(claims['issued_at'], self.now)
+            self.assertEqual(claims['expires_at'], self.now + 10)
+            self.assertEqual(len(self.node.discover()), 1)
+            self.now += 5
+        self.now = result['expires_at']
+        self.assertEqual(self.observation()[0]['state'], 'expired')
+        self.assertEqual(self.node.discover(), [])
+
+    def test_minimum_ttl_transport_delay_consumes_budget_without_extending_deadline(self):
+        runtime = self.runtime(record=self.record | {'ttl_seconds': 10}, interval=5)
+        original = runtime.client.client.request
+        for delay, expected in ((0.25, 9), (8.75, 1), (9.25, None)):
+            with self.subTest(delay=delay):
+                self.now = 110.7
+                signed_deadline = self.now + 10
+                before = self.observation()
+                def delayed(path, *args, **kwargs):
+                    response = original(path, *args, **kwargs)
+                    if path == '/v1/challenges': self.now += delay
+                    return response
+                with patch.object(runtime.client.client, 'request', side_effect=delayed):
+                    result = runtime.step()
+                if expected is None:
+                    self.assertEqual(result['state'], 'waiting_authorization')
+                    self.assertEqual(self.observation()[0]['presence'], before[0]['presence'])
+                    self.assertEqual(self.observation()[0]['expires_at'], before[0]['expires_at'])
+                    continue
+                self.assertEqual(result['state'], 'registered')
+                self.assertEqual(result['lease_seconds'], expected)
+                self.assertEqual(result['expires_at'], self.now + expected)
+                self.assertLessEqual(result['expires_at'], signed_deadline)
+                self.assertEqual(self.observation()[0]['state'], 'online')
+                self.now = result['expires_at']
+                self.assertEqual(self.observation()[0]['state'], 'expired')
+                self.assertEqual(self.node.discover(), [])
+
+    def test_fractional_grant_deadline_keeps_ten_second_authorization_gate(self):
+        grant = issue_grant(self.owner, self.agent.public_key(), self.group, ['join'], now=100, lifetime=20)
+        credential = verify_grant(grant, self.owner.public_key(), self.group, now=self.now)['jti']
+        members = {self.subject: {'permissions': ['join'], 'grant_ids': [credential]}}
+        self.node.apply_policy(revise_policy(self.owner, self.policy, members, now=110))
+        runtime = self.runtime(grant=grant)
+        self.now = 109.7
+        result = runtime.step()
+        self.assertEqual(result['state'], 'registered')
+        self.assertEqual(result['lease_seconds'], 10)
+        self.assertEqual(result['expires_at'], 119.7)
+        claims = verify_presence(self.observation()[0]['presence'], self.agent.public_key(),
+                                 self.owner.public_key(), self.group, runtime.record)
+        self.assertEqual(claims['expires_at'], 120)
+        self.now = 110.01
+        self.assertEqual(runtime.step()['state'], 'waiting_authorization')
+        self.assertEqual(self.observation()[0]['expires_at'], result['expires_at'])
+        self.now = 120
+        self.assertEqual(self.observation()[0]['state'], 'unauthorized')
+        self.assertEqual(self.node.discover(), [])
+
+    def test_fractional_policy_deadline_keeps_gate_for_signed_and_legacy_records(self):
+        # Legacy registration retains the existing ten-second authorization gate.
+        self.now = 390.7
+        self.assertEqual(self.client().register(self.record)['ttl_seconds'], 10)
+        self.now = 391.01
+        self.rejected(403, lambda: self.client().register(self.record))
+        self.now = 390.7
+        runtime = self.runtime()
+        result = runtime.step()
+        self.assertEqual(result['state'], 'registered')
+        self.assertEqual(result['lease_seconds'], 10)
+        self.assertEqual(result['expires_at'], 400.7)
+        self.assertLessEqual(result['expires_at'], 401)
+        self.now = 391.01
+        self.assertEqual(runtime.step()['state'], 'waiting_authorization')
+        self.assertEqual(self.observation()[0]['expires_at'], result['expires_at'])
+        self.now = 401
+        self.assertEqual(self.observation()[0]['state'], 'unauthorized')
+        self.assertEqual(self.node.discover(), [])
+
+    def test_presence_timestamps_support_integer_and_fractional_seconds_but_reject_invalid_values(self):
+        for now in (110, 110.7):
+            with self.subTest(now=now), patch('tailnet_agents.presence.time.time', return_value=now):
+                token = make_presence(self.agent, self.owner.public_key(), self.group, self.record, 1, 'a'*32, 1)
+                claims = verify_presence(token, self.agent.public_key(), self.owner.public_key(), self.group, self.record, now=now)
+                self.assertEqual(claims['issued_at'], now)
+                self.assertEqual(claims['expires_at'], now + 30)
+                with self.assertRaises(AdmissionError):
+                    verify_presence(token, self.agent.public_key(), self.owner.public_key(), self.group,
+                                    self.record, now=claims['expires_at'])
+        for field in ('issued_at', 'expires_at'):
+            for value in (True, -0.1, '110.7', None, float('inf'), float('-inf'), float('nan')):
+                with self.subTest(field=field, value=value):
+                    # Send even nonstandard JSON numbers through the real signature verifier.
+                    header = encode(json.dumps({'alg': 'EdDSA', 'typ': PRESENCE_TYPE, 'kid': self.subject}).encode())
+                    payload = encode(json.dumps(claims | {field: value}).encode())
+                    message = header + '.' + payload
+                    token = message + '.' + encode(self.agent.sign(message.encode()))
+                    with self.assertRaises(ValueError):
+                        verify_presence(token, self.agent.public_key(), self.owner.public_key(), self.group, self.record)
+
     def test_local_grant_expiry_stops_network_heartbeats_without_replacing_identity(self):
         grant = issue_grant(self.owner, self.agent.public_key(), self.group, ['join'], now=100, lifetime=20)
         credential = verify_grant(grant, self.owner.public_key(), self.group, now=self.now)['jti']
@@ -473,17 +588,26 @@ class AgentRuntimeTests(unittest.TestCase):
     def test_real_cli_two_agents_same_host_and_restart_keep_original_keys_group(self):
         self.real_time_policy()
         key, grant = self.approve_second()
-        commands = [self.cli(self.agent_path, self.grant, 'first'),
-                    self.cli(self.root/'second.pem', grant, 'second', record=self.record | {'endpoint': 'https://same-host.example:8902'})]
+        # Both runtime processes and this receiver use the real fractional clock.
+        node = VerifiedDirectory(self.owner.public_key(), self.group, self.audience, require_policy=True)
+        self.addCleanup(node.close)
+        node.apply_policy(self.node.export_policy()['policy'])
+        url = self.serve(node, enabled=False)
+        self.record['ttl_seconds'] = 10
+        commands = [self.cli(self.agent_path, self.grant, 'first', url=url),
+                    self.cli(self.root/'second.pem', grant, 'second', url=url,
+                             record=self.record | {'endpoint': 'https://same-host.example:8902'})]
         original_keys = [self.agent_path.read_bytes(), (self.root/'second.pem').read_bytes()]
         first_outputs = []
         for command in commands:
             result = subprocess.run(command, text=True, capture_output=True, timeout=15)
             self.assertEqual(result.returncode, 0, result.stderr+result.stdout)
             first_outputs.append([json.loads(line) for line in result.stdout.splitlines()])
+            self.assertEqual(first_outputs[-1][-1]['state'], 'registered')
+            self.assertTrue(1 <= first_outputs[-1][-1]['lease_seconds'] <= 10)
             self.assertNotIn(self.grant, result.stdout+result.stderr)
             self.assertNotIn(grant, result.stdout+result.stderr)
-        self.assertEqual(len(self.observation()), 2)
+        self.assertEqual(len(self.observation(node)), 2)
         restarted = subprocess.run(commands[0], text=True, capture_output=True, timeout=15)
         self.assertEqual(restarted.returncode, 0, restarted.stderr+restarted.stdout)
         output = [json.loads(line) for line in restarted.stdout.splitlines()]
@@ -492,11 +616,13 @@ class AgentRuntimeTests(unittest.TestCase):
         self.assertEqual(output[-1]['generation'], 2)
         self.assertNotEqual(output[-1]['boot_id'], first_outputs[0][-1]['boot_id'])
         self.assertEqual([self.agent_path.read_bytes(), (self.root/'second.pem').read_bytes()], original_keys)
-        viewer = subprocess.run([sys.executable, '-m', 'tailnet_agents.presence', '--url', self.url,
+        viewer = subprocess.run([sys.executable, '-m', 'tailnet_agents.presence', '--url', url,
                                  '--authority-public-key', str(self.root/'owner.pub'), '--group-id', self.group],
                                 env=os.environ | {'TAILNET_VERIFIED_READ_TOKEN': 'r'*32}, text=True, capture_output=True, timeout=10)
         self.assertEqual(viewer.returncode, 0, viewer.stderr)
-        self.assertEqual(len(json.loads(viewer.stdout)['entries']), 2)
+        entries = json.loads(viewer.stdout)['entries']
+        self.assertEqual(len(entries), 2)
+        self.assertTrue(all(entry['state'] == 'online' for entry in entries))
 
     def test_real_cli_sigterm_sends_signed_offline_and_releases_state_lock(self):
         self.real_time_policy()

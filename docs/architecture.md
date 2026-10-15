@@ -362,7 +362,8 @@ flowchart LR
   AUTH --> GATE["Verify authority, membership, freshness and possession"]
   PROOF --> GATE
   GATE --> ORDER["Persisted generation/boot/sequence checks / Reject replay and old instance"]
-  ORDER --> DB[("Same directory / Atomic lease + grant + signed observation")]
+  ORDER --> LEASE["Fractional signed times / One receipt clock / Floor remaining TTL / Never extend deadlines"]
+  LEASE --> DB[("Same directory / Atomic lease + grant + signed observation")]
   DB --> OBS["Authenticated paginated presence read / Online, offline, expired, unauthorized"]
   OBS --> VIEW["Signature-validating presence CLI / Point-in-time directory observations"]
 ```
@@ -378,7 +379,12 @@ device without merging subjects.
 Each process commits a higher generation before sending and uses a fresh boot
 ID. Heartbeat sequence commits precede I/O. The directory atomically saves signed
 observations with registration/grant leases, bounded by presence, credential and
-policy deadlines. Lower generation, replayed sequence and same-generation
+policy deadlines. Signed timestamps preserve fractional seconds and accept
+existing integer values. Ten seconds is the minimum requested TTL and remaining
+grant/policy validity; transport may reduce the signed heartbeat's acknowledged
+lease to 1–9 whole seconds. One receipt-time snapshot determines its rounded-down
+TTL and effective expiry without extending any deadline; less than one full
+second of heartbeat validity is rejected. Lower generation, replayed sequence and same-generation
 different-boot requests cannot replace the incumbent. After opt-in, that identity
 cannot downgrade to legacy registration on the directory. Other legacy identities
 retain their existing behavior.

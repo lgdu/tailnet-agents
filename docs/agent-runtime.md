@@ -71,11 +71,17 @@ registration requests. `--once` sends one heartbeat and exits without an offline
 message; that lease expires normally. It exits nonzero when registration is
 unconfirmed. Continuous mode waits/retries the same configured group and directory.
 
-TTL is 10–300 seconds. Interval is 1–60 seconds and must be below the requested
+Requested TTL is 10–300 seconds, including a ten-second heartbeat with a real
+fractional clock. Signed timestamps preserve fractional seconds; existing integer
+timestamps remain valid. Interval is 1–60 seconds and must be below the requested
 TTL; successful short leases tighten the next wait to at most one third of the
-acknowledged lease. Policy/grant deadlines still cap authorization, and online
-registration needs at least ten seconds remaining. Unavailable or unapproved
-authorization never generates a replacement group or key.
+acknowledged lease. Online registration still requires at least ten seconds of
+grant and policy validity. Transport consumes the signed heartbeat budget: the
+acknowledged remaining lease is rounded down to whole seconds and can be 1–9
+seconds even when requesting ten. Less than one full second remaining is rejected.
+The directory uses one receipt-time snapshot to calculate that lease and its
+expiry, never rounding up or exceeding any signed presence/grant/policy deadline.
+Unavailable or unapproved authorization never generates a replacement group or key.
 
 Client requests use two-second socket-operation timeouts and a 1 MiB response
 cap. These are not strict whole-loop or shutdown wall-time guarantees. A stop

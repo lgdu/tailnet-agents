@@ -157,8 +157,11 @@ Signed-runtime identities cannot fall back to legacy registration on that direct
 
 Authenticated presence pages/CLI verify signatures and report point-in-time
 directory observations. Two live processes on one host renew independently;
-stopping one preserves the other. The suite contains 270 tests (36 new runtime/
-presence cases). Online is an authorized heartbeat, not verified executor health.
+stopping one preserves the other. The suite contains 275 tests (41 new runtime/
+presence cases), including fractional clocks with the minimum ten-second TTL,
+transport consumption and grant/policy expiry gates. Signed timestamps retain
+fractional precision; remaining leases use one receipt-time snapshot and round
+down without extending deadlines. Online is an authorized heartbeat, not verified executor health.
 Peer presence replication, authenticated UI integration, real product adapters,
 strong distributed fencing and physical LAN/tailnet trials remain unimplemented.
 See [runtime operations](agent-runtime.md). v0.23.0 is not published or tagged.

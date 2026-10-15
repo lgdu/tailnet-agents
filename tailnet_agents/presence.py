@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -51,7 +52,7 @@ def verify_presence(token, key, owner, group_id, record, *, now=None):
             any(type(claims[field]) is not int or not 1 <= claims[field] <= MAX_COUNTER for field in ('generation', 'sequence')) or
             not isinstance(claims['boot_id'], str) or not re.fullmatch(r'[a-f0-9]{32}', claims['boot_id']) or
             claims['state'] not in ('online', 'offline') or
-            any(type(claims[field]) is not int or claims[field] < 0 for field in ('issued_at', 'expires_at')) or
+            any(type(claims[field]) not in (int, float) or not 0 <= claims[field] < math.inf for field in ('issued_at', 'expires_at')) or
             not 0 < claims['expires_at'] - claims['issued_at'] <= canonical_record(record)['ttl_seconds']):
         raise AdmissionError('invalid presence claims')
     if now is not None and (claims['issued_at'] > now + 5 or now >= claims['expires_at']):
@@ -60,7 +61,7 @@ def verify_presence(token, key, owner, group_id, record, *, now=None):
 
 
 def make_presence(key, owner, group_id, record, generation, boot_id, sequence, *, state='online', now=None, expires_at=None):
-    now = int(time.time()) if now is None else now
+    now = time.time() if now is None else now
     claims = {'version': 1, 'owner': identity_id(owner), 'group_id': group_id,
               'subject': identity_id(key.public_key()), 'record_hash': record_hash(record),
               'generation': generation, 'boot_id': boot_id, 'sequence': sequence, 'state': state,

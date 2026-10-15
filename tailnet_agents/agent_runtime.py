@@ -109,7 +109,7 @@ class AgentRuntime:
                 claims = verify_grant(self.grant, self.owner, self.group_id, now=self.clock())
                 sequence = self.state.next_sequence()
                 result['sequence'] = sequence
-                now = int(self.clock())
+                now = self.clock()
                 token = make_presence(self.key, self.owner, self.group_id, self.record, self.state.generation,
                                       self.state.boot_id, sequence, state='offline' if offline else 'online', now=now,
                                       expires_at=min(now + self.record['ttl_seconds'], claims['exp']))
@@ -121,7 +121,7 @@ class AgentRuntime:
                 ttl = acknowledgment.get('ttl_seconds') if isinstance(acknowledgment, dict) else None
                 if (not isinstance(acknowledgment, dict) or set(acknowledgment) != {'id', 'ttl_seconds', 'presence'} or
                         acknowledgment['id'] != 'agent-' + self.subject.split(':')[1] or type(ttl) is not int or
-                        not (ttl == 0 if offline else 10 <= ttl <= self.record['ttl_seconds']) or
+                        not (ttl == 0 if offline else 1 <= ttl <= self.record['ttl_seconds']) or
                         not isinstance(observed, dict) or set(observed) != set(expected) | {'expires_at'} or
                         any(type(observed[field]) is not int for field in ('generation', 'sequence')) or
                         any(observed[field] != value for field, value in expected.items()) or

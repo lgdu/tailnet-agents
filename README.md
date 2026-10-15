@@ -18,7 +18,7 @@ action; agents may only discover or restore previously authorized groups.
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
 | Policy replication | Ordered HTTP/TLS source failover, independent revocation cursors, periodic pull and status | Configured sources only; no quorum, presence/chat/task replication |
 | Candidate discovery | Signed UDP multicast with ingress filtering, HTTP/TLS seeds, sticky conflicts, synchronized policy/revocation checks | Existing directory/key required; Linux LAN receiver; candidates only, no auto-enrollment or policy-source promotion |
-| Simulation runtime | Original key/group recovery, signed heartbeat leases, persisted instance ordering and authenticated presence pages | Explicit configured directory; POSIX state file; no executor or peer presence replication |
+| Simulation runtime | Original key/group recovery, signed heartbeat leases (including 10-second TTL with fractional clocks), persisted instance ordering and authenticated presence pages | Explicit configured directory; POSIX state file; no executor or peer presence replication |
 | Mesh simulator | Restart, partition reconciliation, stale claims, dissolution rules | Deterministic state model, no network or cryptographic admission |
 | Signed group policy | Owner-signed snapshots, bounded signed age, approved grant IDs, rollback rejection, terminal dissolution | Opt-in verified admission; owner must renew policy, explicit UI signing/delivery and grant issuance |
 | Agent identity | Ed25519 identities, signed scoped grants, expiry/revocation checks, possession proof | Verified admission integrated; human policy approval and simulation heartbeat runtime integrated; mesh/product integration pending |
@@ -290,8 +290,11 @@ are explicitly skipped. CI runs both core and identity installations. The new si
 visual/accessibility coverage and real-agent compatibility remain outstanding.
 The dedicated CI browser job also delays policy reads and checks that download
 never uses a pre-mutation snapshot; failed refreshes keep exports disabled.
-v0.23 includes 270 tests: the 234-test v0.22 baseline plus 36 simulation-runtime
-and signed-presence checks. Existing discovery coverage includes signed/expired/foreign records, credential isolation, conflicts,
+v0.23 includes 275 tests: the 234-test v0.22 baseline plus 41 simulation-runtime
+and signed-presence checks, including minimum ten-second TTL with fractional
+clocks, transport delay and authorization expiry boundaries. Heartbeats preserve
+fractional timestamps and never extend signed deadlines; remaining acknowledged
+leases can be shorter than the requested TTL. Existing discovery coverage includes signed/expired/foreign records, credential isolation, conflicts,
 real multicast and HTTP/TLS, ingress filtering, learned revocations, read-only
 state/lease preservation, mid-scan updates, service shutdown and restart recovery.
 
