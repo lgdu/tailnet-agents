@@ -55,7 +55,9 @@ submissions and retries return it without calling the adapter. If cancellation w
 before the running marker, a concurrent submit observes that receipt too. If the
 running marker wins, cancellation cannot claim that work stopped. A full executor
 can cancel an existing queued row but cannot create another tombstone beyond its
-capacity. Cancelled rows remain counted; deletion/pruning is not implemented.
+capacity. v0.31 can explicitly archive a cancelled row, retaining its complete
+tombstone/receipt and total-history usage while releasing an active slot. See
+[task history](task-history.md); deletion/pruning is not implemented.
 
 Lost responses or failed local receipt commits retain the caller barrier. Retry
 the same confirmed `cancel` or query the original ID; never generate another task
@@ -145,7 +147,7 @@ pagination and real CLI calls. A separate check used the actual v0.29 caller sou
 to verify downgrade rejection and restoration of the original cancellation barrier.
 
 Stopping running/external work, independently verified outcome resolution, note
-sharing, safe requeue, retention/pruning, running-adapter timeouts, Human UI/MCP
+sharing, safe requeue, payload pruning, running-adapter timeouts, Human UI/MCP
 integration, real product adapters and physical LAN/Tailscale trials remain open.
 The reference Echo adapter and its metadata contract are unchanged; inspecting
 metadata never cancels, reviews or executes anything.

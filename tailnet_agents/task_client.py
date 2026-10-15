@@ -128,6 +128,12 @@ class TaskClient:
     def cancel_preview(self, mid):
         with self.lock:return operations.cancel_preview(self, mid)
 
+    def archive_preview(self, mid):
+        with self.lock:return operations.archive_preview(self, mid)
+
+    def archive(self, mid, expected_hash, receipt_hash, confirmation):
+        with self.lock:return operations.archive(self, mid, expected_hash, receipt_hash, confirmation)
+
     def cancel(self, mid, expected_hash, confirmation):
         with self.lock:return operations.cancel(self, mid, expected_hash, confirmation)
 
@@ -156,7 +162,9 @@ def main():
     queue.add_argument('--input-file', required=True)
     flush = sub.add_parser('flush', help='retry pending/unstarted tasks at their original executor only')
     flush.add_argument('--limit', type=int, default=20)
-    for name in ('refresh', 'show', 'cancel-preview', 'review-preview'):sub.add_parser(name).add_argument('--task-id', required=True)
+    for name in ('refresh', 'show', 'cancel-preview', 'review-preview', 'archive-preview'):sub.add_parser(name).add_argument('--task-id', required=True)
+    archive = sub.add_parser('archive', help='move a confirmed terminal record to executor archive; retains original input and signed result')
+    for name in ('task-id', 'request-hash', 'receipt-hash', 'confirm-task-id'):archive.add_argument('--' + name, required=True)
     cancel = sub.add_parser('cancel', help='persist cancellation intent, then request pre-execution cancellation at original executor')
     for name in ('task-id', 'request-hash', 'confirm-task-id'):cancel.add_argument('--' + name, required=True)
     review = sub.add_parser('review', help='append a local advisory note; never changes an uncertain task result')
@@ -183,6 +191,8 @@ def main():
         elif args.command == 'refresh':result = client.refresh(args.task_id)
         elif args.command == 'show':result = client.show(args.task_id)
         elif args.command == 'cancel-preview':result = client.cancel_preview(args.task_id)
+        elif args.command == 'archive-preview':result = client.archive_preview(args.task_id)
+        elif args.command == 'archive':result = client.archive(args.task_id, args.request_hash, args.receipt_hash, args.confirm_task_id)
         elif args.command == 'cancel':result = client.cancel(args.task_id, args.request_hash, args.confirm_task_id)
         elif args.command == 'review-preview':result = client.review_preview(args.task_id)
         elif args.command == 'review':

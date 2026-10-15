@@ -639,7 +639,9 @@ physical LAN/tailnet validation are future work. See [durable tasks](durable-tas
   metadata probe; no product executables or caller authority from metadata.
 - v0.30: explicit pre-execution cancellation, durable caller barriers
   and caller-signed local uncertainty notes; no running stop or outcome rewrite.
-- Next: real interface validation when available, retention with anti-replay state,
+- v0.31 (unreleased): explicit full-record terminal archives and active/total row
+  quotas globally and by caller public-key identity; all history remains deduplicated.
+- Next: real interface validation when available, safe payload compaction,
   explicit task UI/MCP integration and candidate-to-runtime trust handoff.
 - Next: integrated mesh transport with cryptographic admission.
 - Then: validated agent adapters and real LAN/tailnet trials.
@@ -790,5 +792,50 @@ attestations or externally proven outcomes. Each binds the original signed recei
 and request/context, explicitly preserves uncertainty and grants no replay right.
 Review signing/history is available offline after expiry/dissolution without
 changing credentials, membership, executor state or the original receipt. Real
-product cancellation, verified resolution, UI/MCP integration and retention remain
-future work. See [task operations](task-operations.md).
+product cancellation, verified resolution, UI/MCP integration and payload pruning
+remain future work. v0.31 adds the full-record archives below. See
+[task operations](task-operations.md).
+
+### Implemented explicit terminal archives and quota boundary (v0.31, unreleased)
+
+The original caller explicitly confirms the task ID and original request/terminal
+receipt hashes. Both principals retain current task authorization, and a fresh
+archive-bound proof is required. Only completed/failed/cancelled rows may move;
+uncertain tasks stay in the active area regardless of advisory notes. No startup,
+quota failure or timer automatically archives work.
+
+```mermaid
+flowchart LR
+  HUMAN["Human confirms ID + request + receipt hashes"] --> CALLER["Original caller / Verified terminal receipt"]
+  CALLER -->|"Original signed intent + fresh archive proof"| AUTH["Original executor / Both current task.echo authorizations"]
+  AUTH --> LOCK["Directory lock / One SQLite transaction"]
+  LOCK --> ACTIVE[("Active records / Queued, running, uncertain and retained terminals")]
+  ACTIVE -->|"Completed, failed or cancelled only / Full-row move"| COLD[("Same-DB archive / Original ID, input and signed receipt")]
+  LATE["Late get, submit or cancel"] --> LOOKUP["Check active + archive / Original identity and intent"]
+  COLD --> LOOKUP
+  ACTIVE --> LOOKUP
+  LOOKUP --> SAME["Original result / No repeat execution"]
+  NEW["New submit or absent cancel ID"] --> QUOTA["Global + caller-key active and total-history quotas"]
+  QUOTA -->|"All bounds permit"| AUTH
+  QUOTA -->|"Any bound full"| DENY["429 / No eviction or identity/group replacement"]
+```
+
+Moving a row releases active slots while retaining all total-history usage and
+plaintext input/output. It does not compact disk or implement privacy deletion.
+The response returns the original signed result plus an authenticated transport
+placement flag; the flag is not a separate signed storage attestation or a new
+result state. Client terminal receipts/cancellation barriers are preserved.
+
+Limits are bounded operational startup configuration, not membership policy or
+rate/byte limits. Existing reads/retries/archival survive lowered limits; new IDs
+wait until all applicable bounds permit admission. Per-caller limits use public
+keys, so same-host Agents remain independent; separate executors retain separate
+databases. Global history is finite and cannot be freed by forgetting old IDs.
+
+The executor storage context migrates atomically from `echo-v1` to
+`echo-v1/task-history-v1`, preserving subject, group, audience and adapter semantics.
+Older executors reject this format before ignoring the archive. Caller format and
+ordinary task/result wire schemas remain compatible. Protect complete consistent
+backups; no rollback, disk-loss, export/import, automatic retention, payload pruning,
+Human UI/MCP bridge or physical network validation is claimed. See
+[task archives and quotas](task-history.md).

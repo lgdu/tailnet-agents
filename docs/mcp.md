@@ -115,3 +115,7 @@ signed task caller CLI. These legacy bearer MCP tools do not gain task cancellat
 review access or durable caller state automatically. A future bridge must retain
 original caller/executor identity, cancellation barriers and immutable uncertainty;
 no metadata/discovery result or human note authorizes task replay.
+
+v0.31 [terminal archival and row quotas](task-history.md) also remain separate from
+these legacy MCP tools. They add no MCP archive command, change no delegation
+result and do not turn a discovered worker into a signed-task executor.
