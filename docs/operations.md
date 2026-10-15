@@ -357,7 +357,7 @@ leaves running work uncertain. This Echo-only prototype is not ready for real
 side-effect adapters, and physical LAN/Tailscale/WAN validation remains open.
 The old bearer bridge and MCP delegation still use their separate in-memory API.
 
-## Policy review evidence and renewal (v0.28, unreleased)
+## Policy review evidence and renewal (v0.28)
 
 Preserve the original owner key/public pin, admin principal, group IDs and gateway
 SQLite database. Upgrading creates `ui_policy_evidence` and seeds current signed

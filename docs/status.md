@@ -1,4 +1,4 @@
-# Implementation status — v0.28 (unreleased)
+# Implementation status — v0.28
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -312,8 +312,10 @@ a server-side BrokenPipe; timeout is suspected but unconfirmed. Its isolated
 21-test file passed, as did the complete rerun. See [policy review](policy-review.md)
 for behavior and limits. All three final serial Chromium regressions passed;
 JS syntax, dependencies, package/MCP version, mesh simulation and 25-document
-link/anchor checks pass. See the PR for remote CI results. This version has not
-been released.
+link/anchor checks pass. PR #16 passed all six remote CI checks. v0.28.0 is
+published as a GitHub prerelease with a matching annotated tag. Merged-main
+verification: all 423 identity tests pass without skips; core passes 50 with 373
+expected skips; all three Chromium regressions pass on their first run.
 
 Unimplemented: automatic reconciliation/quorum, authority-history import and fork
 resolution, evidence pruning/retention, owner rotation/recovery, real product

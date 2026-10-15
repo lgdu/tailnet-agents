@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.28 prototype (unreleased).** Working components are listed below. The network mesh and
+**v0.28 prototype.** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -354,7 +354,7 @@ current `task.echo` permission. Same-host Agents/executors retain independent
 keys and private state. See [durable tasks](docs/durable-tasks.md) for commands,
 TLS, recovery and bounds. Legacy bearer bridge/MCP tasks remain separate.
 
-## All-source policy review and human renewal (v0.28, unreleased)
+## All-source policy review and human renewal (v0.28)
 
 In signed-group management, **核对所有配置来源** reads every configured recipient,
 including backups hidden by healthy-primary failover. The panel compares signed
@@ -412,7 +412,7 @@ and physical deployment trials. Quorum/automatic policy reconciliation, safe for
 resolution and explicit candidate enrollment remain open; connect verified identity
 and candidate discovery to the mesh engine and broaden browser QA.
 The working registry mode remains available during mesh development.
-v0.27.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.27.0)
+v0.28.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.28.0)
 with a matching annotated version tag. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 

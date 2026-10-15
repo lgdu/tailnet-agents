@@ -686,7 +686,7 @@ with an existing local authority; runtime enrollment remains separate.
 v0.18 bounds active-policy age and adds source failover; it does not connect those
 independent paths or grant membership through discovery.
 
-### Implemented all-source diagnosis and renewal consent (v0.28, unreleased)
+### Implemented all-source diagnosis and renewal consent (v0.28)
 
 Ordered replica failover is unchanged. A separate human action compares **all**
 explicit gateway recipients, including backups. Owner/group signatures establish

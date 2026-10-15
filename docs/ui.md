@@ -244,7 +244,7 @@ There is no task dashboard, automatic executor startup or uncertain-task recover
 button. A future UI must preserve original task IDs/executors and distinguish
 queued, running and terminal uncertainty without offering silent replay.
 
-## Explicit all-source policy review and renewal (v0.28, unreleased)
+## Explicit all-source policy review and renewal (v0.28)
 
 Signed-group management adds **核对所有配置来源** and a two-step fixed-time
 renewal workflow. It uses the existing explicitly configured policy recipients,

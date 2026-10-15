@@ -152,7 +152,7 @@ still performs no remote requests. Monitoring does not deliver policy; a policy
 mismatch requires a separate human decision. Receiver credentials stay on the
 gateway and signed observations remain separate from delivery receipts.
 
-## Separate source review (v0.28, unreleased)
+## Separate source review (v0.28)
 
 The same explicit recipients can be compared through [policy review](policy-review.md).
 Opening management and delivery previews still perform no network I/O; the source

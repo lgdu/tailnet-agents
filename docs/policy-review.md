@@ -1,4 +1,4 @@
-# All-source policy review and human renewal (v0.28, unreleased)
+# All-source policy review and human renewal (v0.28)
 
 This workflow belongs to the trusted loopback human gateway. It requires the
 original owner key/public pin, configured signing admin and group creator, and an

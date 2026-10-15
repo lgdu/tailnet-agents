@@ -283,7 +283,7 @@ and records signed readback and age metadata. These recipients are separate from
 configured pull sources and discovery candidates. Opening or previewing the UI
 does not synchronize, and no discovered endpoint is promoted to either trust list.
 
-## Separate all-source human diagnosis (v0.28, unreleased)
+## Separate all-source human diagnosis (v0.28)
 
 The gateway's [policy review](policy-review.md) explicitly compares all configured
 recipients, including backups hidden by a healthy primary. It persists verified
