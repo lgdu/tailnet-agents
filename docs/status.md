@@ -250,7 +250,8 @@ proofs gate submissions/queries. IDs, intent hashes, both identities and context
 are covered by task/receipt signatures. Directory read credentials and chat scopes
 confer no task access. Results are caller-only.
 
-Caller state persists original intent/ID and fixed executor/origin before sending.
+Caller state persists original intent/ID and fixed executor/origin before sending;
+a local paginated list recovers saved IDs if terminal output was lost.
 Executor state commits queued/running/result boundaries. Lost responses and
 both-end restart return the same completed/failed receipt; interrupted running
 work becomes terminal `uncertain` without another adapter invocation. Queued

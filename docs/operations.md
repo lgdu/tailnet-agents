@@ -341,7 +341,8 @@ results become uncertain and must not be reset/requeued/migrated automatically.
 Loss/rollback of durable state can invalidate the at-most-one-attempt boundary.
 
 Lost ACK or failed caller receipt commit retains original pending ID and fixed
-executor. Retry/refresh that same intent; never create a new ID to "recover" a
+executor. Use the local paginated `list` command to recover saved IDs if terminal
+output was lost. Retry/refresh that same intent; never create a new ID to "recover" a
 possibly executed task. Capacity counts retained history (default 256), with no
 automatic eviction; existing retries and reads still work at capacity. Stop and
 plan explicit retention/migration before exhaustion; deleting rows breaks durable

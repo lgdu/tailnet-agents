@@ -68,12 +68,17 @@ task_client() {
 # The text file is local input for an Echo simulation, not code to execute.
 task_client queue --input-file state/echo.txt
 task_client status
+task_client list --after 0 --limit 20
 task_client flush --limit 20
 
 # Use the task_id printed by queue/flush. refresh only queries; it never executes.
 task_client refresh --task-id "$TASK_ID"
 task_client show --task-id "$TASK_ID"
 ```
+
+If terminal output was lost, `list` pages saved IDs/status without network I/O.
+Use returned `next_after` with `--after` while `has_more` is true, then query the
+original ID. It omits input/output; `show` reads an already verified local receipt.
 
 Installed entrypoint: `tailnet-tasks`. Input/output are nonempty UTF-8 strings of
 at most 2048 bytes within 16 KiB signature envelopes. `queue` is an explicit new

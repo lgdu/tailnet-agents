@@ -337,7 +337,8 @@ commands, recovery and limits. Local Human UI Echo chat remains separate.
 
 Explicit `--tasks` enables a simulated Echo executor with its original approved
 Agent key/grant in the policy-enforced admission service. `tailnet-tasks` persists
-original task IDs and executor selection before sending; the executor persists
+original task IDs and executor selection before sending. A local paginated list
+recovers IDs after terminal output loss. The executor persists
 request/running/result state and signs receipts. Lost acknowledgments safely
 recover the original result. After a crash, unfinished running tasks become
 `uncertain` and are never automatically retried or migrated. Queued tasks need a

@@ -106,6 +106,14 @@ class TaskClient:
             original = verify_task(row[0], self.key.public_key(), self.owner, self.group, self.audience, self.executor)
             return verify_receipt(row[2], self.executor_key, self.owner, self.group, self.audience, original | {'request_hash': digest(row[0])})
 
+    def list_tasks(self, *, after=0, limit=20):
+        if type(after) is not int or not 0 <= after <= 2**53 - 1 or type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError('invalid local task page')
+        with self.lock:
+            rows = self.db.execute('SELECT position,task_id,state FROM task_outbox WHERE position>? ORDER BY position LIMIT ?', (after, limit + 1)).fetchall()
+            entries = [dict(zip(('position', 'task_id', 'state'), row)) | {'executor': self.executor} for row in rows[:limit]]
+            return {'tasks': entries, 'next_after': entries[-1]['position'] if entries else after, 'has_more': len(rows) > limit}
+
     def status(self):
         with self.lock:return dict(self.db.execute('SELECT state,COUNT(*) FROM task_outbox GROUP BY state'))
 
@@ -126,6 +134,9 @@ def main():
     flush = sub.add_parser('flush', help='retry pending/unstarted tasks at their original executor only')
     flush.add_argument('--limit', type=int, default=20)
     for name in ('refresh', 'show'):sub.add_parser(name).add_argument('--task-id', required=True)
+    listing = sub.add_parser('list', help='page saved task IDs/status locally, without contacting the executor')
+    listing.add_argument('--after', type=int, default=0)
+    listing.add_argument('--limit', type=int, default=20)
     sub.add_parser('status')
     args = parser.parse_args();client = None
     try:
@@ -139,6 +150,7 @@ def main():
         elif args.command == 'flush':result = client.flush(args.limit)
         elif args.command == 'refresh':result = client.refresh(args.task_id)
         elif args.command == 'show':result = client.show(args.task_id)
+        elif args.command == 'list':result = client.list_tasks(after=args.after, limit=args.limit)
         else:result = client.status()
     except (ValueError, TypeError, KeyError, OSError, URLError, sqlite3.Error):
         parser.exit(1, 'Task request failed; preserve original task IDs, executor, identity/group and state. Check authorization, result conflicts and connectivity; never migrate uncertain work.\n')

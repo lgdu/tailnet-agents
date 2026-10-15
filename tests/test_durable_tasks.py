@@ -423,10 +423,16 @@ executor.execute(request,cfg['caller_grant'],key.public_key(),proof,challenge['n
         a=self.client()
         with patch.object(a.http,'request',side_effect=URLError('offline')):
             ids=[a.queue(str(i))['task_id'] for i in range(3)]
+            page=a.list_tasks(limit=2)
+            self.assertEqual([row['task_id'] for row in page['tasks']],ids[:2])
+            self.assertTrue(page['has_more'])
             with self.assertRaises(URLError):a.flush()
         self.assertEqual(a.status(),{'pending':3})
         self.assertEqual(a.flush(limit=1)[0]['task_id'],ids[0])
         a.close();a=self.client()
+        second=a.list_tasks(after=page['next_after'],limit=2)
+        self.assertEqual([row['task_id'] for row in second['tasks']],ids[2:])
+        self.assertFalse(second['has_more'])
         self.assertEqual([r['task_id'] for r in a.flush()],ids[1:]);self.assertEqual(self.calls,['0','1','2'])
 
     def test_wrong_challenge_is_rejected_before_signing_or_posting_proof(self):
@@ -515,6 +521,7 @@ executor.execute(request,cfg['caller_grant'],key.public_key(),proof,challenge['n
             self.assertNotIn('PRIVATE KEY',result.stdout+result.stderr)
             return json.loads(result.stdout) if success else result
         mid=run('queue','--input-file',str(text))['task_id'];self.assertEqual(run('status'),{'pending':1})
+        self.assertEqual(run('list','--limit','1')['tasks'][0]['task_id'],mid)
         receipt=run('flush')[0];self.assertEqual(receipt['output'],'CLI Echo')
         self.assertEqual(run('refresh','--task-id',mid),receipt);self.assertEqual(run('show','--task-id',mid),receipt)
         self.assertEqual(run('flush'),[])
