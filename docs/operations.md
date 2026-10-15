@@ -244,7 +244,7 @@ The local Echo UI remains separate. See [runtime operations](agent-runtime.md)
 for commands, TLS, lease timing, retries, migration and backup limits.
 
 
-## Human gateway runtime monitoring (v0.24, unreleased)
+## Human gateway runtime monitoring (v0.24)
 
 Reuse original signed groups, owner/admin configuration and explicit policy
 recipients. The new panel contacts one selected directory only when the signing

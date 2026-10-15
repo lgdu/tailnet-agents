@@ -1,4 +1,4 @@
-# Implementation status — v0.24 (unreleased)
+# Implementation status — v0.24
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -167,7 +167,7 @@ At v0.23, peer presence replication, authenticated UI integration, real product 
 strong distributed fencing and physical LAN/tailnet trials remain unimplemented.
 See [runtime operations](agent-runtime.md). v0.23.0 is published as a GitHub prerelease with a matching annotated tag.
 
-## v0.24 authenticated runtime monitoring (unreleased)
+## v0.24 authenticated runtime monitoring
 
 The trusted human gateway can read one page of signed runtime observations from
 an explicitly selected configured directory. Signing-admin/group-creator, Host
@@ -184,7 +184,7 @@ chat members. The suite contains 296 tests (21 new monitoring checks), plus a
 Chromium monitoring/race regression alongside existing signing/delivery coverage.
 Peer presence replication, continuous revocation monitoring, real product adapters
 and physical LAN/tailnet trials remain open. See [monitoring](runtime-monitoring.md).
-v0.24.0 is not published or tagged.
+v0.24.0 is published as a GitHub prerelease with a matching annotated tag.
 
 ## Documentation maintenance rule
 

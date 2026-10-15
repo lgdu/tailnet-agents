@@ -1,4 +1,4 @@
-# Human UI v0.24 (unreleased): scoped runtime monitoring and human administration
+# Human UI v0.24: scoped runtime monitoring and human administration
 
 The UI is a local demonstration of the interaction model. It does
 not integrate the mesh simulator, registry, MCP tools or real agent adapters.
@@ -207,7 +207,7 @@ human consent and transfer remains a trusted manual step. Human
 role configuration and local group membership use the checks documented above. See [status](status.md) for the current integration boundary.
 
 
-## Explicit signed runtime monitoring (v0.24, unreleased)
+## Explicit signed runtime monitoring (v0.24)
 
 The signing admin/group creator can explicitly select and read a configured
 policy recipient in group management. The separate runtime panel validates signed

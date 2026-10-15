@@ -1,4 +1,4 @@
-# Authenticated runtime monitoring — v0.24 (unreleased)
+# Authenticated runtime monitoring — v0.24
 
 The trusted human gateway can explicitly read a signed presence page from an
 already configured directory. This view is separate from the three local Echo

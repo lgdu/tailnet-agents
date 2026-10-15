@@ -406,7 +406,7 @@ fencing and physical-network validation remain open; authenticated UI monitoring
 is added separately below.
 See [runtime operations](agent-runtime.md).
 
-### Authenticated runtime observations on the human gateway (v0.24, unreleased)
+### Authenticated runtime observations on the human gateway (v0.24)
 
 ```mermaid
 flowchart LR
@@ -497,7 +497,7 @@ necessary; network membership never grants filesystem or secret access.
   recovery, recipient identity validation and exclusive private-file installation.
 - v0.23: explicit simulation runtime, durable instance ordering,
   signed heartbeat leases and authenticated paginated presence observations.
-- v0.24 (unreleased): authenticated, explicitly read runtime monitoring on the
+- v0.24: authenticated, explicitly read runtime monitoring on the
   human gateway, with source/time attribution and signature/policy/expiry guards.
 - Next: candidate-to-runtime trust handoff and peer presence replication.
 - Next: integrated mesh transport with cryptographic admission.

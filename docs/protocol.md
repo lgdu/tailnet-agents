@@ -342,7 +342,7 @@ health. Presence is not included in policy/revocation replication. See
 [runtime operations](agent-runtime.md) for migration and recovery boundaries.
 
 
-## Human gateway runtime monitor (v0.24, unreleased)
+## Human gateway runtime monitor (v0.24)
 
 GET `/api/runtime-presence` requires existing human Bearer, loopback Host/Origin,
 and the configured signing-admin/group-creator checks. Required query keys are
