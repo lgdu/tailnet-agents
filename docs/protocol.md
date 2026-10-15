@@ -685,7 +685,7 @@ the same record, changed reuse conflicts. Local pages validate signatures and
 persisted request-ID bindings. No HTTP review route or executor-result mutation is
 introduced; a review is not a task grant, operation proof or authorization to retry.
 
-## Explicit terminal archives and admission quotas (v0.31, unreleased)
+## Explicit terminal archives and admission quotas (v0.31)
 
 Task challenge/operation routes add the exact request
 `{operation:"archive",task:JWS,receipt_hash:SHA256}`. The hash is 64 lowercase hex

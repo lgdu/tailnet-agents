@@ -639,7 +639,7 @@ physical LAN/tailnet validation are future work. See [durable tasks](durable-tas
   metadata probe; no product executables or caller authority from metadata.
 - v0.30: explicit pre-execution cancellation, durable caller barriers
   and caller-signed local uncertainty notes; no running stop or outcome rewrite.
-- v0.31 (unreleased): explicit full-record terminal archives and active/total row
+- v0.31: explicit full-record terminal archives and active/total row
   quotas globally and by caller public-key identity; all history remains deduplicated.
 - Next: real interface validation when available, safe payload compaction,
   explicit task UI/MCP integration and candidate-to-runtime trust handoff.
@@ -796,7 +796,7 @@ product cancellation, verified resolution, UI/MCP integration and payload prunin
 remain future work. v0.31 adds the full-record archives below. See
 [task operations](task-operations.md).
 
-### Implemented explicit terminal archives and quota boundary (v0.31, unreleased)
+### Implemented explicit terminal archives and quota boundary (v0.31)
 
 The original caller explicitly confirms the task ID and original request/terminal
 receipt hashes. Both principals retain current task authorization, and a fresh

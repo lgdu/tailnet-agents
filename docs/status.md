@@ -1,4 +1,4 @@
-# Implementation status — v0.31 (unreleased)
+# Implementation status — v0.31
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -400,7 +400,7 @@ Unimplemented: stopping running/external work, verified uncertainty resolution,
 requeue/migration after review, remote Human UI/MCP operations, note distribution,
 retention/pruning, real product adapters and physical LAN/Tailscale trials.
 
-## v0.31 explicit task archives and admission quotas (unreleased)
+## v0.31 explicit task archives and admission quotas
 
 The original caller previews a locally verified terminal record and confirms its
 ID, request hash and receipt hash before an authenticated archive request. Only
@@ -428,13 +428,14 @@ not a separately signed storage attestation or a new task result state.
 Thirty-three new checks cover HTTP/TLS, actual client/service CLIs, four quota
 bounds, independent same-host callers/executors, late submissions/cancelled
 tombstones, concurrent reads/retries, lost ACK/local commit failures, transaction
-rollback and format/history validation. Full local verification: all 516 identity
+rollback and format/history validation. Merged-main verification: all 516 identity
 tests pass without skips; core passes 55 with 461 expected skips; all three serial
-Chromium checks pass. Actual v0.30 sources also confirmed executor downgrade
+Chromium checks pass on their first run. Actual v0.30 sources also confirmed executor downgrade
 rejection and caller archived-read/new-submit compatibility with original state.
 Dependencies, package/MCP version, mesh simulation, JS syntax and 28-document
-link/anchor checks pass. See the PR for remote CI results and
-[task archives and quotas](task-history.md) for commands, backup and migration.
+link/anchor checks pass. PR #19 passed all six CI checks, and its merge commit
+passed main CI. v0.31.0 is published as a GitHub prerelease with a matching annotated
+tag. See [task archives and quotas](task-history.md) for commands, backup and migration.
 
 Unimplemented: payload pruning/compaction, automatic archive/retention, export/import,
 byte/outbox quotas, running-work cancellation, verified uncertainty resolution,

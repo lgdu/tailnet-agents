@@ -1,4 +1,4 @@
-# Explicit task archives and quotas (v0.31, unreleased)
+# Explicit task archives and quotas (v0.31)
 
 The signed simulation executor has an active area and an archive in the **same
 private SQLite database**. Explicitly archiving a completed, failed or cancelled

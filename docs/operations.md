@@ -410,7 +410,7 @@ to retry; preserve original uncertain receipts and protect notes/backups as priv
 evidence. Notes remain offline-readable after expiry/dissolution. See
 [task operations](task-operations.md) for exact migration, CLI and retry behavior.
 
-## Task archives and quota operations (v0.31, unreleased)
+## Task archives and quota operations (v0.31)
 
 Use [explicit archive preview/confirmation](task-history.md) only for original
 completed/failed/cancelled tasks. Pending/queued/running/uncertain records stay in
