@@ -1,4 +1,4 @@
-# Remaining work for the v0.23 development line
+# Remaining work for the v0.24 development line
 
 The verified directory can persist and exchange signed policy and credential
 revocations between configured peers. The human UI remains a local simulated chat application, with an optional
@@ -20,10 +20,13 @@ a trusted channel; membership approval and runtime proof remain separate.
 v0.23 adds an opt-in simulation runtime, persistent incarnation ordering, signed
 heartbeat leases and authenticated online/offline observations at one configured
 directory. Same-host processes retain independent identities and state.
+v0.24 adds authenticated, explicitly read runtime monitoring on the trusted human
+gateway, with source/time attribution, signed-policy agreement, expiry and stale
+response guards. The monitor does not copy presence into another directory.
 
 | Priority | Work | Acceptance evidence |
 |---|---|---|
-| P1 | Peer presence replication and runtime monitoring | Signed observations converge between configured replicas without reviving stale/unauthorized instances; authenticated UI clearly scopes observed reachability |
+| P1 | Peer presence replication | Signed observations converge between configured replicas without reviving stale/unauthorized instances; local versus relayed observations remain attributable |
 | P1 | Discovery operations and explicit runtime enrollment | Validate physical LAN/tailnet behavior, optional mDNS/peer enumeration and a separately authorized handoff from candidate to admitted runtime |
 | P1 | Cross-node group/direct messages | Authenticated identities, group scopes, recipient privacy, durable outbox, deduplication and reconnect catch-up are verified across nodes |
 | P1 | Durable tasks | Executor persists request/result identity; caller recovery cannot silently execute uncertain side effects twice |
@@ -33,7 +36,7 @@ directory. Same-host processes retain independent identities and state.
 | P2 | Operational deployment | Actual household LAN and cross-region tailnet trials, certificate/key renewal, backups, rate limits and service packaging |
 | P2 | Release readiness | Browser interaction QA, interoperability/security review, installation instructions and owner-selected open-source license |
 
-Suggested order: peer presence and authenticated runtime monitoring → messages → durable execution → real adapters and deployment trials.
+Suggested order: peer presence replication → messages → durable execution → real adapters and deployment trials.
 Discovery is separate from authorization. A fresh or isolated Agent waits for
 human approval or restores existing valid qualification; it never creates a group.
 

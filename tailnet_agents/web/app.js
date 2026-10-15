@@ -5,8 +5,60 @@ let policyConfig={can_sign:false}, currentPolicy=null, policyPreview=null, polic
 let policyRefresh=0, policyDissolving=false;
 let deliveryTargets=[], deliveryPreview=null, deliveryPending=null;
 let credentialPreview=null, credentialPending=null, issuedCredential=null, credentialGeneration=0, credentialStates=new Map();
+let runtimeRequest=0, runtimeLoading=false, runtimePage=null, runtimeReceived=0, runtimeRendered='', runtimeLatestNow=0;
 let session = 0, view = 0, loading = false, history = new Map(), moreOlder = false;
 const $ = id => document.getElementById(id);
+
+function invalidateRuntime(clearTargets=false){
+  runtimeRequest++;runtimePage=null;runtimeLoading=false;runtimeRendered='';runtimeLatestNow=0;
+  if(clearTargets)$('runtime-target').replaceChildren();
+  $('runtime-entries').replaceChildren();$('runtime-error').textContent='';
+  $('runtime-status').textContent='尚未读取。只表示指定目录最近接受的授权 heartbeat，不证明执行器健康或全网可达。';
+  runtimeControls();
+}
+function runtimeControls(){
+  const disabled=!currentPolicy||!deliveryTargets.length||!policyConfig.can_sign||!!policyPending||policyDissolving||!!deliveryPending||!!credentialPending||runtimeLoading;
+  $('runtime-refresh').disabled=disabled;
+  $('runtime-next').disabled=disabled||!runtimePage?.has_more;
+}
+function renderRuntime(){
+  if(!runtimePage)return;
+  const now=runtimeLatestNow=Math.max(runtimeLatestNow,Date.now()/1000,runtimePage.checked_at+(performance.now()-runtimeReceived)/1000);
+  const policy=runtimePage.policy, expired=policy.state==='fresh'&&now>=policy.expires_at;
+  const stamp=JSON.stringify([expired,...runtimePage.entries.map(entry=>(entry.state==='online'||entry.state==='unconfirmed')&&(now>=entry.expires_at||expired)?'expired':entry.state)]);
+  if(stamp===runtimeRendered)return;runtimeRendered=stamp;
+  $('runtime-status').textContent=`来源 ${runtimePage.target.id} · ${runtimePage.target.url} · 读取于 ${new Date(runtimePage.checked_at*1000).toLocaleString()} · 目录观测于 ${new Date(runtimePage.observed_at*1000).toLocaleString()}。`+
+    (policy.matches_local?'与本机策略一致。':'策略与本机不同，在线授权未确认；请核对并明确送达策略。')+
+    ` 策略：${expired?'已到期':{fresh:'检查时有效',stale:'已到期',future:'时间在未来',dissolved:'已终止',missing:'尚未配置'}[policy.state]}。此页是单个目录的历史观测，不代表执行器健康或全网可达。`;
+  $('runtime-entries').replaceChildren();
+  if(!runtimePage.entries.length)$('runtime-entries').append(node('p','此目录暂无签名 runtime 观测；这不改变成员资格。'));
+  for(const entry of runtimePage.entries){
+    const state=(entry.state==='online'||entry.state==='unconfirmed')&&(now>=entry.expires_at||expired)?'expired':entry.state;
+    const card=node('article',undefined,'runtime-entry');
+    card.append(node('h4',entry.record.name),node('p',entry.subject,'runtime-subject'));
+    card.append(node('p',{online:'目录曾观测在线（租约未到期）',offline:'已签名离线',expired:'租约已到期',unauthorized:'授权无效',unconfirmed:'在线授权未确认'}[state]||'状态未确认','runtime-state '+state));
+    card.append(node('p',entry.record.endpoint),node('p',`运行代次 ${entry.generation} · heartbeat ${entry.sequence} · 观测于 ${new Date(entry.observed_at*1000).toLocaleString()} · 租约截止 ${new Date(entry.expires_at*1000).toLocaleString()}`));
+    $('runtime-entries').append(card);
+  }
+}
+async function fetchRuntime(after=''){
+  if(!currentPolicy||!deliveryTargets.length||runtimeLoading||policyPending||policyDissolving||deliveryPending||credentialPending)return;
+  const current=session,selected=activeGroup,target=$('runtime-target').value,refresh=policyRefresh;
+  const started=performance.now();
+  invalidateRuntime();const request=runtimeRequest;runtimeLoading=true;runtimeControls();
+  $('runtime-status').textContent='正在读取所选目录；旧在线观测已清除…';
+  try{
+    const data=await api('/api/runtime-presence?'+new URLSearchParams({group_id:selected,target_id:target,after,limit:'20'}));
+    if(current!==session||selected!==activeGroup||target!==$('runtime-target').value||request!==runtimeRequest||refresh!==policyRefresh||!$('manage-dialog').open)return;
+    runtimePage=data;runtimeReceived=started;renderRuntime();
+  }catch(error){
+    if(current===session&&selected===activeGroup&&request===runtimeRequest){$('runtime-status').textContent='本次读取未确认；没有可显示的当前在线观测。';$('runtime-error').textContent=error.message;}
+  }finally{if(request===runtimeRequest){runtimeLoading=false;runtimeControls();}}
+}
+$('runtime-target').onchange=()=>invalidateRuntime();
+$('runtime-refresh').onclick=()=>fetchRuntime();
+$('runtime-next').onclick=()=>{if(runtimePage?.has_more)fetchRuntime(runtimePage.next_after);};
+setInterval(()=>{if(runtimePage&&$('manage-dialog').open)renderRuntime();},500);
 function node(tag, text, className) { const n = document.createElement(tag); if(text !== undefined) n.textContent = text; if(className) n.className = className; return n; }
 async function api(path, body) {
   if(path.startsWith('/api/messages?')||path.startsWith('/api/members'))path+=(path.includes('?')?'&':'?')+'group_id='+encodeURIComponent(activeGroup||'');
@@ -93,7 +145,7 @@ function renderGroups(){
 }
 async function chooseGroup(id){
   if(busy||pending||policyPending||policyDissolving||deliveryPending||credentialPending){$('group-select').value=activeGroup||'';$('delivery-status').textContent='请先处理待确认消息或策略操作。';return;}
-  activeGroup=id;credentialPreview=null;issuedCredential=null;credentialGeneration++;credentialStates.clear();$('credential-result').textContent='';currentPolicy=null;policyPreview=null;deliveryTargets=[];deliveryPreview=null;view++;loading=false;history=new Map();members=[];moreOlder=false;$('older').hidden=true;$('messages').replaceChildren();renderGroups();
+  invalidateRuntime(true);activeGroup=id;credentialPreview=null;issuedCredential=null;credentialGeneration++;credentialStates.clear();$('credential-result').textContent='';currentPolicy=null;policyPreview=null;deliveryTargets=[];deliveryPreview=null;view++;loading=false;history=new Map();members=[];moreOlder=false;$('older').hidden=true;$('messages').replaceChildren();renderGroups();
   if(!id){renderMembers();$('messages').append(node('div',me?.role==='admin'?'点击「创建群组」开始。Agent 不会自动创建。':'等待管理员将你加入一个群组。','empty'));$('sync-status').textContent='尚未加入群组';return;}
   const current=session,selected=id;
   try{const result=await api('/api/members');if(current!==session||selected!==activeGroup)return;members=result.members;await select('group');}
@@ -119,7 +171,7 @@ $('login-form').onsubmit=async e=>{
     $('human-name').textContent=me.id;$('human-role').textContent={admin:'管理员',participant:'参与者',observer:'观察者'}[me.role];$('login').hidden=true;$('workspace').hidden=false;$('token').value='';await chooseGroup(groups[0]?.id||null);
   }catch(error){if(current!==session)return;token='';me=null;$('workspace').hidden=true;$('login').hidden=false;$('login-error').textContent=error.message;}
 };
-$('logout').onclick=()=>{session++;view++;policyRefresh++;activeGroup=null;groups=[];$('group-dialog').close();$('manage-dialog').close();token='';me=null;pending=null;currentPolicy=null;policyPreview=null;policyPending=null;policyDissolving=false;deliveryTargets=[];deliveryPreview=null;deliveryPending=null;credentialPending=null;credentialPreview=null;issuedCredential=null;credentialGeneration++;credentialStates.clear();$('credential-public-key').value='';$('credential-result').textContent='';$('credential-consent').textContent='';$('credential-history').replaceChildren();$('policy-grant').value='';busy=false;loading=false;history=new Map();conversation='group';$('workspace').hidden=true;$('login').hidden=false;$('message').value='';$('message').disabled=false;$('send-button').disabled=false;$('send-button').textContent='发送 ↑';$('messages').replaceChildren();$('group-button').classList.add('active');$('conversation-title').textContent='群组讨论';$('conversation-kind').textContent='GROUP CONVERSATION';};
+$('logout').onclick=()=>{invalidateRuntime(true);session++;view++;policyRefresh++;activeGroup=null;groups=[];$('group-dialog').close();$('manage-dialog').close();token='';me=null;pending=null;currentPolicy=null;policyPreview=null;policyPending=null;policyDissolving=false;deliveryTargets=[];deliveryPreview=null;deliveryPending=null;credentialPending=null;credentialPreview=null;issuedCredential=null;credentialGeneration++;credentialStates.clear();$('credential-public-key').value='';$('credential-result').textContent='';$('credential-consent').textContent='';$('credential-history').replaceChildren();$('policy-grant').value='';busy=false;loading=false;history=new Map();conversation='group';$('workspace').hidden=true;$('login').hidden=false;$('message').value='';$('message').disabled=false;$('send-button').disabled=false;$('send-button').textContent='发送 ↑';$('messages').replaceChildren();$('group-button').classList.add('active');$('conversation-title').textContent='群组讨论';$('conversation-kind').textContent='GROUP CONVERSATION';};
 $('group-button').onclick=()=>select('group');$('older').onclick=()=>refreshMessages('older');
 $('compose').onsubmit=async e=>{
   e.preventDefault();if(busy||!me||!activeGroup||me.role==='observer')return;if(!pending&&!$('message').value.trim())return;
@@ -145,6 +197,7 @@ setInterval(async()=>{
 },2000);
 
 async function refreshManagement(){
+  invalidateRuntime(true);
   const current=session,selected=activeGroup,refresh=++policyRefresh;
   currentPolicy=null;policyPreview=null;deliveryPreview=null;credentialPreview=null;credentialGeneration++;credentialStates.clear();$('credential-consent').textContent='';policyControls();
   $('policy-error').classList.remove('success');
@@ -170,6 +223,7 @@ async function refreshManagement(){
 }
 $('manage-group').onclick=async()=>{try{$('manage-error').textContent='';$('dissolve-name').value='';await refreshManagement();if(me)$('manage-dialog').showModal();}catch(error){$('network-error').textContent=error.message;}};
 $('close-manage').onclick=()=>$('manage-dialog').close();
+$('manage-dialog').onclose=()=>invalidateRuntime();
 $('add-member').onclick=async()=>{const current=session;try{await api('/api/group-members',{group_id:activeGroup,subject:$('add-human').value,operation:'add'});if(current===session)await refreshManagement();}catch(error){if(current===session)$('manage-error').textContent=error.message;}};
 $('dissolve-group').onclick=async()=>{
   if(policyPending||policyDissolving||deliveryPending||credentialPending)return;
@@ -201,6 +255,8 @@ function policyControls(){
   $('dissolve-group').disabled=!!policyPending||policyDissolving||!!deliveryPending||!!credentialPending||!!groups.find(g=>g.id===activeGroup)?.dissolved;
   deliveryControls();
   credentialControls();
+  if((!currentPolicy||policyPending||policyDissolving||deliveryPending||credentialPending)&&(runtimePage||runtimeLoading))invalidateRuntime();
+  runtimeControls();
 }
 async function refreshPolicy(current,selected,refresh){
   $('policy-panel').hidden=!policyConfig.can_sign;
@@ -298,6 +354,9 @@ async function refreshDelivery(current,selected,refresh){
     const [targets,history]=await Promise.all([api('/api/policy-targets?group_id='+encodeURIComponent(selected)),api('/api/policy-deliveries?group_id='+encodeURIComponent(selected))]);
     if(current!==session||selected!==activeGroup||refresh!==policyRefresh)return;
     deliveryTargets=targets.targets;
+    $('runtime-target').replaceChildren();
+    for(const target of deliveryTargets){const option=node('option',target.id+' · '+target.url);option.value=target.id;$('runtime-target').append(option);}
+    runtimeControls();
     for(const target of deliveryTargets){const option=node('option',target.id+' · '+target.url);option.value=target.id;$('policy-target').append(option);}
     if(!deliveryTargets.length)$('delivery-consent').textContent='此群组尚未配置接收方，请由本机管理员设置。';
     for(const entry of history.deliveries){

@@ -14,6 +14,10 @@ class PolicyDeliveryError(ValueError):
     """Remote acceptance is unconfirmed; do not expose transport exception details."""
 
 
+class RuntimeMonitorError(ValueError):
+    """Sanitized directory-read failure without optional core dependencies."""
+
+
 class ChatStore:
     def __init__(self, database=':memory:', *, policy_authority=None, policy_targets=()):
         if database != ':memory:':
@@ -231,6 +235,31 @@ class ChatStore:
             self._require_policy_admin(actor, group_id)
             self.policy_authority.current(self.db, group_id)
             return {'targets': [target.public() for target in self.policy_targets.values() if target.group_id == group_id]}
+
+    def runtime_presence(self, actor, group_id, target_id, *, after='', limit=20):
+        with self.lock:
+            self._require_policy_admin(actor, group_id)
+            token, _ = self.policy_authority.current(self.db, group_id)
+            if not isinstance(target_id, str) or target_id not in self.policy_targets:
+                raise ValueError('select a configured directory')
+            target = self.policy_targets[target_id]
+            if target.group_id != group_id:
+                raise PermissionError('directory group mismatch')
+            owner, clock = self.policy_authority.key.public_key(), self.policy_authority.clock
+        from .runtime_monitor import read_runtime_presence, validate_page
+        validate_page(after, limit)
+        try:
+            result = read_runtime_presence(target, owner, token, clock, after=after, limit=limit)
+        except FileExistsError:
+            raise
+        except (ValueError, OSError, KeyError, TypeError) as error:
+            raise RuntimeMonitorError('目录状态读取失败；请核对来源、读凭据、TLS、时间和签名。旧在线状态已作废。') from error
+        with self.lock:
+            self._require_policy_admin(actor, group_id)
+            latest, _ = self.policy_authority.current(self.db, group_id)
+            if latest != token or self.policy_targets.get(target_id) is not target:
+                raise FileExistsError('本地策略或目录配置已变化，请重新读取。')
+        return result
 
     def _delivery_snapshot(self, actor, group_id, payload):
         self._require_policy_admin(actor, group_id)

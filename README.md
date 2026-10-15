@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.23 prototype.** Working components are listed below. The network mesh and
+**v0.24 prototype (unreleased).** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -18,6 +18,7 @@ action; agents may only discover or restore previously authorized groups.
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
 | Policy replication | Ordered HTTP/TLS source failover, independent revocation cursors, periodic pull and status | Configured sources only; no quorum, presence/chat/task replication |
 | Candidate discovery | Signed UDP multicast with ingress filtering, HTTP/TLS seeds, sticky conflicts, synchronized policy/revocation checks | Existing directory/key required; Linux LAN receiver; candidates only, no auto-enrollment or policy-source promotion |
+| Runtime monitor | Explicit authenticated reads from configured directories, signature/policy verification, attributed paginated observations and expiry | Signing admin/group creator only; receiver observations, no peer presence replication or endpoint health proof |
 | Simulation runtime | Original key/group recovery, signed heartbeat leases (including 10-second TTL with fractional clocks), persisted instance ordering and authenticated presence pages | Explicit configured directory; POSIX state file; no executor or peer presence replication |
 | Mesh simulator | Restart, partition reconciliation, stale claims, dissolution rules | Deterministic state model, no network or cryptographic admission |
 | Signed group policy | Owner-signed snapshots, bounded signed age, approved grant IDs, rollback rejection, terminal dissolution | Opt-in verified admission; owner must renew policy, explicit UI signing/delivery and grant issuance |
@@ -74,6 +75,9 @@ flowchart TB
     RUNTIME["Explicit simulation runtime / 原身份、原群组、持久运行序号"] -->|"Signed heartbeat + fresh proof"| API
     API --> OBS["Signed presence + bounded live lease / 目录观测"]
     OBS --> VIEW["Authenticated presence CLI / 在线、离线、过期、未授权"]
+    UI -->|"Explicit selected source read / 明确读取"| MON["Authenticated runtime monitor / 来源、时刻、策略与签名校验"]
+    MON -->|"GET only / 固定目录"| API
+    OBS --> MON
     API --> VD["Verified directory / 身份与授权校验"]
     VD --> GP["Signed group policy / 成员、凭证、解散"]
     GP --> AGE["Signed age gate / 过期拒绝准入与发现"]
@@ -278,6 +282,17 @@ paginated observations; online means a recent authorized heartbeat. No executor
 is started. See [runtime operations](docs/agent-runtime.md) for migration, expiry,
 TLS, shutdown, backup and ordering limits.
 
+## Authenticated runtime monitoring (v0.24, unreleased)
+
+In signed-group management, explicitly read one configured directory's signed
+presence page. The gateway verifies owner/group/Agent signatures and source
+policy agreement; the page labels its source/time and keeps same-host identities
+separate. Policy mismatch cannot produce confirmed online status. Expiry ages
+locally; failed reads and late responses cannot preserve old online rows. This
+view neither contacts advertised Agent endpoints nor changes leases, policy or
+Echo participants. Source credentials remain on the trusted gateway. See
+[runtime monitoring](docs/runtime-monitoring.md) for roles, pagination and limits.
+
 ## Verification
 
 ```bash
@@ -290,7 +305,10 @@ are explicitly skipped. CI runs both core and identity installations. The new si
 visual/accessibility coverage and real-agent compatibility remain outstanding.
 The dedicated CI browser job also delays policy reads and checks that download
 never uses a pre-mutation snapshot; failed refreshes keep exports disabled.
-v0.23 includes 275 tests: the 234-test v0.22 baseline plus 41 simulation-runtime
+v0.24 includes 296 tests: the 275-test v0.23 baseline plus 21 runtime-monitor
+checks. Separate Chromium coverage verifies source selection, same-host identities,
+expiry/clock rollback, read failures and stale responses after target, policy,
+close and logout changes. v0.23 added 41 simulation-runtime
 and signed-presence checks, including minimum ten-second TTL with fractional
 clocks, transport delay and authorization expiry boundaries. Heartbeats preserve
 fractional timestamps and never extend signed deadlines; remaining acknowledged
@@ -306,13 +324,12 @@ state/lease preservation, mid-scan updates, service shutdown and restart recover
 - [Current status and next work](docs/status.md)
 - [Prioritized remaining work](docs/roadmap.md)
 
-Next: replicate signed presence between peers, integrate authenticated runtime monitoring
-and explicit candidate enrollment, connect verified
+Next: replicate signed presence between peers and add explicit candidate enrollment, connect verified
 identity and candidate discovery to the mesh engine, broaden browser QA,
 and then add real product adapters and durable tasks.
 The working registry mode remains available during mesh development.
 v0.23.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.23.0)
-with a matching annotated version tag. Release checks and tag synchronization are described
+with a matching annotated version tag. v0.24.0 is unreleased and untagged in this PR. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 
 No open-source license has been selected yet. Public release requires an owner
