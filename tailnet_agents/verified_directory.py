@@ -12,6 +12,8 @@ from .registry import Registry
 from .group_policy import PolicyStore
 from .discovery import make_announcement
 from .presence import canonical_record, presence_context, verify_presence
+from .peer_presence import PeerPresenceStore, unpack_entry, validate_export
+from .runtime_monitor import validate_page
 
 
 def issue_revocation(owner_key,group_id,credential_id):
@@ -59,6 +61,11 @@ class VerifiedDirectory:
                 self._policy=PolicyStore(db,owner_key,group_id,clock=clock,max_age=self.policy_max_age)
             revoked=[row[0] for row in db.execute('SELECT jti FROM admission_revocations')]
             self._admission=Admission(owner_key,group_id,audience,clock=clock,revoked=revoked)
+            with db:
+                self._peers=PeerPresenceStore(db)
+                for token,public_key,record in db.execute('SELECT token,public_key,record FROM agent_presence'):
+                    key=Ed25519PublicKey.from_public_bytes(decode(public_key))
+                    self._peers.note(verify_presence(token,key,self.owner_key,self.group_id,json.loads(record)),token)
         except Exception:
             self._registry.close()
             raise
@@ -163,12 +170,13 @@ class VerifiedDirectory:
                     expires=lease_expires
                     registry.db.execute('INSERT INTO agent_presence VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(subject) DO UPDATE SET generation=excluded.generation,boot_id=excluded.boot_id,sequence=excluded.sequence,token=excluded.token,public_key=excluded.public_key,record=excluded.record,expires=excluded.expires,observed=excluded.observed',
                         (grant['sub'],observed['generation'],observed['boot_id'],observed['sequence'],presence,encode(public_bytes(subject_key)),json.dumps(canonical_record(record)),expires,lease_now))
+                    self._peers.note(observed,presence)
             result={'id':agent_id,'ttl_seconds':metadata['ttl_seconds']}
             if observed is not None:
                 result['presence']={name:observed[name] for name in ('generation','boot_id','sequence','state')}|{'expires_at':expires}
             return result
 
-    def presence_status(self,after='',limit=20):
+    def presence_status(self,after='',limit=20,*,_include_grants=False):
         if (type(limit) is not int or not 1<=limit<=20 or not isinstance(after,str) or
                 (after and not re.fullmatch(r'ed25519:[a-f0-9]{64}',after))):
             raise ValueError('invalid presence page')
@@ -196,8 +204,88 @@ class VerifiedDirectory:
                     state='unauthorized'
                 entries.append({'id':agent_id,'subject':subject,'public_key':public_key,'record':record,
                                 'presence':token,'state':state,'expires_at':expires,'observed_at':observed_at})
+                if _include_grants:
+                    if grant_row is None:raise AdmissionError('missing replication credential')
+                    del entries[-1]['id']
+                    entries[-1]['grant']=grant_row[0]
             return {'owner':identity_id(self.owner_key),'group_id':self.group_id,'observed_at':self.clock(),
                     'policy':self._policy.status(),'entries':entries,'has_more':len(rows)>limit,
+                    'next_after':after if not entries else entries[-1]['subject']}
+
+    def export_presence(self,after='',limit=20):
+        # Only local direct observations are exported; copied data never loops.
+        result=self.presence_status(after,limit,_include_grants=True)
+        del result['policy']
+        return result
+
+    def configure_presence_sources(self,sources):
+        with self.lock:
+            if not self.require_policy:raise AdmissionError('presence sources require policy mode')
+            self._peers.configure(sources,self.group_id)
+
+    def apply_peer_presence(self,source,page,after=''):
+        validate_page(after,20)
+        with self.lock:
+            if not self.require_policy:raise AdmissionError('presence replication requires policy mode')
+            now=self.clock()
+            rows=validate_export(page,self.owner_key,self.group_id,after,now)
+            policy=self._policy.current()
+            bounded=[]
+            for entry,claims,grant in rows:
+                entry=dict(entry)
+                entry['expires_at']=min(entry['expires_at'],grant['exp'],0 if policy is None else policy['issued_at']+self.policy_max_age)
+                try:
+                    current=verify_grant(entry['grant'],self.owner_key,self.group_id,now=now,revoked=self._admission.revoked)
+                    self._policy.authorize(current)
+                    if entry['state']=='online' and now>=entry['expires_at']:entry['state']='expired'
+                except AdmissionError:
+                    entry['state']='unauthorized'
+                bounded.append((entry,claims,grant))
+            self._peers.apply(source,bounded,self.owner_key,self.group_id,now)
+
+    def _peer_observation(self,source,entry,received):
+        claims,_=unpack_entry(entry,self.owner_key,self.group_id)
+        state=entry['state']
+        expires=entry['expires_at']
+        try:
+            grant=verify_grant(entry['grant'],self.owner_key,self.group_id,now=self.clock(),revoked=self._admission.revoked)
+            policy=self._policy.authorize(grant)
+            expires=min(expires,grant['exp'],policy['issued_at']+self.policy_max_age)
+            if state=='online' and (self.clock()>=expires or claims['issued_at']>self.clock()+5):state='expired'
+        except AdmissionError:
+            state='unauthorized'
+        return ({'source':source,'subject':entry['subject'],'public_key':entry['public_key'],
+                 'record':entry['record'],'presence':entry['presence'],'state':state,'expires_at':expires,
+                 'observed_at':entry['observed_at'],'received_at':received},claims)
+
+    def peer_presence_status(self,after='',limit=20):
+        validate_page(after,limit)
+        with self.lock:
+            if not self.require_policy:raise AdmissionError('peer presence requires policy mode')
+            db=self._registry.db
+            subjects=self._peers.subjects(after,limit)
+            entries=[]
+            for subject in subjects[:limit]:
+                observations=[]
+                local=db.execute('SELECT token,public_key,record,expires,observed FROM agent_presence WHERE subject=?',(subject,)).fetchone()
+                if local:
+                    agent_id='agent-'+subject.split(':')[1]
+                    grant=db.execute('SELECT token FROM admission_grants WHERE agent_id=?',(agent_id,)).fetchone()
+                    lease=db.execute('SELECT expires FROM agents WHERE id=?',(agent_id,)).fetchone()
+                    if grant is None or lease is None:raise AdmissionError('incomplete local observation')
+                    key=Ed25519PublicKey.from_public_bytes(decode(local[1]))
+                    claims=verify_presence(local[0],key,self.owner_key,self.group_id,json.loads(local[2]))
+                    entry={'subject':subject,'presence':local[0],'public_key':local[1],'record':json.loads(local[2]),
+                           'grant':grant[0],'expires_at':min(local[3],lease[0]),'observed_at':local[4],'state':claims['state']}
+                    observations.append(self._peer_observation({'id':'local','url':None,'fingerprint':None},entry,local[4]))
+                for source,entry,received in self._peers.remote(subject):
+                    observations.append(self._peer_observation(source,entry,received))
+                merged=self._peers.merge(subject,observations)
+                # Whole subjects stay together; bound large multi-source responses.
+                if entries and len(json.dumps(entries+[merged]).encode())>512*1024:break
+                entries.append(merged)
+            return {'owner':identity_id(self.owner_key),'group_id':self.group_id,'observed_at':self.clock(),
+                    'policy':self._policy.status(),'entries':entries,'has_more':len(subjects)>len(entries),
                     'next_after':after if not entries else entries[-1]['subject']}
 
     def revoke(self,signed_revocation):

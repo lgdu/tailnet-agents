@@ -435,6 +435,43 @@ expired cached display. The receiver's grant/revocation decision remains its
 authenticated observation; no independent grant proof or global/executor health
 attestation is implied. See [runtime monitoring](runtime-monitoring.md).
 
+### Configured one-hop presence observations (v0.25, unreleased)
+
+```mermaid
+flowchart LR
+  DIRECT["Source's direct signed heartbeat + approved grant"] --> EXPORT["Explicit export opt-in / Authenticated same-group source"]
+  CONFIG["Fixed origins + independent CA/read credentials / No discovery promotion"] --> PULL["Poll every source / Bounded per-source pages"]
+  EXPORT --> PULL
+  PULL --> VERIFY["Original owner + Agent signatures / Local grant IDs, policy age and revocations"]
+  VERIFY --> TX[("Separate cache + durable observation heads / One page transaction")]
+  LOCAL["Local direct registration transaction"] --> HEAD["Generation + boot + sequence + token hash"]
+  TX --> HEAD
+  HEAD --> VIEW["Attributed API/CLI / Current authorization + immutable deadlines / Conflict or superseded claims hidden from online"]
+```
+
+Export is a new explicit opt-in because replicas receive full scoped grants for
+independent verification. Existing presence reads and the human monitor retain
+their direct scope and omit grants. The receiver holds no owner private key and
+imports neither membership nor registration. Cached copies are never exported
+onward. Multiple Agent keys remain distinct even with identical host metadata.
+
+Each imported page validates Agent/owner signatures and scope before committing
+cache and ordering changes together. Every source is polled, with independent
+bounded cursors; partial valid pages persist through later failure. I/O holds no
+directory lock and stop prevents late applies. Local authorization and deadlines
+cap data at import; repeat claims can only shorten the stored expiry and cannot
+rearm negative state. Reads recheck current local authorization and revocations.
+
+Observation heads persist after source removal/reconfiguration and receiver
+restart, suppressing old generations/sequences when a newer claim expires or
+becomes unavailable. Equal-generation boot conflicts or same-sequence token
+contradictions stay conflicted until a higher generation arrives. These are
+merged-view rules, not distributed admission fencing: local runtime registration
+keeps its existing independent per-directory verifier. Backups now include copied
+grants and must preserve the private cache/head transaction boundary. Trusted
+clocks/local database operators and rollback limits remain unchanged. See
+[peer presence](peer-presence.md).
+
 ## Human interaction
 
 The human UI shows groups, verified members, local reachability, capabilities,
@@ -499,7 +536,9 @@ necessary; network membership never grants filesystem or secret access.
   signed heartbeat leases and authenticated paginated presence observations.
 - v0.24: authenticated, explicitly read runtime monitoring on the
   human gateway, with source/time attribution and signature/policy/expiry guards.
-- Next: candidate-to-runtime trust handoff and peer presence replication.
+- v0.25 (unreleased): explicit one-hop presence exports/pulls, independent grant
+  checks, attributed cache and durable merged-view ordering.
+- Next: cross-node messages and candidate-to-runtime trust handoff.
 - Next: integrated mesh transport with cryptographic admission.
 - Then: validated agent adapters, durable tasks and real LAN/tailnet trials.
 
@@ -543,8 +582,9 @@ full lifecycle runtime replication remains future work.
 v0.15 implements durable owner-signed group snapshots and opt-in enforcement
 in verified admission, including member removal and terminal dissolution.
 v0.16 adds configured-peer policy replication, including removals and dissolution.
-v0.17 also replicates signed credential revocations. Presence, chat and tasks
-are not replicated.
+v0.17 also replicates signed credential revocations. v0.25 adds a separate
+one-hop presence-observation cache; chat/tasks and multi-hop presence remain
+unimplemented.
 The mesh simulator remains separate. The UI can now sign/export these snapshots
 with an existing local authority; runtime enrollment remains separate.
 v0.18 bounds active-policy age and adds source failover; it does not connect those

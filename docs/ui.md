@@ -218,3 +218,9 @@ It is separate from the three Echo chat actors and their simulated online toggle
 No startup/management polling contacts peers, no credential reaches browser
 storage, and reading cannot register an Agent or deliver/renew policy. See
 [runtime monitoring](runtime-monitoring.md) for configuration, states and limits.
+
+
+The v0.25 [peer-observation API/CLI](peer-presence.md) is separate. This panel
+continues to read the selected source's direct presence; it does not mix copied
+observations into Echo members or imply that a remote row has a local live lease.
+A relayed-observation UI remains future work.

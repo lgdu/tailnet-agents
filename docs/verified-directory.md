@@ -118,3 +118,15 @@ ordering to fresh proof-based admission. Lease/grant/presence commit together;
 with current authorization rechecked. Signed-runtime identities cannot bypass
 ordering through legacy registration. See [runtime operations](agent-runtime.md)
 for expiry, offline, same-host concurrency, restart and fencing limits.
+
+
+## Peer observation cache (v0.25, unreleased)
+
+`configure_presence_sources`, `apply_peer_presence`, `export_presence` and
+`peer_presence_status` add an explicit separate observation plane. Pages validate
+signatures and local authorization before atomic cache/head application; every
+read rechecks current policy and learned revocations. `export_presence` contains
+scoped grants and only local direct history, so HTTP exposure needs a separate
+opt-in. Imports never populate `agents`/`admission_grants` or change local proof
+verification. Merged ordering/conflicts persist across restart and source changes;
+this is not distributed operational fencing. See [peer presence](peer-presence.md).

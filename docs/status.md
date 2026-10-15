@@ -1,4 +1,4 @@
-# Implementation status — v0.24
+# Implementation status — v0.25 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -11,13 +11,14 @@ its future requirements must not be read as implemented security guarantees.
 | Human UI | Local roles/chat and opt-in signed policy creation/approval/removal/renewal/dissolution/export and explicit recipient delivery; separate grant issuance/download | Automatic secure provisioning, broader browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
 | Agent identity | Optional Ed25519 keys, human-issued scoped grants, verified private-file installation and possession proofs | Trusted manual transfer, owner rotation and key renewal |
-| Runtime monitoring | Explicit signing-admin/creator reads from configured sources; signature/policy checks, scoped pages and browser expiry/race guards | Receiver observations only; no peer presence replication or executor health checks |
-| Simulation runtime | Existing identity/group, signed heartbeat leases, durable boot/sequence ordering, graceful offline and paginated observations | POSIX; configured directory; authenticated manual UI monitoring; peer presence replication pending |
+| Peer presence | Opt-in one-hop direct exports and configured multi-source pulls; independent signed grant/policy/revocation checks, bounded attributed cache and durable observation heads | No local lease/permission creation, onward gossip, relayed UI or distributed admission fencing |
+| Runtime monitoring | Explicit signing-admin/creator reads from configured sources; signature/policy checks, scoped pages and browser expiry/race guards | Direct receiver observations only; peer copies use a separate API/CLI |
+| Simulation runtime | Existing identity/group, signed heartbeat leases, durable boot/sequence ordering, graceful offline and paginated observations | POSIX; configured directory; authenticated manual UI monitoring; separate one-hop observation replication |
 | Verified directory | Library + HTTP/TLS admission, read token, durable signed revocation and signed-runtime presence | Real LAN/tailnet trial, physical transport trials and mesh replication |
 | Signed group policy | Durable snapshots, bounded signed age, approved grant IDs, terminal dissolution, opt-in HTTP enforcement | Live receiver monitoring and candidate-to-runtime trust handoff |
 | Policy replication | Ordered source failover, independent revocation cursors, HTTP/TLS pull and read-protected status | Multi-source reconciliation/quorum and explicit source enrollment |
 | Candidate discovery | Opt-in signed IPv4 multicast, credential-free HTTP/TLS seeds, local-policy checks, expiry and identity merging | Physical LAN/tailnet trials, mDNS/peer enumeration and explicit runtime enrollment |
-| Mesh | State simulator; candidate discovery is separate | Peer presence replication and integrated network group engine |
+| Mesh | State simulator, separate candidate discovery and one-hop signed observation replication | Integrated network group engine, cross-node messages and tasks |
 | Product agents | None | OpenClaw/Claude Code/Codex/Qoder/Grok interface validation |
 
 New groups are human-created. Agent restart recovery retains an existing group
@@ -182,9 +183,28 @@ conservatively with monotonic elapsed time, and clears old observations on faile
 reads, source/group/policy changes, close and logout. It stays separate from Echo
 chat members. The suite contains 296 tests (21 new monitoring checks), plus a
 Chromium monitoring/race regression alongside existing signing/delivery coverage.
-Peer presence replication, continuous revocation monitoring, real product adapters
+At v0.24, peer presence replication, continuous revocation monitoring, real product adapters
 and physical LAN/tailnet trials remain open. See [monitoring](runtime-monitoring.md).
 v0.24.0 is published as a GitHub prerelease with a matching annotated tag.
+
+## v0.25 configured peer presence replication (unreleased)
+
+Sources explicitly opt in to exporting local signed heartbeats and scoped grants.
+Receivers pull all configured same-group sources, independently verify Agent and
+owner signatures, local grant approval/policy age/revocations, and commit each
+validated page to a separate cache plus durable observation heads. Copies are not
+local registrations. Exact replays cannot extend deadlines or promote expired/
+unauthorized cache rows; old instances remain suppressed after restart or source
+removal. Contradictory boots/tokens require a higher generation to clear conflict.
+
+The authenticated API/CLI groups distinct Agent subjects with local/source
+attribution, policy/expiry checks and bounded subject pages. One-hop exports never
+forward cached rows; ordinary presence/browser reads still omit grants. The suite
+contains 322 tests, including 26 replication cases covering actual HTTP/TLS and
+service/reader CLIs, replay/conflict, independent multi-Agent identities, bounded
+scans, transaction rollback, partitions, restart and shutdown. Multi-hop gossip,
+relayed UI, cross-node chat/tasks, real adapters and physical LAN/tailnet validation
+remain unimplemented. See [peer presence](peer-presence.md). v0.25.0 is not published or tagged.
 
 ## Documentation maintenance rule
 
