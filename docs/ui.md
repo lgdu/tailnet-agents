@@ -198,7 +198,7 @@ local audit data, not tamper-proof evidence against a database operator.
 
 The optional [signing workflow](human-policy.md) connects this UI to existing
 Agent grants and signed policies through explicit human actions. Runtime identity creation,
-Agent runtime enrollment and background directory delivery remain separate. The
+Candidate-to-runtime trust handoff and background directory delivery remain separate. The
 optional [delivery workflow](policy-delivery.md) previews locally, requires human
 confirmation of the recipient and exact snapshot, and persists point-in-time
 receiver revision/age receipts. It never registers an Agent or renews policy.

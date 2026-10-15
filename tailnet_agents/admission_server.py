@@ -70,6 +70,12 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=N
                     if set(query)-{'after','limit'} or any(len(v)!=1 for v in query.values()):
                         raise ValueError('invalid revocation query')
                     return self.respond(200,directory.export_revocations(int(query.get('after',['0'])[0]),int(query.get('limit',['100'])[0])))
+                if parsed.path=='/v1/presence':
+                    self.read_auth()
+                    query=parse_qs(parsed.query,keep_blank_values=True)
+                    if set(query)-{'after','limit'} or any(len(v)!=1 for v in query.values()):
+                        raise ValueError('invalid presence query')
+                    return self.respond(200,directory.presence_status(query.get('after',[''])[0],int(query.get('limit',['20'])[0])))
                 if parsed.path in ('/v1/policies','/v1/policy-sync'):
                     self.read_auth()
                     if parsed.query:
@@ -108,26 +114,32 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=N
                         raise ValueError('invalid policy fields')
                     return self.respond(200,directory.apply_policy(payload['policy']))
                 if self.path=='/v1/challenges':
-                    if set(payload)!={'record'}:
+                    if set(payload) not in ({'record'},{'record','presence'}):
                         raise ValueError('invalid challenge fields')
+                    if 'presence' in payload and not isinstance(payload['presence'],str):
+                        raise ValueError('invalid presence token')
                     try:
-                        return self.respond(200,directory.challenge(payload['record']))
+                        return self.respond(200,directory.challenge(payload['record'],payload.get('presence')))
                     except AdmissionError as exc:
                         if str(exc)=='challenge capacity reached':
                             return self.respond(429,{'error':'challenge capacity reached; retry later'})
                         raise
                 if self.path=='/v1/registrations':
-                    if set(payload)!={'record','grant','public_key','proof','nonce'}:
+                    if set(payload) not in ({'record','grant','public_key','proof','nonce'},{'record','grant','public_key','proof','nonce','presence'}):
                         raise ValueError('invalid registration fields')
                     if not all(isinstance(payload[k],str) for k in ('grant','public_key','proof','nonce')):
                         raise ValueError('invalid registration values')
                     key=Ed25519PublicKey.from_public_bytes(decode(payload['public_key']))
-                    result=directory.register(payload['grant'],key,payload['proof'],payload['nonce'],payload['record'])
+                    if 'presence' in payload and not isinstance(payload['presence'],str):
+                        raise ValueError('invalid presence token')
+                    result=directory.register(payload['grant'],key,payload['proof'],payload['nonce'],payload['record'],payload.get('presence'))
                     return self.respond(200,result)
                 if set(payload)!={'revocation'}:
                     raise ValueError('invalid revocation fields')
                 directory.revoke(payload['revocation'])
                 self.respond(200,{'revoked':True})
+            except FileExistsError:
+                self.respond(409,{'error':'stale or conflicting runtime incarnation'})
             except (PermissionError,AdmissionError):
                 # Do not expose grant, proof, keys, prompts or detailed verifier errors.
                 self.respond(403,{'error':'request not authorized'})

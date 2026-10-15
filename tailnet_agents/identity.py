@@ -1,7 +1,7 @@
 """Optional Ed25519 identity and scoped admission primitives.
 
-Used by the optional verified directory and signed group policy.
-The human UI and distributed mesh are not integrated yet.
+Used by signed policy, human issuance, verified admission and simulation runtime.
+Product adapters and the distributed mesh remain separate.
 """
 import base64
 import hashlib

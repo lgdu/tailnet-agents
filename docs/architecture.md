@@ -44,7 +44,8 @@ Separate listeners use different ports; an explicitly configured gateway can
 route multiple identities through one origin. Neither admission nor candidate
 deduplication uses the host as a uniqueness constraint. Reusing the same key
 represents the same Agent, not another member; conflicting locators for that
-subject remain subject to clone/conflict handling. Runtime fencing is future work.
+subject remain subject to clone/conflict handling. v0.23 adds per-directory runtime
+ordering; distributed fencing and malicious cloned-key recovery remain future work.
 
 ```mermaid
 flowchart LR
@@ -266,8 +267,8 @@ configured recipient, which can use existing LAN/Tailscale replication. Approval
 has no remote effect until delivery, and never registers an Agent or proves live
 possession. Receivers still apply expiry and learned revocations. Credential
 issuance is a separate human confirmation in v0.22; private-file installation
-validates the recipient identity and transfer remains manual. Owner rotation/recovery, hardware keys, remote human sessions and runtime
-enrollment are future work. Local audit/backups are not tamper-proof. See
+validates the recipient identity and transfer remains manual. Owner rotation/recovery, hardware keys, remote human sessions and candidate-to-runtime
+trust handoff remain future work. Local audit/backups are not tamper-proof. See
 [human policy signing](human-policy.md) for recovery and retry limits.
 
 ### Explicit policy delivery (v0.21)
@@ -344,9 +345,65 @@ The installer reads a bounded token from stdin and validates it against the
 recipient's existing key before exclusive mode-0600 creation. It does not replace
 keys/files, contact peers, approve membership or register anything. Browser
 Downloads copies have OS-controlled permissions and must be handled separately.
-Transfer is operator-controlled; automatic confidential provisioning, runtime
-enrollment and key rotation/recovery remain future work. See
+Transfer is operator-controlled; automatic confidential provisioning, candidate-to-runtime
+trust handoff and key rotation/recovery remain future work. See
 [credential issuance](credential-issuance.md).
+
+### Implemented simulation runtime and signed observations (v0.23, unreleased)
+
+```mermaid
+flowchart LR
+  HUMAN["Human-created group / Explicit grant approval and policy delivery"] --> AUTH["Fresh signed policy + scoped grant + learned revocations"]
+  KEY["Original Agent key + group reference"] --> RUN["Explicitly started simulation runtime"]
+  STATE[("Private runtime SQLite / Owner + subject + original group / Durable generation + sequence")]
+  STATE --> RUN
+  RUN --> SIGN["Agent-signed online/offline heartbeat / Boot ID + sequence + metadata hash + expiry"]
+  SIGN --> PROOF["Configured HTTPS directory / Fresh challenge binds token hash and record"]
+  AUTH --> GATE["Verify authority, membership, freshness and possession"]
+  PROOF --> GATE
+  GATE --> ORDER["Persisted generation/boot/sequence checks / Reject replay and old instance"]
+  ORDER --> LEASE["Fractional signed times / One receipt clock / Floor remaining TTL / Never extend deadlines"]
+  LEASE --> DB[("Same directory / Atomic lease + grant + signed observation")]
+  DB --> OBS["Authenticated paginated presence read / Online, offline, expired, unauthorized"]
+  OBS --> VIEW["Signature-validating presence CLI / Point-in-time directory observations"]
+```
+
+The runtime starts no product adapter or executor. Construction loads existing
+key/grant/group, checks local signed credential scope and binds a private state
+file; the explicit run loop contacts only its configured directory. No group,
+identity, grant or policy is automatically generated or renewed. POSIX state
+ownership/permissions and a cooperative exclusive file lock apply per Agent.
+Distinct keys/state files let multiple processes share one host/IP/Tailscale
+device without merging subjects.
+
+Each process commits a higher generation before sending and uses a fresh boot
+ID. Heartbeat sequence commits precede I/O. The directory atomically saves signed
+observations with registration/grant leases, bounded by presence, credential and
+policy deadlines. Signed timestamps preserve fractional seconds and accept
+existing integer values. Ten seconds is the minimum requested TTL and remaining
+grant/policy validity; transport may reduce the signed heartbeat's acknowledged
+lease to 1–9 whole seconds. One receipt-time snapshot determines its rounded-down
+TTL and effective expiry without extending any deadline; less than one full
+second of heartbeat validity is rejected. Lower generation, replayed sequence and same-generation
+different-boot requests cannot replace the incumbent. After opt-in, that identity
+cannot downgrade to legacy registration on the directory. Other legacy identities
+retain their existing behavior.
+
+Offline is signed observation state, not removal. Crash/partition ages out the
+lease; a lost response is followed by a higher-sequence fresh heartbeat, not a
+permission renewal. Stop during challenge blocks the later online request and
+graceful shutdown attempts signed offline. Directory restart preserves ordering,
+policy and revocation history while invalidating old live leases. Reads and
+discovery recheck policy/grant/heartbeat expiry and revocation, so saved signatures
+alone cannot restore online status or authorization.
+
+The CLI verifies Agent signature, scope, metadata and deadline bounds, then reports
+the configured receiver's observations. These are neither receiver-signed
+attestations nor global reachability/executor health. Presence is not part of
+policy/revocation replication, and the local human chat UI retains separate Echo
+participants. State backup rollback, malicious holders of a cloned key, distributed
+fencing, authenticated UI monitoring and physical-network validation remain open.
+See [runtime operations](agent-runtime.md).
 
 ## Human interaction
 
@@ -408,8 +465,11 @@ necessary; network membership never grants filesystem or secret access.
   historical age receipts and restart-safe human retry.
 - v0.22: separate human credential issuance/download and stable
   recovery, recipient identity validation and exclusive private-file installation.
-- Next: candidate runtime enrollment and signed presence.
-- Next: mesh transport with cryptographic admission and signed presence.
+- v0.23 (unreleased): explicit simulation runtime, durable instance ordering,
+  signed heartbeat leases and authenticated paginated presence observations.
+- Next: candidate-to-runtime trust handoff, peer presence replication and
+  authenticated runtime monitoring.
+- Next: integrated mesh transport with cryptographic admission.
 - Then: validated agent adapters, durable tasks and real LAN/tailnet trials.
 
 Do not replace working registry mode until mesh fault and authorization tests pass.

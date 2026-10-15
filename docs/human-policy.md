@@ -156,6 +156,6 @@ after credentials are cleared. Do not use production credentials for this check.
 
 No real product Agent is connected. Background policy delivery, automatic
 confidential credential transfer, live directory/revocation monitoring, browser
-sessions, remote admin deployment, owner rotation/recovery, signed presence,
+sessions, remote admin deployment, owner rotation/recovery, peer presence replication,
 mesh chat and durable tasks remain future work. Physical LAN/tailnet/WAN behavior
 is unvalidated; this change reuses the existing signed policy wire format.

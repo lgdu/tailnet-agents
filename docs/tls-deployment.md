@@ -100,8 +100,8 @@ do not assume this direct-server configuration works behind arbitrary proxies.
 There is no mTLS; subject identity is verified with signed admission proofs.
 The challenge is bound to a configured audience and record, not a TLS exporter.
 Cert renewal, owner-key rotation, per-source rate limits, hardened HTTP serving,
-human UI policy issuance, discovery plugins and distributed lifecycle remain work
-items. TLS acceptance currently occurs in the server accept path and can delay
+physical deployment validation, integrated peer presence and distributed
+lifecycle remain work items. TLS acceptance currently occurs in the server accept path and can delay
 other accepts up to its timeout. Do not treat it as a hardened public service.
 
 Tests generate a temporary CA/server certificate and run actual HTTPS requests
@@ -110,3 +110,9 @@ SAN hostname mismatch rejection and refusal of plaintext non-loopback config.
 They do not test actual household routers, tailnet links, firewalls or WAN latency.
 
 Primary TLS API reference: https://docs.python.org/3.11/library/ssl.html
+
+The optional [simulation runtime and presence reader](agent-runtime.md) use this
+same TLS/CA/hostname trust model for LAN and Tailscale. Runtime requires signed
+policy mode and separately approved credentials; a TLS endpoint alone grants no
+membership. Tests include actual runtime HTTP/TLS requests with simulated keys,
+not physical-network or real product compatibility.

@@ -96,7 +96,8 @@ clock requirements and configured-source failover.
   verified channel/audience to prevent relay and endpoint identity confusion.
 - Signed grant permission `join` authorizes directory admission only. Advertised
   skills are self-descriptions, not execution privileges or attestations.
-- No owner-key rotation or credential issuance UI. Optional signed policy
+- Owner-key rotation remains unimplemented. The optional [human issuer](credential-issuance.md)
+  separately issues scoped grants. Optional signed policy
   enforcement integrates member removal and terminal dissolution into this
   directory; local UI lifecycle remains separate.
 - SQLite stores grant and signed revocation tokens in plaintext. Protect backups.
@@ -106,3 +107,14 @@ clock requirements and configured-source failover.
 Tests cover valid registration, metadata tampering, nonce replay, wrong authority,
 wrong-group revocation, expiry, durable revocation, authority pinning and renewal
 with a new credential while retaining the subject's stable identity.
+
+## Signed runtime observations (v0.23, unreleased)
+
+`challenge(record, presence=None)` and `register(..., record, presence=None)`
+retain legacy behavior when the token is omitted for an unconverted identity.
+In policy mode, an Agent-signed token adds metadata/expiry and durable instance
+ordering to fresh proof-based admission. Lease/grant/presence commit together;
+`presence_status(after='', limit=20)` returns bounded historical/live observations
+with current authorization rechecked. Signed-runtime identities cannot bypass
+ordering through legacy registration. See [runtime operations](agent-runtime.md)
+for expiry, offline, same-host concurrency, restart and fencing limits.

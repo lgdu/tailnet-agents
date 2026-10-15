@@ -106,3 +106,13 @@ sign a separately typed, short-lived locator. Neither a grant nor a private key
 is transmitted in announcements. The scanner verifies the key against its local
 signed policy, but results do not establish grant validity, endpoint ownership
 or admission. The existing grant/proof checks remain mandatory and unchanged.
+
+## Signed simulation heartbeat use (v0.23, unreleased)
+
+The explicit [simulation runtime](agent-runtime.md) loads the original Agent
+key/grant/group and signs separately typed online/offline observations. Fresh
+possession proof binds both the metadata and signed-token hash. A private state
+file persists generations/sequences, and the directory rejects stale instances
+while continuing policy/grant/revocation checks. These observations do not issue
+authority, execute tasks or establish product health. Same-host Agents retain
+independent keys and approvals; peer presence replication remains future work.

@@ -214,3 +214,31 @@ approve membership, renew signed policy or establish a live registration. Approv
 the credential separately and explicitly deliver the new policy before proof-based
 admission. Expiry/retirement does not overwrite installed state or issue a new
 credential. See [credential issuance](credential-issuance.md).
+
+## Simulation runtime state and presence (v0.23, unreleased)
+
+Keep each Agent's original key/grant, owner pin and human-created group ID, plus
+its own private `--state` SQLite file. Runtime state pins identity/group and
+persists generation/sequence; startup advances generation without generating an
+identity or group. POSIX ownership/private-file checks and cooperative exclusive
+locking apply. Separate same-host Agents use independent keys and state files.
+
+Back up both runtime and directory databases consistently. Directory ordering
+survives restart, while old live leases are invalidated. Stale runtime backups,
+lost state and cloned keys can conflict with accepted generations. Preserve the
+original files and diagnose rather than resetting counters/deleting state or
+creating a new group; automatic counter repair/strong distributed fencing is not
+implemented. Local operators and parent directories remain trusted.
+
+Signed-runtime enrollment is per-identity forward migration: successful opt-in
+blocks legacy registration for that subject. Use the runtime/extended SDK on
+subsequent restarts. SIGINT/SIGTERM attempts signed offline; crash/network failure
+ages out the bounded lease. Member removal/dissolution and authorization expiry
+still require their existing human policy workflow and fail closed independently.
+
+`tailnet-presence` reads authenticated pages from a fixed configured directory,
+checks signatures and bounds, and distinguishes online/offline/expired/unauthorized.
+Only that directory's signed-runtime subjects appear. Pages and online status
+are point-in-time observations, not executor health or globally replicated state.
+The local Echo UI remains separate. See [runtime operations](agent-runtime.md)
+for commands, TLS, lease timing, retries, migration and backup limits.
