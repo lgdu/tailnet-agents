@@ -195,3 +195,14 @@ receipts. Private database context and process lock prevent identity replacement
 or concurrent recovery. Interrupted running work becomes uncertain without
 another invocation; queued tasks need an explicit fresh submission. The CLI
 starts only Echo simulation. See [durable tasks](durable-tasks.md).
+
+## Explicit reference adapter metadata (v0.29, unreleased)
+
+With `--tasks`, the default Echo executor additionally accepts read-token protected
+`POST /v1/task-adapter-probe` with only a fresh 64-character lowercase hex `nonce`.
+It signs short-lived metadata after verifying its own current execution grant and
+policy; it never submits/registers anything. Without an executor this route is
+404, and custom test callbacks cannot advertise the reference contract. The
+[adapter CLI](adapters.md) requires original public pins, group, audience and an
+explicit origin. Task challenge/proof authorization is unchanged and still needed
+for every actual operation; the read token or descriptor confers no task rights.

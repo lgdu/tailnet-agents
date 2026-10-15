@@ -633,7 +633,11 @@ physical LAN/tailnet validation are future work. See [durable tasks](durable-tas
   scoped operation proofs, durable outbox/deduplication and catch-up cursors.
 - v0.27: signed Echo task/executor identities, durable intent and
   result boundaries, signed receipts, explicit queued recovery and crash-to-uncertain.
-- Next: multi-source policy reconciliation, human renewal UX and candidate-to-runtime trust handoff.
+- v0.28: explicit all-source policy comparison, durable signed conflict/terminal
+  evidence and fixed-time human renewal preview/confirmation.
+- v0.29 (unreleased): reference Echo contract, offline inventory and explicit signed
+  metadata probe; no product executables or caller authority from metadata.
+- Next: real interface validation when available, safe task operations and candidate-to-runtime trust handoff.
 - Next: integrated mesh transport with cryptographic admission.
 - Then: validated agent adapters and real LAN/tailnet trials.
 
@@ -721,3 +725,33 @@ log. Startup revalidates signed facts, but an operator-controlled database rollb
 can erase history. Unreachable sources do not prove an authority head. Explicit
 history import/fork resolution, pruning, quorum and automatic reconciliation are
 future work. See [policy review](policy-review.md) for consent and recovery bounds.
+
+### Implemented reference adapter contract/probe (v0.29, unreleased)
+
+The default durable executor uses a fixed Echo reference adapter. Its contract
+shares the existing `echo-v1` persisted identity and 2048-byte text bounds. No
+product registry can load executables; in-process test callbacks are not verified
+adapters and cannot advertise this contract. The offline inventory distinguishes
+unimplemented products and model APIs without scanning or launching them.
+
+```mermaid
+flowchart LR
+  HUMAN["Human selects original source + executor public pin"] --> PROBE["Explicit metadata CLI / Fresh random nonce"]
+  CATALOG["Offline product inventory / No installed-product scan"] --> HUMAN
+  PROBE -->|"Read token + nonce / Configured LAN or Tailscale HTTPS"| API["Opt-in task service / Host + Origin + read auth"]
+  API --> AUTH["Current executor grant + policy + revocation checks"]
+  AUTH --> DESC["Sign source, original identity/group, nonce and Echo contract"]
+  DESC -->|"At most 15 seconds / Bound by grant and local policy age"| VERIFY["Verify pins, source, nonce, contract and receipt-time age"]
+  VERIFY --> REPORT["Compatible metadata / Execution authorization not checked"]
+  CALLER["Separate approved caller / Explicit signed task + fresh scoped proof"] --> TASK["Existing durable task execution / No automatic retry or migration"]
+```
+
+Probing does not submit work or mutate database/admission/task state, and cannot
+resume queued/uncertain rows. It signs only metadata while holding the directory
+lock, without calling adapter hooks. The descriptor's owner/group fields are
+executor assertions; no independent owner-policy/grant chain or executable health
+attestation is claimed. Metadata never supplies membership, filesystem/secret
+access or caller task authority. Actual execution retains both principals' current
+`task.echo` checks and the durable running/result boundary. Real product interfaces,
+sessions, launchers, external side effects and cancellation remain future work.
+See [adapter contracts](adapters.md) for commands and exact limitations.

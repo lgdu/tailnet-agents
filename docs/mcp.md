@@ -99,3 +99,11 @@ still call the legacy bearer Echo bridge, whose task identity/results are in
 memory. They do not automatically select the new executor, acquire `task.echo`
 grants or gain durable caller state. A future explicit bridge must preserve the
 original task ID/executor and uncertainty semantics; no implicit migration exists.
+
+## Separate adapter contract inspection (v0.29, unreleased)
+
+The [adapter catalog/probe](adapters.md) is separate from these MCP tools. It can
+inspect a pinned simulation executor's metadata but cannot delegate or approve a
+task. It neither starts a product nor proves that an MCP client is an inbound
+worker. OpenClaw, Codex, Claude Code, Qoder, Grok Agent and Grok model API interfaces
+remain unvalidated; model API calls are not product Agent integration.

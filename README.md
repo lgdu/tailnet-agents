@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.28 prototype.** Working components are listed below. The network mesh and
+**v0.29 prototype (unreleased).** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -13,6 +13,7 @@ action; agents may only discover or restore previously authorized groups.
 |---|---|---|
 | Directory | SQLite registration, leases, ownership, removal, status | Central registry; not distributed mesh |
 | Legacy bridge | Automatic renewal, discovery CLI, bearer Echo tasks | Custom v0.1 API; in-memory history; separate from durable signed tasks |
+| Adapter inspection | Offline product inventory, strict Echo contract and explicit nonce-bound signed metadata probe | Synthetic Echo only; metadata compatibility grants no execution rights; no product scan, launcher or real adapter |
 | Durable signed tasks | Explicit Echo executor identity, scoped operation proofs, durable caller intents/executor results and signed receipts; interrupted work becomes uncertain | Simulation only; no automatic uncertain retry/migration, real adapters, MCP/UI integration or HA |
 | MCP | Stdio discovery, delegation, result tools | 2025 handshake family; real client compatibility unvalidated |
 | Human UI | Explicit groups, scoped chat, opt-in owner-signed creation/approval/removal/renewal/dissolution, policy export, explicit recipient delivery and human-confirmed grant issuance | Trusted loopback gateway; private-file installer; manual trusted transfer; simulated agents |
@@ -76,6 +77,9 @@ flowchart TB
     MSG["Synthetic message clients / 同机多个独立密钥、持久 outbox"] -->|"Signed text + operation proof / 显式配置 HTTPS"| API
     TC["Signed task caller / 原任务 ID、原执行器、持久待送"] -->|"Current task.echo grant + fresh proof"| API
     API --> TE["Explicit Echo executor / 原身份、独立授权"]
+    PROBE["Explicit adapter probe / 原群组、来源、执行器公钥与 nonce"] -->|"Read credential + metadata POST / 不提交任务"| API
+    TE --> CONTRACT["Signed Echo contract / 最长 15 秒、不证明调用权限"]
+    CONTRACT -->|"Verify original pins + source + nonce"| PROBE
     TE --> TDB[("SQLite / 任务、running 标记、签名结果")]
     TDB -->|"Restart: running becomes uncertain / 不自动重跑"| TE
     TE -->|"Signed receipt / 对照原任务核验、保存"| TC
@@ -368,6 +372,20 @@ policy. A failed source cannot prove history complete. No snapshot is automatica
 chosen or adopted, and discovery cannot add sources. See [policy review](docs/policy-review.md)
 for incomplete reads, persistent evidence, retry semantics and recovery limits.
 
+## Reference adapter contract and probing (v0.29, unreleased)
+
+`tailnet-adapters catalog` lists implemented versus unimplemented adapters offline,
+without scanning or starting installed products. OpenClaw, Codex, Claude Code,
+Qoder and Grok Agent remain unimplemented; Grok model API is a separate target.
+`tailnet-adapters probe` explicitly reads nonce-bound signed metadata from one
+configured `--tasks` Echo executor using its original public pin, owner/group,
+audience and read credential. It validates the strict Echo contract and a lifetime
+of at most 15 seconds, bounded by receiver policy/grant expiry. Same-host executors
+keep separate key identities. Probe requests never submit/recover tasks, register
+members or issue credentials. `compatible_metadata` is a historical observation,
+not execution authorization or a product health check. See [adapter contracts](docs/adapters.md)
+for commands, supported metadata, task permission boundaries and future product work.
+
 ## Verification
 
 ```bash
@@ -380,8 +398,10 @@ are explicitly skipped. CI runs both core and identity installations. The new si
 visual/accessibility coverage and real-agent compatibility remain outstanding.
 The dedicated CI browser job also delays policy reads and checks that download
 never uses a pre-mutation snapshot; failed refreshes keep exports disabled.
-v0.28 includes 423 tests: the 390-test v0.27 baseline plus 33 policy-review
-checks for all-source HTTP/TLS reads, durable conflicts/terminal evidence, partial
+v0.29 includes 453 tests: 30 new contract/probe checks plus the 423-test v0.28
+baseline. Five new checks run without the identity extra; 25 exercise signed
+metadata, HTTP/TLS, the CLI, expiry, context/replay failures and same-host recovery.
+v0.28 added 33 policy-review checks for all-source HTTP/TLS reads, durable conflicts/terminal evidence, partial
 failures, transaction rollback, fixed-time consent and concurrency/retry guards.
 A third Chromium check covers the review/renewal panel and stale responses.
 v0.27 added 35 durable-task
@@ -407,8 +427,8 @@ state/lease preservation, mid-scan updates, service shutdown and restart recover
 - [Current status and next work](docs/status.md)
 - [Prioritized remaining work](docs/roadmap.md)
 
-Next: adapter contracts and interface probing, then real adapters when available
-and physical deployment trials. Quorum/automatic policy reconciliation, safe fork
+Next: validate actual product interfaces when available, implement explicitly
+scoped real adapters, and conduct physical deployment trials. Quorum/automatic policy reconciliation, safe fork
 resolution and explicit candidate enrollment remain open; connect verified identity
 and candidate discovery to the mesh engine and broaden browser QA.
 The working registry mode remains available during mesh development.

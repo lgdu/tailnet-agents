@@ -1,4 +1,4 @@
-# Implementation status — v0.28
+# Implementation status — v0.29 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -21,6 +21,7 @@ its future requirements must not be read as implemented security guarantees.
 | Human policy review | All configured recipients compared on explicit request; persistent signed history guards; fixed-time renewal preview/confirmation | No automatic source choice/adoption, fork recovery, grant renewal or delivery; failures leave history incomplete |
 | Candidate discovery | Opt-in signed IPv4 multicast, credential-free HTTP/TLS seeds, local-policy checks, expiry and identity merging | Physical LAN/tailnet trials, mDNS/peer enumeration and explicit runtime enrollment |
 | Mesh | State simulator, separate candidate discovery and one-hop signed observation replication | Integrated network group engine, multi-store messages and real executors |
+| Adapter contracts | Strict reference Echo contract; offline product inventory and explicit nonce-bound signed metadata inspection | Compatible metadata is not execution permission or product health; no real interface validation, launchers or plugins |
 | Product agents | None | OpenClaw/Claude Code/Codex/Qoder/Grok interface validation |
 
 New groups are human-created. Agent restart recovery retains an existing group
@@ -322,6 +323,38 @@ resolution, evidence pruning/retention, owner rotation/recovery, real product
 adapters and physical LAN/Tailscale/WAN trials. The evidence ledger contains signed
 member snapshots; protect its consistent backups. Database rollback or deletion
 cannot safely resolve a conflict. Normal directory pulls retain ordered failover.
+
+## v0.29 reference adapter contracts and probing (unreleased)
+
+The default durable executor uses an explicit Echo reference adapter with the
+existing `echo-v1` identity and unchanged task wire format/SQLite context. Contract
+inspection declares exact byte bounds, `task.echo`, synchronous execution, no
+external side effects and running-to-uncertain recovery. Unknown contracts/types,
+implicit retry or product substitution are rejected. In-process test callbacks
+remain usable but cannot advertise a verified Echo contract.
+
+The offline catalog lists real products as unimplemented/unvalidated and separates
+Grok model API from Grok Agent. Explicit read-authenticated metadata probes bind
+a fresh 256-bit nonce, configured source, original executor/owner/group/audience,
+contract and bounded signed timestamps. The server checks its own current grant,
+policy and revocation state; clients verify signatures/pins, source/nonce and age.
+Descriptors last at most 15 seconds and cannot outlive the receiver's policy or
+executor grant. Probe results do not establish caller execution rights, owner-signed
+membership evidence, product health or future availability. They create no tasks,
+members, leases or local caller state, and cannot resume queued/uncertain work.
+
+The suite contains 453 tests: five new core contract/catalog checks and 25 new
+signed HTTP/TLS/CLI probe checks. All 30 focused tests and all 453 full identity
+tests pass without skips on the first run. Core passes 55 with 398 expected skips;
+all three serial Chromium checks pass. Package/MCP version, dependency checks,
+mesh simulation, JS syntax and 26-document link/anchor checks pass. See the PR for
+remote CI results and [adapter contracts](adapters.md) for behavior and limits.
+
+Unimplemented: real OpenClaw/Codex/Claude Code/Qoder/Grok interfaces, executable
+product/plugin selection, arbitrary task kinds or filesystem/tool authority,
+product login/session provisioning, model API integration, cancellation/timeouts
+for real adapters, owner/key recovery and physical LAN/Tailscale trials. The Human
+UI and MCP still use their separate simulated/legacy paths. v0.29 is unreleased.
 
 ## Documentation maintenance rule
 
