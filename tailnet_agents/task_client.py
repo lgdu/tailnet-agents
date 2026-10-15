@@ -16,6 +16,7 @@ from .discovery import origin
 from .durable_tasks import (TERMINAL, digest, make_task, task_id, validate_request, verify_receipt, verify_task)
 from .identity import (AdmissionError, GRANT_TYPE, decode, encode, identity_id, load_identity,
                        prove_possession, public_bytes, verify, verify_grant)
+from . import task_operations as operations
 
 
 class TaskClient:
@@ -42,13 +43,18 @@ class TaskClient:
             self.db = sqlite3.connect(path, check_same_thread=False)
             self.db.execute('PRAGMA journal_mode=WAL');self.db.execute('PRAGMA synchronous=FULL')
             ca_hash = None if ca_file is None else digest(Path(ca_file).read_text())
-            context = json.dumps([identity_id(owner), group, self.subject, self.executor, self.http.url, audience, ca_hash])
+            bindings = [identity_id(owner), group, self.subject, self.executor, self.http.url, audience, ca_hash]
+            legacy_context, context = json.dumps(bindings), json.dumps(bindings + [operations.CALLER_FORMAT])
             with self.db:
                 self.db.execute('CREATE TABLE IF NOT EXISTS task_caller_context (id INTEGER PRIMARY KEY CHECK(id=1),context TEXT NOT NULL)')
                 previous = self.db.execute('SELECT context FROM task_caller_context WHERE id=1').fetchone()
-                if previous and previous[0] != context:raise AdmissionError('cannot replace original caller/group/executor/service/CA')
-                self.db.execute('INSERT OR IGNORE INTO task_caller_context VALUES(1,?)', (context,))
+                if previous and previous[0] not in (legacy_context, context):raise AdmissionError('cannot replace original caller/group/executor/service/CA/format')
+                self.db.execute('INSERT INTO task_caller_context VALUES(1,?) ON CONFLICT(id) DO UPDATE SET context=excluded.context', (context,))
                 self.db.execute('CREATE TABLE IF NOT EXISTS task_outbox (position INTEGER PRIMARY KEY AUTOINCREMENT,task_id TEXT UNIQUE NOT NULL,token TEXT NOT NULL,state TEXT NOT NULL,receipt TEXT)')
+                operations.bind(self.db)
+                for mid, expected_hash in self.db.execute('SELECT task_id,request_hash FROM task_cancellations'):
+                    row, _, _ = operations.local(self, mid)
+                    if digest(row[1]) != expected_hash:raise AdmissionError('invalid persisted cancellation intent')
         except BaseException:
             self.close();raise
 
@@ -70,22 +76,23 @@ class TaskClient:
             with self.db:self.db.execute('INSERT INTO task_outbox(task_id,token,state) VALUES(?,?,?)', (claim['task_id'], token, 'pending'))
             return {'task_id': claim['task_id'], 'state': 'pending', 'executor': self.executor}
 
-    def _save(self, row, response):
+    def _save(self, row, response, *, expected_state=None):
         mid, token, previous, old_receipt = row
         if not isinstance(response, dict) or set(response) != {'receipt'}:raise ValueError('invalid task response')
         original = verify_task(token, self.key.public_key(), self.owner, self.group, self.audience, self.executor)
         claim = verify_receipt(response['receipt'], self.executor_key, self.owner, self.group, self.audience,
                                original | {'request_hash': digest(token)})
+        if expected_state is not None and claim['status'] != expected_state:raise ValueError('unexpected operation acknowledgment')
         if (previous in TERMINAL and response['receipt'] != old_receipt or
                 previous == 'running' and claim['status'] == 'queued'):
             raise ValueError('conflicting or older executor receipt; preserve original state')
         with self.db:self.db.execute('UPDATE task_outbox SET state=?,receipt=? WHERE task_id=?', (claim['status'], response['receipt'], mid))
-        return claim
+        return operations.decorate(self, claim, mid)
 
     def flush(self, limit=20):
         if type(limit) is not int or not 1 <= limit <= 20:raise ValueError('flush limit must be 1..20')
         with self.lock:
-            rows = self.db.execute("SELECT task_id,token,state,receipt FROM task_outbox WHERE state IN ('pending','queued') ORDER BY position LIMIT ?", (limit,)).fetchall()
+            rows = self.db.execute("SELECT task_id,token,state,receipt FROM task_outbox WHERE state IN ('pending','queued') AND NOT EXISTS (SELECT 1 FROM task_cancellations WHERE task_cancellations.task_id=task_outbox.task_id) ORDER BY position LIMIT ?", (limit,)).fetchall()
             result = []
             for row in rows:result.append(self._save(row, self._request({'operation': 'submit', 'task': row[1]})))
             return result
@@ -102,20 +109,36 @@ class TaskClient:
         with self.lock:
             row = self.db.execute('SELECT token,state,receipt FROM task_outbox WHERE task_id=?', (mid,)).fetchone()
             if row is None:raise KeyError('unknown local task')
-            if row[2] is None:return {'task_id': mid, 'state': row[1], 'executor': self.executor}
+            if row[2] is None:return operations.decorate(self, {'task_id': mid, 'state': row[1], 'executor': self.executor}, mid)
             original = verify_task(row[0], self.key.public_key(), self.owner, self.group, self.audience, self.executor)
-            return verify_receipt(row[2], self.executor_key, self.owner, self.group, self.audience, original | {'request_hash': digest(row[0])})
+            result = verify_receipt(row[2], self.executor_key, self.owner, self.group, self.audience, original | {'request_hash': digest(row[0])})
+            return operations.decorate(self, result, mid)
 
     def list_tasks(self, *, after=0, limit=20):
         if type(after) is not int or not 0 <= after <= 2**53 - 1 or type(limit) is not int or not 1 <= limit <= 100:
             raise ValueError('invalid local task page')
         with self.lock:
             rows = self.db.execute('SELECT position,task_id,state FROM task_outbox WHERE position>? ORDER BY position LIMIT ?', (after, limit + 1)).fetchall()
-            entries = [dict(zip(('position', 'task_id', 'state'), row)) | {'executor': self.executor} for row in rows[:limit]]
+            entries = [operations.decorate(self, dict(zip(('position', 'task_id', 'state'), row)) | {'executor': self.executor}, row[1]) for row in rows[:limit]]
             return {'tasks': entries, 'next_after': entries[-1]['position'] if entries else after, 'has_more': len(rows) > limit}
 
     def status(self):
-        with self.lock:return dict(self.db.execute('SELECT state,COUNT(*) FROM task_outbox GROUP BY state'))
+        with self.lock:return dict(self.db.execute("SELECT CASE WHEN state NOT IN ('completed','failed','uncertain','cancelled') AND EXISTS (SELECT 1 FROM task_cancellations WHERE task_cancellations.task_id=task_outbox.task_id) THEN 'cancel_pending' ELSE state END AS visible,COUNT(*) FROM task_outbox GROUP BY visible"))
+
+    def cancel_preview(self, mid):
+        with self.lock:return operations.cancel_preview(self, mid)
+
+    def cancel(self, mid, expected_hash, confirmation):
+        with self.lock:return operations.cancel(self, mid, expected_hash, confirmation)
+
+    def review_preview(self, mid):
+        with self.lock:return operations.review_preview(self, mid)
+
+    def review(self, mid, receipt_hash, decision, note, request_id, confirmation):
+        with self.lock:return operations.review(self, mid, receipt_hash, decision, note, request_id, confirmation)
+
+    def reviews(self, mid, *, after=0, limit=20):
+        with self.lock:return operations.reviews(self, mid, after, limit)
 
     def close(self):
         with self.lock:
@@ -133,7 +156,16 @@ def main():
     queue.add_argument('--input-file', required=True)
     flush = sub.add_parser('flush', help='retry pending/unstarted tasks at their original executor only')
     flush.add_argument('--limit', type=int, default=20)
-    for name in ('refresh', 'show'):sub.add_parser(name).add_argument('--task-id', required=True)
+    for name in ('refresh', 'show', 'cancel-preview', 'review-preview'):sub.add_parser(name).add_argument('--task-id', required=True)
+    cancel = sub.add_parser('cancel', help='persist cancellation intent, then request pre-execution cancellation at original executor')
+    for name in ('task-id', 'request-hash', 'confirm-task-id'):cancel.add_argument('--' + name, required=True)
+    review = sub.add_parser('review', help='append a local advisory note; never changes an uncertain task result')
+    for name in ('task-id', 'receipt-hash', 'note-file', 'request-id', 'confirm-task-id'):review.add_argument('--' + name, required=True)
+    review.add_argument('--decision', choices=operations.DECISIONS, required=True)
+    reviews = sub.add_parser('reviews', help='page local caller-signed uncertainty notes without network I/O')
+    reviews.add_argument('--task-id', required=True)
+    reviews.add_argument('--after', type=int, default=0)
+    reviews.add_argument('--limit', type=int, default=20)
     listing = sub.add_parser('list', help='page saved task IDs/status locally, without contacting the executor')
     listing.add_argument('--after', type=int, default=0)
     listing.add_argument('--limit', type=int, default=20)
@@ -150,6 +182,13 @@ def main():
         elif args.command == 'flush':result = client.flush(args.limit)
         elif args.command == 'refresh':result = client.refresh(args.task_id)
         elif args.command == 'show':result = client.show(args.task_id)
+        elif args.command == 'cancel-preview':result = client.cancel_preview(args.task_id)
+        elif args.command == 'cancel':result = client.cancel(args.task_id, args.request_hash, args.confirm_task_id)
+        elif args.command == 'review-preview':result = client.review_preview(args.task_id)
+        elif args.command == 'review':
+            with Path(args.note_file).open() as source:note = source.read(2049)
+            result = client.review(args.task_id, args.receipt_hash, args.decision, note, args.request_id, args.confirm_task_id)
+        elif args.command == 'reviews':result = client.reviews(args.task_id, after=args.after, limit=args.limit)
         elif args.command == 'list':result = client.list_tasks(after=args.after, limit=args.limit)
         else:result = client.status()
     except (ValueError, TypeError, KeyError, OSError, URLError, sqlite3.Error):

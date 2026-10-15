@@ -637,7 +637,10 @@ physical LAN/tailnet validation are future work. See [durable tasks](durable-tas
   evidence and fixed-time human renewal preview/confirmation.
 - v0.29: reference Echo contract, offline inventory and explicit signed
   metadata probe; no product executables or caller authority from metadata.
-- Next: real interface validation when available, safe task operations and candidate-to-runtime trust handoff.
+- v0.30 (unreleased): explicit pre-execution cancellation, durable caller barriers
+  and caller-signed local uncertainty notes; no running stop or outcome rewrite.
+- Next: real interface validation when available, retention with anti-replay state,
+  explicit task UI/MCP integration and candidate-to-runtime trust handoff.
 - Next: integrated mesh transport with cryptographic admission.
 - Then: validated agent adapters and real LAN/tailnet trials.
 
@@ -755,3 +758,37 @@ access or caller task authority. Actual execution retains both principals' curre
 `task.echo` checks and the durable running/result boundary. Real product interfaces,
 sessions, launchers, external side effects and cancellation remain future work.
 See [adapter contracts](adapters.md) for commands and exact limitations.
+
+### Implemented task cancellation and local review boundary (v0.30, unreleased)
+
+Cancellation is an explicit caller operation on the original signed intent, with
+the same scoped proof and both principals' current authorization. A caller barrier
+commits before I/O; a remote unknown/conflicting outcome cannot re-enable `flush`.
+A one-way local format marker prevents older callers ignoring that intent. Keys,
+group, source and original tasks remain pinned through migration/restart.
+
+```mermaid
+flowchart LR
+  HUMAN["Human confirms original task ID + hash"] --> LOCAL[("Persist caller cancellation intent / No future flush resubmission")]
+  LOCAL -->|"Original intent + fresh cancel-bound proof"| CANCEL["Original executor / Current caller and executor authorization"]
+  CANCEL --> LOCK["Same lock as running marker / Check original durable history"]
+  LOCK -->|"Absent or queued"| TOMB[("Commit cancelled + signed receipt / Retain tombstone")]
+  LOCK -->|"Running or terminal"| CONFLICT["Conflict / No stop acknowledgment"]
+  TOMB --> LATE["Late original submit returns receipt / No invocation"]
+  UNKNOWN["Original signed uncertain receipt"] --> PREVIEW["Local review preview / Original receipt hash"]
+  HUMAN --> NOTE["Explicit caller-signed advisory note"]
+  PREVIEW --> NOTE
+  NOTE --> HISTORY[("Local append-only review history / Original outcome stays uncertain")]
+```
+
+Cancellation cannot stop work after the durable running marker, and tombstones
+consume capacity. Trusted history/backup preservation remains required; no database
+rollback, pruning or key-clone recovery is inferred from a cancellation receipt.
+
+Reviews are local caller-key statements, not independently verified Human-principal
+attestations or externally proven outcomes. Each binds the original signed receipt
+and request/context, explicitly preserves uncertainty and grants no replay right.
+Review signing/history is available offline after expiry/dissolution without
+changing credentials, membership, executor state or the original receipt. Real
+product cancellation, verified resolution, UI/MCP integration and retention remain
+future work. See [task operations](task-operations.md).

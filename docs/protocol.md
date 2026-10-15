@@ -646,3 +646,40 @@ execution. The descriptor proves possession for this metadata response, not an
 owner-signed admission chain or the caller's execution permission. It cannot be
 used as a task grant, intent or operation proof. Task requests/receipts, SQLite
 executor identity `echo-v1` and `task.echo` authorization remain unchanged.
+
+## Explicit task cancellation and local review records (v0.30, unreleased)
+
+The existing task challenge/operation routes add `{operation:"cancel",task:JWS}`.
+The exact original signed intent is required, not only a task ID. Its full request
+hash, including `operation`, binds a fresh `tasks-v1:` challenge/proof. Both caller
+and executor retain current `task.echo`/policy/revocation checks. A submit proof
+cannot cancel, and read tokens or metadata cannot authorize it.
+
+Only absent/queued intents can become terminal `cancelled`; tombstone and receipt
+commit atomically under the same directory lock as the running marker. The receipt
+uses the existing result JWS fields/version, with `status:"cancelled"`, `output:null`,
+`error:"execution_cancelled"`. Duplicate same-intent cancel/submit returns its exact
+stored receipt, including after restart. Different intent/caller collisions fail;
+running/completed/failed/uncertain cancel returns 409 without rewriting outcomes.
+Invalid schemas return 400, auth failures 403, absent-tombstone capacity exhaustion
+429 and storage errors 503. A post-commit auth denial can leave the tombstone saved
+without an acknowledgment. No running adapter cancellation is supported.
+
+Caller cancellation intent commits before I/O and remains a `flush` exclusion even
+if cancel fails or `get` returns queued/running. `cancel_pending` is a local summary,
+not a new executor receipt state. API/CLI result views add `cancellation_requested`
+only for locally requested tasks. Caller state migrates to `task-operations-v1`
+context while retaining original pins/intents; older callers reject it. See
+[task operations](task-operations.md#upgrade-and-recovery) before upgrading.
+
+Local uncertainty reviews have JWS type `tailnet-agent-task-review+jwt`, signed by
+the caller, with exact payload `{version:1,owner,group_id,audience,caller,executor,
+task_id,request_hash,receipt_hash,decision,note,request_id,issued_at,task_status,
+effect}`. `task_status` is `uncertain`; `effect` is `advisory_local_record_only`.
+Decision is `effect_observed`, `no_effect_observed` or `unresolved`; note is nonempty
+UTF-8 text up to 2048 bytes, request ID is 32 lowercase hex, and issue time is an
+integer between the original receipt issue time and 2^53-1. Context/hashes must bind
+the verified original intent/uncertain receipt. Stable duplicate requests return
+the same record, changed reuse conflicts. Local pages validate signatures and
+persisted request-ID bindings. No HTTP review route or executor-result mutation is
+introduced; a review is not a task grant, operation proof or authorization to retry.

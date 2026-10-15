@@ -90,7 +90,8 @@ identical. Do not queue a new ID to bypass uncertain work or a conflict.
 insertion order, stopping on the first request/verification/storage error. It
 always uses each original envelope and fixed executor. Earlier stored receipts
 remain committed if a later entry fails. It never resubmits local `running`,
-`completed`, `failed` or `uncertain` entries. `refresh` queries a locally known ID
+`completed`, `failed`, `uncertain` or v0.30 `cancelled` entries. It also skips every
+task with a persisted cancellation intent, even if a refresh still reports queued. `refresh` queries a locally known ID
 with a fresh proof and commits its verified signed receipt; it never runs queued
 work. Use explicit `flush` to retry a queued task. Unknown local IDs are rejected
 before network I/O; retain caller state to retain the original intent/hash.
@@ -104,7 +105,9 @@ before network I/O; retain caller state to retain the original intent/hash.
 | `running` | Running marker committed before adapter invocation | Concurrent retry/query returns status without another invocation |
 | `completed` | Signed output and terminal receipt committed | Return the original receipt; never execute again |
 | `failed` | Adapter failure/invalid output committed with sanitized error | Return the original failure; never execute again |
-| `uncertain` | Restart found a running task without a committed outcome | Return terminal uncertainty; never automatically rerun or migrate |
+| `uncertain` | Restart found a running task without a committed outcome | Return terminal uncertainty; advisory local notes cannot change it or authorize replay |
+| `cancelled` (v0.30) | Signed pre-execution cancellation tombstone at original executor | Never execute this intent; retain tombstone and return the same receipt |
+| `cancel_pending` (local view, v0.30) | Caller saved cancellation intent, with no terminal outcome yet | No `flush` resubmission; retry explicit cancel or query original ID; it is not a stop acknowledgment |
 
 If execution completes after a caller disconnects, its result is still committed.
 If that response or the caller's local receipt commit is lost, retry returns the
@@ -126,9 +129,10 @@ service and caller with original state. No task client signs or renews credentia
 Dissolution is terminal and blocks further network work/reads without deleting
 history. Results are caller-only; other group members and directory read-token
 holders have no implicit read API. Already downloaded plaintext cannot be revoked.
-No API resolves/requeues `uncertain`, cancels work, or moves tasks to another
-executor. Diagnose uncertain side effects using external evidence before designing
-an explicit human recovery workflow. Never edit database status to `queued`.
+v0.30 [task operations](task-operations.md) can cancel absent/queued original
+intents and append local advisory uncertainty notes. Running work cannot be stopped,
+uncertain results cannot be rewritten/requeued, and tasks cannot move executors.
+Diagnose effects using external evidence. Never edit database status to `queued`.
 
 ## Signatures and persistence
 
@@ -164,7 +168,7 @@ cloned-key state, stolen backups, disk loss and key/CA migration are not solved.
 
 The executor only simulates Echo. No real product adapters, external side-effect
 integration, A2A/MCP task bridge, Human UI task panel, asynchronous scheduling,
-automatic polling/retry daemon, cancellation, uncertain-result resolution, retention
+automatic polling/retry daemon, running-work cancellation, verified uncertain-result resolution, retention
 UI, quotas/rate limiting, multi-executor migration, replication/HA or physical LAN/
 Tailscale/WAN trials are implemented. Graceful shutdown drains active operations;
 a future blocking adapter could delay shutdown, and forced termination deliberately
@@ -182,3 +186,12 @@ a service, catalog lookup and discovery do not probe automatically. Existing
 in-process Python test callbacks are not verified product adapters and cannot
 advertise the reference contract. All submit/query permission and recovery rules
 above remain in force; compatible metadata gives callers no execution permission.
+
+## Explicit operation workflow (v0.30, unreleased)
+
+[Task operations](task-operations.md) adds preview/confirmed cancellation and local
+uncertainty records through this same caller CLI. Cancellation signs no new task,
+uses the original intent/executor and persists a no-resubmit barrier before I/O.
+Caller state gains a one-way format marker; older clients reject it rather than
+ignore cancellation intent. The executor task table retains signed cancellation
+tombstones. Review notes never change signed task receipts or authorize retries.

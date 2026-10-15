@@ -107,3 +107,11 @@ inspect a pinned simulation executor's metadata but cannot delegate or approve a
 task. It neither starts a product nor proves that an MCP client is an inbound
 worker. OpenClaw, Codex, Claude Code, Qoder, Grok Agent and Grok model API interfaces
 remain unvalidated; model API calls are not product Agent integration.
+
+## Separate task operations (v0.30, unreleased)
+
+[Cancellation and advisory uncertainty notes](task-operations.md) belong to the
+signed task caller CLI. These legacy bearer MCP tools do not gain task cancellation,
+review access or durable caller state automatically. A future bridge must retain
+original caller/executor identity, cancellation barriers and immutable uncertainty;
+no metadata/discovery result or human note authorizes task replay.
