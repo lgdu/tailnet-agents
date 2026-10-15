@@ -637,7 +637,7 @@ physical LAN/tailnet validation are future work. See [durable tasks](durable-tas
   evidence and fixed-time human renewal preview/confirmation.
 - v0.29: reference Echo contract, offline inventory and explicit signed
   metadata probe; no product executables or caller authority from metadata.
-- v0.30 (unreleased): explicit pre-execution cancellation, durable caller barriers
+- v0.30: explicit pre-execution cancellation, durable caller barriers
   and caller-signed local uncertainty notes; no running stop or outcome rewrite.
 - Next: real interface validation when available, retention with anti-replay state,
   explicit task UI/MCP integration and candidate-to-runtime trust handoff.
@@ -759,7 +759,7 @@ access or caller task authority. Actual execution retains both principals' curre
 sessions, launchers, external side effects and cancellation remain future work.
 See [adapter contracts](adapters.md) for commands and exact limitations.
 
-### Implemented task cancellation and local review boundary (v0.30, unreleased)
+### Implemented task cancellation and local review boundary (v0.30)
 
 Cancellation is an explicit caller operation on the original signed intent, with
 the same scoped proof and both principals' current authorization. A caller barrier

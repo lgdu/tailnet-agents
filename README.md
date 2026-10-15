@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.30 prototype (unreleased).** Working components are listed below. The network mesh and
+**v0.30 prototype.** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -391,7 +391,7 @@ members or issue credentials. `compatible_metadata` is a historical observation,
 not execution authorization or a product health check. See [adapter contracts](docs/adapters.md)
 for commands, supported metadata, task permission boundaries and future product work.
 
-## Explicit task cancellation and uncertainty records (v0.30, unreleased)
+## Explicit task cancellation and uncertainty records (v0.30)
 
 Use local `cancel-preview` and separately confirmed `cancel` on the original task
 ID/hash. The caller persists cancellation intent before I/O and excludes that task
@@ -453,7 +453,7 @@ scoped real adapters, and conduct physical deployment trials. Quorum/automatic p
 resolution and explicit candidate enrollment remain open; connect verified identity
 and candidate discovery to the mesh engine and broaden browser QA.
 The working registry mode remains available during mesh development.
-v0.29.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.29.0)
+v0.30.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.30.0)
 with a matching annotated version tag. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 

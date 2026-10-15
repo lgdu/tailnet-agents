@@ -390,7 +390,7 @@ product health. Re-probing is another explicit read; no automatic scheduling,
 fallback product or retry of uncertain work occurs. Real interfaces, process/session
 management, external cancellation and physical LAN/Tailscale trials are unvalidated.
 
-## Cancellation and advisory uncertainty records (v0.30, unreleased)
+## Cancellation and advisory uncertainty records (v0.30)
 
 Upgrade caller and executor together, preserving original keys/group/source and
 consistent private SQLite backups. The caller's one-way `task-operations-v1` context

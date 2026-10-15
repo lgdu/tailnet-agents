@@ -647,7 +647,7 @@ owner-signed admission chain or the caller's execution permission. It cannot be
 used as a task grant, intent or operation proof. Task requests/receipts, SQLite
 executor identity `echo-v1` and `task.echo` authorization remain unchanged.
 
-## Explicit task cancellation and local review records (v0.30, unreleased)
+## Explicit task cancellation and local review records (v0.30)
 
 The existing task challenge/operation routes add `{operation:"cancel",task:JWS}`.
 The exact original signed intent is required, not only a task ID. Its full request

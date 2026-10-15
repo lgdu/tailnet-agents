@@ -1,4 +1,4 @@
-# Explicit task cancellation and uncertainty notes (v0.30, unreleased)
+# Explicit task cancellation and uncertainty notes (v0.30)
 
 These operations use existing simulated caller/executor identities, original group,
 configured LAN/Tailscale origin and private state. They never create a group, grant,

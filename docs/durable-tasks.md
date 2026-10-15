@@ -187,7 +187,7 @@ in-process Python test callbacks are not verified product adapters and cannot
 advertise the reference contract. All submit/query permission and recovery rules
 above remain in force; compatible metadata gives callers no execution permission.
 
-## Explicit operation workflow (v0.30, unreleased)
+## Explicit operation workflow (v0.30)
 
 [Task operations](task-operations.md) adds preview/confirmed cancellation and local
 uncertainty records through this same caller CLI. Cancellation signs no new task,

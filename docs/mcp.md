@@ -108,7 +108,7 @@ task. It neither starts a product nor proves that an MCP client is an inbound
 worker. OpenClaw, Codex, Claude Code, Qoder, Grok Agent and Grok model API interfaces
 remain unvalidated; model API calls are not product Agent integration.
 
-## Separate task operations (v0.30, unreleased)
+## Separate task operations (v0.30)
 
 [Cancellation and advisory uncertainty notes](task-operations.md) belong to the
 signed task caller CLI. These legacy bearer MCP tools do not gain task cancellation,

@@ -1,4 +1,4 @@
-# Implementation status — v0.30 (unreleased)
+# Implementation status — v0.30
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -359,7 +359,7 @@ as a GitHub prerelease with a matching annotated tag. PR #17 passed all six CI
 checks. Merged-main validation: all 453 identity tests pass without skips; core
 passes 55 with 398 expected skips; all three Chromium checks pass on their first run.
 
-## v0.30 pre-execution cancellation and advisory uncertainty records (unreleased)
+## v0.30 pre-execution cancellation and advisory uncertainty records
 
 A caller explicitly previews its original task locally and confirms task ID/hash
 before requesting cancellation. The client commits a durable cancellation barrier
@@ -388,11 +388,13 @@ together and protect consistent backups; no downgrade/reset bypass is supported.
 
 The suite contains 483 tests (30 new task-operation checks). Focused operation and
 existing 35 durable-task checks pass; an actual v0.29 caller also rejected migrated
-state while v0.30 restored the cancellation barrier. Full local verification:
+state while v0.30 restored the cancellation barrier. Merged-main verification:
 all 483 identity tests pass without skips; core passes 55 with 428 expected skips;
-all three serial Chromium checks pass. Dependencies, package/MCP version, mesh
-simulation, JS syntax and 27-document link/anchor checks pass. See the PR for
-remote CI results and [task operations](task-operations.md) for commands and limits.
+all three serial Chromium checks pass on their first run. Dependencies, package/MCP
+version, mesh simulation, JS syntax and 27-document link/anchor checks pass.
+PR #18 passed all six CI checks, and the merge commit passed main CI.
+v0.30.0 is published as a GitHub prerelease with a matching annotated tag.
+See [task operations](task-operations.md) for commands, migration and limits.
 
 Unimplemented: stopping running/external work, verified uncertainty resolution,
 requeue/migration after review, remote Human UI/MCP operations, note distribution,
