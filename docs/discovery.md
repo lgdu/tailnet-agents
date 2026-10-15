@@ -205,7 +205,7 @@ not proof of remote health, global membership or permission to execute work.
 Same-interface multicast floods can still congest UDP queues or consume the
 verification rate; this is not comprehensive denial-of-service protection.
 
-## Separate configured runtime handoff (v0.23, unreleased)
+## Separate configured runtime handoff (v0.23)
 
 The [simulation runtime](agent-runtime.md) renews signed heartbeat leases only
 after a human explicitly supplies a trusted directory origin/audience, original

@@ -273,7 +273,7 @@ GET/startup never reconstructs credentials. Browser memory and download files
 must be handled as credential material. See [credential issuance](credential-issuance.md)
 for the separate stdin installer, transfer and remaining operational limits.
 
-## Signed simulation-runtime presence (v0.23, unreleased)
+## Signed simulation-runtime presence (v0.23)
 
 Policy-mode directories accept optional `presence` in the existing challenge
 and registration POST bodies. When omitted, legacy schemas/responses stay the

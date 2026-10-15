@@ -1,4 +1,4 @@
-# Implementation status — v0.23 (unreleased)
+# Implementation status — v0.23
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -144,7 +144,7 @@ transfer remains a human operation; real Agent runtime enrollment, live revocati
 monitoring, key rotation/recovery and physical LAN/tailnet validation remain open.
 See [credential issuance](credential-issuance.md). v0.22.0 is published as a GitHub prerelease with a matching annotated tag.
 
-## v0.23 simulation runtime and signed presence (unreleased)
+## v0.23 simulation runtime and signed presence
 
 The opt-in runtime loads an existing approved simulation key/grant/group and uses
 a private, exclusively locked state file. Startup advances a durable generation
@@ -164,7 +164,7 @@ fractional precision; remaining leases use one receipt-time snapshot and round
 down without extending deadlines. Online is an authorized heartbeat, not verified executor health.
 Peer presence replication, authenticated UI integration, real product adapters,
 strong distributed fencing and physical LAN/tailnet trials remain unimplemented.
-See [runtime operations](agent-runtime.md). v0.23.0 is not published or tagged.
+See [runtime operations](agent-runtime.md). v0.23.0 is published as a GitHub prerelease with a matching annotated tag.
 
 ## Documentation maintenance rule
 

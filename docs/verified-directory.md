@@ -108,7 +108,7 @@ Tests cover valid registration, metadata tampering, nonce replay, wrong authorit
 wrong-group revocation, expiry, durable revocation, authority pinning and renewal
 with a new credential while retaining the subject's stable identity.
 
-## Signed runtime observations (v0.23, unreleased)
+## Signed runtime observations (v0.23)
 
 `challenge(record, presence=None)` and `register(..., record, presence=None)`
 retain legacy behavior when the token is omitted for an unconverted identity.

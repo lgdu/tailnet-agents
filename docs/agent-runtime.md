@@ -1,4 +1,4 @@
-# Simulated Agent runtime and signed presence — v0.23 (unreleased)
+# Simulated Agent runtime and signed presence — v0.23
 
 An explicitly started simulation runtime restores one existing Agent key, scoped
 grant and human-created group, then renews a directory lease with signed

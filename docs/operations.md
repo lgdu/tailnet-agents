@@ -215,7 +215,7 @@ the credential separately and explicitly deliver the new policy before proof-bas
 admission. Expiry/retirement does not overwrite installed state or issue a new
 credential. See [credential issuance](credential-issuance.md).
 
-## Simulation runtime state and presence (v0.23, unreleased)
+## Simulation runtime state and presence (v0.23)
 
 Keep each Agent's original key/grant, owner pin and human-created group ID, plus
 its own private `--state` SQLite file. Runtime state pins identity/group and

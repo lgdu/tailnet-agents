@@ -1,4 +1,4 @@
-# Verified admission HTTP/TLS — prototype (v0.23, unreleased)
+# Verified admission HTTP/TLS — prototype (v0.23)
 
 This separate optional service exposes VerifiedDirectory over HTTP/TLS. Default
 binding is loopback HTTP. Non-loopback binds require server certificate/key and
@@ -145,10 +145,10 @@ Shutdown joins the publisher before closing the directory database. Seed scans
 and multicast reception are a separate [discovery CLI](discovery.md), and produce
 unadmitted candidates without changing existing registration/policy routes.
 
-## Explicit simulation runtime and presence (v0.23, unreleased)
+## Explicit simulation runtime and presence (v0.23)
 
 Policy-mode directories also accept the extended signed-heartbeat challenge and
-registration flow described in [protocol](protocol.md#signed-simulation-runtime-presence-v023-unreleased).
+registration flow described in [protocol](protocol.md#signed-simulation-runtime-presence-v023).
 The [runtime and reader CLIs](agent-runtime.md) use only configured HTTP/TLS
 origins, original Agent identities and existing approved groups. Read-protected
 GET `/v1/presence` pages expose signed observations and effective lease state,

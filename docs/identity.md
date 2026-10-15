@@ -107,7 +107,7 @@ is transmitted in announcements. The scanner verifies the key against its local
 signed policy, but results do not establish grant validity, endpoint ownership
 or admission. The existing grant/proof checks remain mandatory and unchanged.
 
-## Signed simulation heartbeat use (v0.23, unreleased)
+## Signed simulation heartbeat use (v0.23)
 
 The explicit [simulation runtime](agent-runtime.md) loads the original Agent
 key/grant/group and signs separately typed online/offline observations. Fresh

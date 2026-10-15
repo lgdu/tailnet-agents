@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.23 prototype (unreleased).** Working components are listed below. The network mesh and
+**v0.23 prototype.** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -266,7 +266,7 @@ identity; use separate keys for separate Agents. Restart loads each original key
 instead of generating replacements. These paths currently use simulated identities;
 real product adapters and automatic candidate-to-runtime enrollment remain future work.
 
-## Simulated runtime and signed presence (v0.23, unreleased)
+## Simulated runtime and signed presence (v0.23)
 
 Explicitly run `tailnet-agent-runtime` with an existing Agent key, approved grant,
 original group and private runtime state file. It sends signed online/offline
@@ -311,8 +311,8 @@ and explicit candidate enrollment, connect verified
 identity and candidate discovery to the mesh engine, broaden browser QA,
 and then add real product adapters and durable tasks.
 The working registry mode remains available during mesh development.
-v0.22.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.22.0)
-with a matching annotated version tag. v0.23.0 remains unpublished/untagged in this PR. Release checks and tag synchronization are described
+v0.23.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.23.0)
+with a matching annotated version tag. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 
 No open-source license has been selected yet. Public release requires an owner

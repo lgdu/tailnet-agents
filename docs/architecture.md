@@ -349,7 +349,7 @@ Transfer is operator-controlled; automatic confidential provisioning, candidate-
 trust handoff and key rotation/recovery remain future work. See
 [credential issuance](credential-issuance.md).
 
-### Implemented simulation runtime and signed observations (v0.23, unreleased)
+### Implemented simulation runtime and signed observations (v0.23)
 
 ```mermaid
 flowchart LR
@@ -465,7 +465,7 @@ necessary; network membership never grants filesystem or secret access.
   historical age receipts and restart-safe human retry.
 - v0.22: separate human credential issuance/download and stable
   recovery, recipient identity validation and exclusive private-file installation.
-- v0.23 (unreleased): explicit simulation runtime, durable instance ordering,
+- v0.23: explicit simulation runtime, durable instance ordering,
   signed heartbeat leases and authenticated paginated presence observations.
 - Next: candidate-to-runtime trust handoff, peer presence replication and
   authenticated runtime monitoring.
