@@ -645,7 +645,8 @@ Unknown versions/products/fields/types fail closed; there is no fallback to prod
 execution. The descriptor proves possession for this metadata response, not an
 owner-signed admission chain or the caller's execution permission. It cannot be
 used as a task grant, intent or operation proof. Task requests/receipts, SQLite
-executor identity `echo-v1` and `task.echo` authorization remain unchanged.
+adapter semantics `echo-v1` and `task.echo` authorization remain unchanged.
+v0.31 adds a one-way executor storage-format marker described below.
 
 ## Explicit task cancellation and local review records (v0.30)
 
@@ -683,3 +684,41 @@ the verified original intent/uncertain receipt. Stable duplicate requests return
 the same record, changed reuse conflicts. Local pages validate signatures and
 persisted request-ID bindings. No HTTP review route or executor-result mutation is
 introduced; a review is not a task grant, operation proof or authorization to retry.
+
+## Explicit terminal archives and admission quotas (v0.31, unreleased)
+
+Task challenge/operation routes add the exact request
+`{operation:"archive",task:JWS,receipt_hash:SHA256}`. The hash is 64 lowercase hex
+over the original terminal receipt bytes; the original intent is required. The
+entire canonical request binds a fresh `tasks-v1:` possession challenge/proof.
+Both principals' current `task.echo`/policy/revocation authorization remains required,
+including after commit. Caller CLI additionally confirms the task ID and original
+request hash against private saved state before I/O.
+
+Only original completed/failed/cancelled records with the matching signed receipt
+can move. Active and archive tables share one SQLite transaction/lock; neither the
+original signed input nor receipt is changed. Unknown tasks return 404, ineligible
+states/changed receipt or intent return 409, invalid schema 400, auth failure 403
+and storage failure 503. A successful/repeated archive returns exactly
+`{receipt:ORIGINAL_RESULT_JWS,archived:true}`. The flag is authenticated transport
+metadata, not part of the original result signature or a new storage attestation.
+The caller verifies the unchanged terminal receipt before accepting it. No archive
+result state, unsigned output replacement or replay permission is introduced.
+
+Ordinary get/submit/cancel response schemas stay unchanged. Lookup/deduplication
+uses both tables. Archived cancelled intents still return the same cancellation
+receipt on late original submit/cancel; other terminal cancel requests still
+conflict. Pending/queued/running/uncertain tasks cannot be archived.
+
+Four configured row-count limits gate only new IDs: global active, global total
+active+archive, per-caller active and per-caller total. They apply equally to submit
+and absent cancellation tombstones; full quotas return 429 without eviction.
+Existing reads/retries/eligible archival remain available at/above quota. Caller
+scope is the Agent public key, not host/IP/device. Limits/defaults, migration and
+remaining bounds are specified in [task history](task-history.md).
+
+The executor context now pins `echo-v1/task-history-v1`; an original `echo-v1`
+context migrates atomically while preserving identity/group/audience/history.
+Older executors fail their context check before ignoring archived IDs. The Echo
+adapter contract and caller format stay unchanged. Opening a service never
+archives, deletes, dispatches work, creates a group/key or repairs lost history.

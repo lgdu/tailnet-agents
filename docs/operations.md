@@ -343,10 +343,12 @@ Loss/rollback of durable state can invalidate the at-most-one-attempt boundary.
 Lost ACK or failed caller receipt commit retains original pending ID and fixed
 executor. Use the local paginated `list` command to recover saved IDs if terminal
 output was lost. Retry/refresh that same intent; never create a new ID to "recover" a
-possibly executed task. Capacity counts retained history (default 256), with no
-automatic eviction; existing retries and reads still work at capacity. Stop and
-plan explicit retention/migration before exhaustion; deleting rows breaks durable
-deduplication. No retention/cancellation/uncertainty-resolution UI exists yet.
+possibly executed task. v0.31 [task history](task-history.md) adds explicit full-row
+terminal archival and active/total quotas globally and per caller key. Archival
+releases active slots without deleting input, receipts or total-history usage.
+Existing retries/reads still work at quota; all old IDs remain deduplicated across
+both areas. Back up both tables together and plan capacity before exhaustion;
+deleting rows breaks this guarantee. No retention/cancellation/uncertainty UI exists.
 
 Grant expiry/revocation, stale policy, removal and dissolution block later task
 operations. Work already started can finish and persist an outcome; it cannot be
@@ -400,9 +402,33 @@ or queued refreshes cannot make `flush` submit that intent. Retry the same confi
 operation or query the original ID. `cancel_pending` does not mean work stopped.
 
 Only an executor's signed `cancelled` receipt confirms cancellation in its retained
-pre-execution history. Tombstones consume capacity and must not be pruned, restored
+pre-execution history. Tombstones consume capacity (total-history capacity after
+explicit v0.31 archival) and must not be pruned, restored
 away or reset to queued. Started work cannot be stopped. Uncertainty notes are
 caller-signed local advisory statements, not proof of external effects or authority
 to retry; preserve original uncertain receipts and protect notes/backups as private
 evidence. Notes remain offline-readable after expiry/dissolution. See
 [task operations](task-operations.md) for exact migration, CLI and retry behavior.
+
+## Task archives and quota operations (v0.31, unreleased)
+
+Use [explicit archive preview/confirmation](task-history.md) only for original
+completed/failed/cancelled tasks. Pending/queued/running/uncertain records stay in
+the active area. Archival moves complete plaintext/signature history in one SQLite
+transaction; it frees active slots and does not shrink disk usage. No timer,
+startup path or quota failure archives or deletes work automatically.
+
+Set `--task-capacity`, `--task-history-capacity`, `--task-caller-capacity` and
+`--task-caller-history-capacity` explicitly in retained service startup configuration
+when overriding defaults. They require `--tasks` and bound new IDs, not existing
+reads, retries or archival. Lower limits preserve existing rows. When total history
+is full, stop accepting new work or explicitly adjust the configured bounds within
+supported ranges with the same database; do not clear deduplication history.
+
+Starting the new executor performs a one-way `echo-v1/task-history-v1` context
+migration that older executors reject. Back up the complete original database,
+keys/grants and caller state before upgrading; retain active and archived records
+with policy/revocation history. Never remove the marker or restore stale state to
+replay work. The Echo contract remains `echo-v1`, and the caller's existing
+`task-operations-v1` context is unchanged. There is no downgrade bypass, archive
+import/export, secure deletion, automatic retention or byte/disk quota.

@@ -42,7 +42,7 @@ partition creates a group/key/grant. Startup can wait with stale credentials but
 cannot execute/query tasks until authorization is fresh and valid.
 
 This executor is a cryptographic Agent subject, never the owner key. Consistent
-private SQLite state pins its subject, audience and `echo-v1` semantics, in addition
+private SQLite state pins its subject, audience and `echo-v1` semantics/storage format, in addition
 to the directory's existing owner/group pin. A POSIX file lock and in-process guard
 prevent two task executors from recovering/executing the same database concurrently.
 Run one service process per directory database. A second executor on the same
@@ -141,8 +141,12 @@ submission or exact queried task ID, current grant and fixed audience. Signed ta
 intent binds owner/group/audience/caller/executor, ID, `echo` kind, input and creation
 time. A fresh current approved grant may submit an older queued intent. Conflicting
 reuse of an ID with another signed envelope or caller is 409; no record is evicted.
-At 256 retained tasks, new requests return 429 while existing retries/reads work.
-The library can explicitly configure a different bounded capacity; the CLI uses 256.
+v0.31 adds explicit full-record terminal archives and four row-count bounds:
+256 active/10000 total globally and min(64, active)/min(1000, history) per caller
+by default. At any bound, new IDs return 429 while existing retries/reads work.
+Archival frees active slots and retains total-history usage and original receipts.
+Both areas participate in deduplication. See [task history](task-history.md) for
+CLI configuration, explicit confirmation and the one-way executor-format migration.
 
 The executor signs receipts binding the original request hash, both identities,
 context, status, output/error and timestamp. Terminal receipts are persisted and
@@ -169,7 +173,7 @@ cloned-key state, stolen backups, disk loss and key/CA migration are not solved.
 The executor only simulates Echo. No real product adapters, external side-effect
 integration, A2A/MCP task bridge, Human UI task panel, asynchronous scheduling,
 automatic polling/retry daemon, running-work cancellation, verified uncertain-result resolution, retention
-UI, quotas/rate limiting, multi-executor migration, replication/HA or physical LAN/
+UI, payload pruning, byte/outbox quotas, rate limiting, multi-executor migration, replication/HA or physical LAN/
 Tailscale/WAN trials are implemented. Graceful shutdown drains active operations;
 a future blocking adapter could delay shutdown, and forced termination deliberately
 leaves uncertainty. Unit tests inject simulation callbacks only to verify crash

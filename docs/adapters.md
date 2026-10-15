@@ -5,6 +5,10 @@ its own original key, group and database; discovery, inventory and probing never
 create groups, credentials, membership or executor identities. Multiple Agents
 on the same LAN/Tailscale host keep independent public keys and approvals.
 
+v0.31 [task archives/quotas](task-history.md) changes the executor's storage marker
+to `echo-v1/task-history-v1` to prevent unsafe downgrade. The reference adapter and
+advertised contract remain `echo-v1`; inspection neither archives nor frees quota.
+
 ## Offline inventory
 
 ```bash

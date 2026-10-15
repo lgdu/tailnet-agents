@@ -258,6 +258,8 @@ def main():
     parser.add_argument('--tasks',action='store_true',help='explicit signed durable Echo executor; requires policy mode and existing key/grant')
     parser.add_argument('--task-agent-key',help='original approved simulation executor key; never the owner key')
     parser.add_argument('--task-grant-file',help='existing approved task.echo executor grant')
+    for name in ('capacity','history-capacity','caller-capacity','caller-history-capacity'):
+        parser.add_argument('--task-'+name,type=int,help='explicit signed-task '+name+'; requires --tasks')
     parser.add_argument('--messages',action='store_true',help='opt-in signed group/direct text store; requires policy mode')
     parser.add_argument('--presence-export',action='store_true',help='explicitly export local signed presence AND scoped grants to authenticated replicas')
     parser.add_argument('--presence-sources-file',help='1..8 fixed sources: id, url, group_id, token_env and optional ca_cert')
@@ -279,8 +281,14 @@ def main():
         parser.error('policy sources and maximum age require policy mode')
     if args.tasks and (not (args.require_policy or args.policy_file) or not args.task_agent_key or not args.task_grant_file):
         parser.error('tasks require policy mode and original executor key/grant')
-    if not args.tasks and (args.task_agent_key or args.task_grant_file):
-        parser.error('executor key/grant require explicit --tasks')
+    task_limits={name:getattr(args,'task_'+name) for name in ('capacity','history_capacity','caller_capacity','caller_history_capacity')
+                 if getattr(args,'task_'+name) is not None}
+    if not args.tasks and (args.task_agent_key or args.task_grant_file or task_limits):
+        parser.error('executor key/grant/quotas require explicit --tasks')
+    if task_limits:
+        from .task_history import quotas
+        try:quotas(**({'capacity':256,'history_capacity':10000,'caller_capacity':None,'caller_history_capacity':None}|task_limits))
+        except ValueError:parser.error('invalid signed-task quotas')
     if args.messages and not (args.require_policy or args.policy_file):
         parser.error('messages require signed policy mode')
     if (args.presence_export or args.presence_sources_file) and not (args.require_policy or args.policy_file):
@@ -314,7 +322,7 @@ def main():
         if args.policy_file:
             directory.apply_policy(Path(args.policy_file).read_text().strip())
         if args.tasks:
-            task_executor=TaskExecutor(directory,load_identity(args.task_agent_key),Path(args.task_grant_file).read_text().strip())
+            task_executor=TaskExecutor(directory,load_identity(args.task_agent_key),Path(args.task_grant_file).read_text().strip(),**task_limits)
         if peers:
             synchronizer=PolicySynchronizer(directory,peers[0],args.policy_sync_interval,fallback_clients=peers[1:])
         if args.presence_sources_file:

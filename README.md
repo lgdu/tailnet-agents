@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.30 prototype.** Working components are listed below. The network mesh and
+**v0.31 prototype (unreleased).** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -14,7 +14,7 @@ action; agents may only discover or restore previously authorized groups.
 | Directory | SQLite registration, leases, ownership, removal, status | Central registry; not distributed mesh |
 | Legacy bridge | Automatic renewal, discovery CLI, bearer Echo tasks | Custom v0.1 API; in-memory history; separate from durable signed tasks |
 | Adapter inspection | Offline product inventory, strict Echo contract and explicit nonce-bound signed metadata probe | Synthetic Echo only; metadata compatibility grants no execution rights; no product scan, launcher or real adapter |
-| Durable signed tasks | Scoped Echo tasks, durable intent/results and signed receipts; pre-execution cancellation tombstones, caller cancellation barriers and advisory local uncertainty records | Simulation only; no stopping running work, forged resolution, automatic uncertain retry/migration, real adapters, MCP/UI integration or HA |
+| Durable signed tasks | Scoped Echo tasks, durable signed intent/results, pre-execution cancellation, caller barriers/advisory uncertainty notes, explicit terminal archives and global/per-key admission quotas | Simulation only; archives retain plaintext input/results; no payload deletion, running stop, verified external resolution, automatic replay, real adapters, MCP/UI integration or HA |
 | MCP | Stdio discovery, delegation, result tools | 2025 handshake family; real client compatibility unvalidated |
 | Human UI | Explicit groups, scoped chat, opt-in owner-signed creation/approval/removal/renewal/dissolution, policy export, explicit recipient delivery and human-confirmed grant issuance | Trusted loopback gateway; private-file installer; manual trusted transfer; simulated agents |
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
@@ -81,6 +81,10 @@ flowchart TB
     TE --> CONTRACT["Signed Echo contract / 最长 15 秒、不证明调用权限"]
     CONTRACT -->|"Verify original pins + source + nonce"| PROBE
     TE --> TDB[("SQLite / 任务、running 标记、签名结果")]
+    TC --> ARCHIVE["Explicit terminal archive / 原任务 ID、请求与结果哈希确认"]
+    ARCHIVE -->|"Fresh scoped proof / 双方当前授权"| API
+    TDB -->|"One transaction / 释放活动名额、保留去重"| COLD[("Same SQLite archive / 原始签名输入与结果、计入总历史配额")]
+    COLD -->|"Late get/submit / 原结果、不再次执行"| TE
     TDB -->|"Restart: running becomes uncertain / 不自动重跑"| TE
     TC --> STOP["Explicit cancel / 先保存本地取消意图、flush 不再提交"]
     STOP -->|"Original intent + fresh scoped proof"| API
@@ -405,6 +409,19 @@ and fresh scoped network proofs remain required. See [task operations](docs/task
 for explicit confirmation, pending-cancel semantics, CLI commands and the one-way
 caller-state migration that prevents older clients ignoring cancellation intent.
 
+## Explicit task archives and quotas (v0.31, unreleased)
+
+Use local `archive-preview` and a separate `archive` confirming the original ID,
+request hash and terminal receipt hash. Only completed/failed/cancelled records
+move to the same executor database's archive; all signed input/result history is
+retained. Existing reads and late submissions return the original receipt without
+execution. Active slots are freed, while global and per-caller history counts stay
+unchanged. Four explicit service limits bound active/total rows globally and by
+caller public key, including multiple Agents on one host. Uncertain work remains
+in the active area. This does not delete plaintext or reduce disk use. See
+[task archives and quotas](docs/task-history.md) for commands, defaults and the
+one-way executor migration that makes older executors refuse the new state.
+
 ## Verification
 
 ```bash
@@ -417,7 +434,10 @@ are explicitly skipped. CI runs both core and identity installations. The new si
 visual/accessibility coverage and real-agent compatibility remain outstanding.
 The dedicated CI browser job also delays policy reads and checks that download
 never uses a pre-mutation snapshot; failed refreshes keep exports disabled.
-v0.30 includes 483 tests: 30 new task-operation checks plus the 453-test v0.29
+v0.31 includes 516 tests: 33 new archive/quota checks plus the 483-test v0.30 baseline.
+New checks cover full-record atomic moves, all four quotas, same-host callers and
+executors, late retries, cancellation tombstones, failures, HTTP/TLS and real CLIs.
+v0.30 added 30 task-operation checks to the 453-test v0.29
 baseline. New cases cover cancellation/starting races, lost ACKs, transactional
 faults, durable caller barriers, same-host isolation and advisory review integrity.
 v0.29 added 30 contract/probe checks. Five new checks run without the identity extra; 25 exercise signed

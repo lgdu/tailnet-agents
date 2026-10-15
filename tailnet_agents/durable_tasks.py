@@ -12,6 +12,7 @@ import time
 
 from .identity import (AdmissionError, GRANT_TYPE, identity_id, sign, verify, verify_grant)
 from .adapters import CONTRACT_ID, MAX_TEXT_BYTES, EchoAdapter
+from . import task_history as history
 
 TASK_TYPE = 'tailnet-agent-task+jwt'
 RESULT_TYPE = 'tailnet-agent-task-result+jwt'
@@ -66,6 +67,11 @@ def validate_request(request):
     elif request.get('operation') == 'get':
         if set(request) != {'operation', 'task_id'} or not task_id(request['task_id']):
             raise ValueError('invalid task query')
+    elif request.get('operation') == 'archive':
+        if (set(request) != {'operation', 'task', 'receipt_hash'} or
+                not isinstance(request['task'], str) or len(request['task']) > 16384 or
+                not isinstance(request['receipt_hash'], str) or re.fullmatch(r'[a-f0-9]{64}', request['receipt_hash']) is None):
+            raise ValueError('invalid task archive confirmation')
     else:raise ValueError('unknown task operation')
     return 'tasks-v1:' + digest(json.dumps(request, sort_keys=True, separators=(',', ':'), allow_nan=False))
 
@@ -96,9 +102,10 @@ class TaskExecutor:
     rows require an explicit fresh authorized submission; running rows become
     terminal uncertain on restart. One POSIX-locked executor owns the database.
     """
-    def __init__(self, directory, key, grant, *, adapter=None, capacity=256):
+    def __init__(self, directory, key, grant, *, adapter=None, capacity=256, history_capacity=10000,
+                 caller_capacity=None, caller_history_capacity=None):
         if not directory.require_policy:raise ValueError('tasks require signed policy mode')
-        if type(capacity) is not int or not 1 <= capacity <= 10000:raise ValueError('invalid task capacity')
+        limits = history.quotas(capacity, history_capacity, caller_capacity, caller_history_capacity)
         saved = verify(grant, directory.owner_key, GRANT_TYPE)
         if type(saved.get('iat')) is not int:raise AdmissionError('invalid executor grant')
         saved = verify_grant(grant, directory.owner_key, directory.group_id, 'task.echo', now=saved['iat'])
@@ -106,7 +113,8 @@ class TaskExecutor:
         if saved['sub'] != self.subject or self.subject == identity_id(directory.owner_key):
             raise AdmissionError('existing executor key must match grant and differ from owner')
         self.directory, self.key, self.grant = directory, key, grant
-        self.db, self.capacity = directory._registry.db, capacity
+        self.db = directory._registry.db
+        for name, value in limits.items():setattr(self, name, value)
         self.adapter = EchoAdapter() if adapter is None else adapter
         self.condition, self.active, self.closing = threading.Condition(), 0, False
         self.descriptor = None
@@ -123,11 +131,13 @@ class TaskExecutor:
                 self.db.execute('PRAGMA synchronous=FULL')
                 with self.db:
                     self.db.execute('CREATE TABLE IF NOT EXISTS task_executor_context (id INTEGER PRIMARY KEY CHECK(id=1),executor TEXT NOT NULL,audience TEXT NOT NULL,adapter TEXT NOT NULL)')
-                    context = (self.subject, directory._admission.audience, CONTRACT_ID)
+                    context = (self.subject, directory._admission.audience, history.EXECUTOR_FORMAT)
                     previous = self.db.execute('SELECT executor,audience,adapter FROM task_executor_context WHERE id=1').fetchone()
-                    if previous and previous != context:raise AdmissionError('cannot replace original executor/audience/adapter')
-                    self.db.execute('INSERT OR IGNORE INTO task_executor_context VALUES(1,?,?,?)', context)
+                    legacy = (self.subject, directory._admission.audience, CONTRACT_ID)
+                    if previous and previous not in (legacy, context):raise AdmissionError('cannot replace original executor/audience/adapter/format')
+                    self.db.execute('INSERT INTO task_executor_context VALUES(1,?,?,?) ON CONFLICT(id) DO UPDATE SET adapter=excluded.adapter', context)
                     self.db.execute('CREATE TABLE IF NOT EXISTS durable_tasks (task_id TEXT PRIMARY KEY,caller TEXT NOT NULL,token TEXT NOT NULL,status TEXT NOT NULL,receipt TEXT)')
+                    history.bind(self)
                     for mid, caller, token in self.db.execute("SELECT task_id,caller,token FROM durable_tasks WHERE status='running'").fetchall():
                         receipt = self._receipt(mid, caller, token, 'uncertain')
                         self.db.execute("UPDATE durable_tasks SET status='uncertain',receipt=? WHERE task_id=?", (receipt, mid))
@@ -187,20 +197,23 @@ class TaskExecutor:
                 self._authorize(grant, caller);self._authorize(self.grant, self.subject)
                 directory._admission.admit(grant, key, proof, nonce, permission='task.echo', context=context)
                 if request['operation'] == 'get':
-                    row = self.db.execute('SELECT * FROM durable_tasks WHERE task_id=? AND caller=?', (request['task_id'], caller)).fetchone()
-                    if row is None:raise KeyError('task not found')
+                    row, _ = history.find(self, request['task_id'])
+                    if row is None or row[1] != caller:raise KeyError('task not found')
                     return self._result(row)
                 claim = verify_task(request['task'], key, directory.owner_key, directory.group_id,
                                     directory._admission.audience, self.subject, now=directory.clock())
                 mid = claim['task_id']
-                row = self.db.execute('SELECT * FROM durable_tasks WHERE task_id=?', (mid,)).fetchone()
+                row, archived = history.find(self, mid)
                 if row:
                     if row[1] != caller or row[2] != request['task']:raise FileExistsError('task id conflict')
+                if request['operation'] == 'archive':
+                    result = history.archive(self, row, request['receipt_hash'], archived)
+                    self._authorize(grant, caller);self._authorize(self.grant, self.subject)
+                    return result
                 if request['operation'] == 'cancel':
                     if row and row[3] == 'cancelled':return self._result(row)
                     if row and row[3] != 'queued':raise FileExistsError('task may have run; cannot acknowledge cancellation')
-                    if row is None and self.db.execute('SELECT COUNT(*) FROM durable_tasks').fetchone()[0] >= self.capacity:
-                        raise OverflowError('task capacity reached')
+                    if row is None:history.admit(self, caller)
                     # Cancellation and the running marker compete under the same
                     # lock. An absent intent gets a durable tombstone too, so a
                     # late original submit can never start it after this ACK.
@@ -213,8 +226,7 @@ class TaskExecutor:
                 if row:
                     if row[3] != 'queued':return self._result(row)
                 else:
-                    if self.db.execute('SELECT COUNT(*) FROM durable_tasks').fetchone()[0] >= self.capacity:
-                        raise OverflowError('task capacity reached')
+                    history.admit(self, caller)
                     with self.db:self.db.execute('INSERT INTO durable_tasks VALUES(?,?,?,?,NULL)', (mid, caller, request['task'], 'queued'))
             return self._run(mid, claim, grant)
 

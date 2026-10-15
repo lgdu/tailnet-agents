@@ -1,4 +1,4 @@
-# Implementation status — v0.30
+# Implementation status — v0.31 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -6,7 +6,7 @@ its future requirements must not be read as implemented security guarantees.
 | Area | Current state | Next work |
 |---|---|---|
 | Registry | Durable central directory | Distributed discovery/anti-entropy |
-| Signed tasks | Opt-in scoped Echo executor/caller identities, durable task intent/results, signed receipts, cancellation tombstones/caller barriers and advisory uncertainty notes, no implicit retry/migration | No stopping running work, verified external outcome resolution, real adapters, cancellation UI, HA or MCP bridge; legacy bearer API remains in memory |
+| Signed tasks | Scoped Echo identities, durable signed intents/results, cancellation barriers, advisory uncertainty notes, explicit terminal archives and global/per-caller row quotas | Archives retain input/results; no payload deletion, running stop, verified external resolution, real adapters, UI/MCP bridge or HA; legacy bearer API remains in memory |
 | MCP | Local tools subset | Real client interoperability verification |
 | Human UI | Local roles/chat and opt-in signed policy creation/approval/removal/renewal/dissolution/export and explicit recipient delivery; separate grant issuance/download | Automatic secure provisioning, broader browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
@@ -399,6 +399,46 @@ See [task operations](task-operations.md) for commands, migration and limits.
 Unimplemented: stopping running/external work, verified uncertainty resolution,
 requeue/migration after review, remote Human UI/MCP operations, note distribution,
 retention/pruning, real product adapters and physical LAN/Tailscale trials.
+
+## v0.31 explicit task archives and admission quotas (unreleased)
+
+The original caller previews a locally verified terminal record and confirms its
+ID, request hash and receipt hash before an authenticated archive request. Only
+completed/failed/cancelled rows can move. One SQLite transaction under the directory
+lock moves the full original input/status/receipt to the archive. No input/output
+is deleted, and archival cannot free disk space or erase backups. Reads and late
+submissions consult both areas and return the byte-identical original receipt.
+Uncertain work remains in the active area; reviews cannot make it archivable.
+
+Four configurable bounds apply to new submit/cancellation IDs: active rows and
+total active+archive history, globally and by caller public-key identity. Defaults
+are 256/10000 globally and min(64, active)/min(1000, history) per caller. Archival
+releases active slots but retains total-history usage. Existing reads/retries and
+eligible archival work at/above quota; new IDs return 429. Restart can explicitly
+change operational bounds without forgetting or evicting history. No automatic
+retention, disk/byte quota, rate limiter or caller-outbox bound is claimed.
+
+Executor startup migrates its context to `echo-v1/task-history-v1`, preserving the
+original identity/group/audience, intents and `echo-v1` adapter contract. Older
+executors reject this one-way format before overlooking archived IDs. Caller
+format remains `task-operations-v1`; submit/get/cancel and result schemas remain
+compatible with v0.30 callers. Archive placement is authenticated response metadata,
+not a separately signed storage attestation or a new task result state.
+
+Thirty-three new checks cover HTTP/TLS, actual client/service CLIs, four quota
+bounds, independent same-host callers/executors, late submissions/cancelled
+tombstones, concurrent reads/retries, lost ACK/local commit failures, transaction
+rollback and format/history validation. Full local verification: all 516 identity
+tests pass without skips; core passes 55 with 461 expected skips; all three serial
+Chromium checks pass. Actual v0.30 sources also confirmed executor downgrade
+rejection and caller archived-read/new-submit compatibility with original state.
+Dependencies, package/MCP version, mesh simulation, JS syntax and 28-document
+link/anchor checks pass. See the PR for remote CI results and
+[task archives and quotas](task-history.md) for commands, backup and migration.
+
+Unimplemented: payload pruning/compaction, automatic archive/retention, export/import,
+byte/outbox quotas, running-work cancellation, verified uncertainty resolution,
+UI/MCP task operations, real product adapters and physical LAN/Tailscale trials.
 
 ## Documentation maintenance rule
 

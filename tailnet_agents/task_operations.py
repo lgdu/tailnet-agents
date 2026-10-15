@@ -40,6 +40,28 @@ def cancel_preview(client, mid):
             'cancellation_requested': requested(client, mid), 'sends_original_task': True}
 
 
+def archive_preview(client, mid):
+    from .task_history import ARCHIVABLE
+    row, _, _ = local(client, mid)
+    return {'operation': 'archive', 'task_id': mid, 'executor': client.executor,
+            'request_hash': digest(row[1]), 'receipt_hash': None if row[3] is None else digest(row[3]),
+            'observed_state': row[2], 'eligible': row[2] in ARCHIVABLE,
+            'payload_retained': True, 'remote_state_checked': False}
+
+
+def archive(client, mid, expected_hash, receipt_hash, confirmation):
+    preview = archive_preview(client, mid)
+    if (confirmation != mid or expected_hash != preview['request_hash'] or receipt_hash != preview['receipt_hash']):
+        raise ValueError('confirm original task id, request and terminal receipt hashes')
+    if not preview['eligible']:raise FileExistsError('only completed, failed or cancelled tasks may be archived')
+    row, _, _ = local(client, mid)
+    response = client._request({'operation': 'archive', 'task': row[1], 'receipt_hash': receipt_hash})
+    if not isinstance(response, dict) or set(response) != {'receipt', 'archived'} or response['archived'] is not True:
+        raise ValueError('invalid archive acknowledgment')
+    result = client._save(row, {'receipt': response['receipt']})
+    return result | {'archived': True, 'payload_retained': True}
+
+
 def cancel(client, mid, expected_hash, confirmation):
     row, _, claim = local(client, mid)
     if confirmation != mid or expected_hash != digest(row[1]):raise ValueError('confirm original task id and request hash')
