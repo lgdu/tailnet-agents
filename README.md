@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.29 prototype.** Working components are listed below. The network mesh and
+**v0.30 prototype (unreleased).** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -14,7 +14,7 @@ action; agents may only discover or restore previously authorized groups.
 | Directory | SQLite registration, leases, ownership, removal, status | Central registry; not distributed mesh |
 | Legacy bridge | Automatic renewal, discovery CLI, bearer Echo tasks | Custom v0.1 API; in-memory history; separate from durable signed tasks |
 | Adapter inspection | Offline product inventory, strict Echo contract and explicit nonce-bound signed metadata probe | Synthetic Echo only; metadata compatibility grants no execution rights; no product scan, launcher or real adapter |
-| Durable signed tasks | Explicit Echo executor identity, scoped operation proofs, durable caller intents/executor results and signed receipts; interrupted work becomes uncertain | Simulation only; no automatic uncertain retry/migration, real adapters, MCP/UI integration or HA |
+| Durable signed tasks | Scoped Echo tasks, durable intent/results and signed receipts; pre-execution cancellation tombstones, caller cancellation barriers and advisory local uncertainty records | Simulation only; no stopping running work, forged resolution, automatic uncertain retry/migration, real adapters, MCP/UI integration or HA |
 | MCP | Stdio discovery, delegation, result tools | 2025 handshake family; real client compatibility unvalidated |
 | Human UI | Explicit groups, scoped chat, opt-in owner-signed creation/approval/removal/renewal/dissolution, policy export, explicit recipient delivery and human-confirmed grant issuance | Trusted loopback gateway; private-file installer; manual trusted transfer; simulated agents |
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
@@ -82,6 +82,11 @@ flowchart TB
     CONTRACT -->|"Verify original pins + source + nonce"| PROBE
     TE --> TDB[("SQLite / 任务、running 标记、签名结果")]
     TDB -->|"Restart: running becomes uncertain / 不自动重跑"| TE
+    TC --> STOP["Explicit cancel / 先保存本地取消意图、flush 不再提交"]
+    STOP -->|"Original intent + fresh scoped proof"| API
+    TE --> CANCELLED[("Cancelled tombstone before running / 迟到原请求不执行")]
+    CANCELLED -->|"Original signed cancellation receipt"| TC
+    TC --> TASKREVIEW["Local caller-signed uncertainty note / 保留原 uncertain 凭据"]
     TE -->|"Signed receipt / 对照原任务核验、保存"| TC
     API --> MS["Opt-in message store / 当前授权、私聊参与者 ACL"]
     MS --> MDB[("SQLite / 已提交消息、去重与序号")]
@@ -386,6 +391,20 @@ members or issue credentials. `compatible_metadata` is a historical observation,
 not execution authorization or a product health check. See [adapter contracts](docs/adapters.md)
 for commands, supported metadata, task permission boundaries and future product work.
 
+## Explicit task cancellation and uncertainty records (v0.30, unreleased)
+
+Use local `cancel-preview` and separately confirmed `cancel` on the original task
+ID/hash. The caller persists cancellation intent before I/O and excludes that task
+from `flush`, even after failed cancellation, refresh or restart. The executor can
+cancel an absent/unstarted intent with a signed durable tombstone; late original
+submissions return that receipt without running. Running/completed/failed/uncertain
+work cannot be relabeled stopped. Caller `review-preview`, `review` and `reviews`
+append signed, local advisory notes bound to an original uncertain receipt; they
+never change its result or authorize retry. Existing identity/group/source pins
+and fresh scoped network proofs remain required. See [task operations](docs/task-operations.md)
+for explicit confirmation, pending-cancel semantics, CLI commands and the one-way
+caller-state migration that prevents older clients ignoring cancellation intent.
+
 ## Verification
 
 ```bash
@@ -398,8 +417,10 @@ are explicitly skipped. CI runs both core and identity installations. The new si
 visual/accessibility coverage and real-agent compatibility remain outstanding.
 The dedicated CI browser job also delays policy reads and checks that download
 never uses a pre-mutation snapshot; failed refreshes keep exports disabled.
-v0.29 includes 453 tests: 30 new contract/probe checks plus the 423-test v0.28
-baseline. Five new checks run without the identity extra; 25 exercise signed
+v0.30 includes 483 tests: 30 new task-operation checks plus the 453-test v0.29
+baseline. New cases cover cancellation/starting races, lost ACKs, transactional
+faults, durable caller barriers, same-host isolation and advisory review integrity.
+v0.29 added 30 contract/probe checks. Five new checks run without the identity extra; 25 exercise signed
 metadata, HTTP/TLS, the CLI, expiry, context/replay failures and same-host recovery.
 v0.28 added 33 policy-review checks for all-source HTTP/TLS reads, durable conflicts/terminal evidence, partial
 failures, transaction rollback, fixed-time consent and concurrency/retry guards.

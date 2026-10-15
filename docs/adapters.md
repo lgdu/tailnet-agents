@@ -124,8 +124,10 @@ boundaries; uncertain work must not be automatically replayed or migrated.
 
 Real product access is currently unavailable. No binary installation, login,
 workspace access or external API call is performed in this release. Human UI/MCP
-integration, generic adapter loading, real task kinds, safe cancellation/uncertain
+integration, generic adapter loading, real task kinds, stopping running work, verified uncertainty
 resolution, product sessions and physical LAN/Tailscale trials remain open.
+v0.30 adds separate [pre-execution task cancellation and advisory local notes](task-operations.md);
+metadata probing itself never invokes either operation.
 
 ## Verification
 

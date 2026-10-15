@@ -15,7 +15,7 @@ from .adapters import CONTRACT_ID, MAX_TEXT_BYTES, EchoAdapter
 
 TASK_TYPE = 'tailnet-agent-task+jwt'
 RESULT_TYPE = 'tailnet-agent-task-result+jwt'
-TERMINAL = frozenset({'completed', 'failed', 'uncertain'})
+TERMINAL = frozenset({'completed', 'failed', 'uncertain', 'cancelled'})
 STATES = TERMINAL | {'queued', 'running'}
 MAX_COUNTER = 2**53 - 1
 
@@ -60,7 +60,7 @@ def make_task(key, owner, group, audience, executor, text, *, identifier=None, n
 
 def validate_request(request):
     if not isinstance(request, dict):raise ValueError('task operation required')
-    if request.get('operation') == 'submit':
+    if request.get('operation') in ('submit', 'cancel'):
         if set(request) != {'operation', 'task'} or not isinstance(request['task'], str) or len(request['task']) > 16384:
             raise ValueError('invalid task submission')
     elif request.get('operation') == 'get':
@@ -84,7 +84,7 @@ def verify_receipt(token, executor_key, owner, group, audience, original):
     status = claim['status']
     if (status == 'completed' and (not bounded_text(claim['output']) or claim['error'] is not None) or
             status != 'completed' and claim['output'] is not None or
-            claim['error'] != {'failed': 'execution_failed', 'uncertain': 'execution_interrupted'}.get(status)):
+            claim['error'] != {'failed': 'execution_failed', 'uncertain': 'execution_interrupted', 'cancelled': 'execution_cancelled'}.get(status)):
         raise AdmissionError('invalid task result state')
     return claim
 
@@ -171,7 +171,7 @@ class TaskExecutor:
         return sign(self.key, {'version': 1, 'owner': identity_id(directory.owner_key), 'group_id': directory.group_id,
             'audience': directory._admission.audience, 'executor': self.subject, 'caller': caller, 'task_id': mid,
             'request_hash': digest(token), 'status': status, 'output': output,
-            'error': {'failed': 'execution_failed', 'uncertain': 'execution_interrupted'}.get(status),
+            'error': {'failed': 'execution_failed', 'uncertain': 'execution_interrupted', 'cancelled': 'execution_cancelled'}.get(status),
             'issued_at': int(directory.clock())}, RESULT_TYPE)
 
     def _result(self, row):
@@ -196,6 +196,21 @@ class TaskExecutor:
                 row = self.db.execute('SELECT * FROM durable_tasks WHERE task_id=?', (mid,)).fetchone()
                 if row:
                     if row[1] != caller or row[2] != request['task']:raise FileExistsError('task id conflict')
+                if request['operation'] == 'cancel':
+                    if row and row[3] == 'cancelled':return self._result(row)
+                    if row and row[3] != 'queued':raise FileExistsError('task may have run; cannot acknowledge cancellation')
+                    if row is None and self.db.execute('SELECT COUNT(*) FROM durable_tasks').fetchone()[0] >= self.capacity:
+                        raise OverflowError('task capacity reached')
+                    # Cancellation and the running marker compete under the same
+                    # lock. An absent intent gets a durable tombstone too, so a
+                    # late original submit can never start it after this ACK.
+                    with self.db:
+                        receipt = self._receipt(mid, caller, request['task'], 'cancelled')
+                        self.db.execute("INSERT INTO durable_tasks VALUES(?,?,?,'cancelled',?) ON CONFLICT(task_id) DO UPDATE SET status='cancelled',receipt=excluded.receipt",
+                                        (mid, caller, request['task'], receipt))
+                    self._authorize(grant, caller);self._authorize(self.grant, self.subject)
+                    return {'receipt': receipt}
+                if row:
                     if row[3] != 'queued':return self._result(row)
                 else:
                     if self.db.execute('SELECT COUNT(*) FROM durable_tasks').fetchone()[0] >= self.capacity:

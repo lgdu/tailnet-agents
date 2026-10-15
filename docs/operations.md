@@ -389,3 +389,20 @@ issue, capped by local policy/grant deadlines) and never proves task permission 
 product health. Re-probing is another explicit read; no automatic scheduling,
 fallback product or retry of uncertain work occurs. Real interfaces, process/session
 management, external cancellation and physical LAN/Tailscale trials are unvalidated.
+
+## Cancellation and advisory uncertainty records (v0.30, unreleased)
+
+Upgrade caller and executor together, preserving original keys/group/source and
+consistent private SQLite backups. The caller's one-way `task-operations-v1` context
+makes older clients reject its state rather than ignore cancellation intent. An
+explicit cancel commits its local barrier before I/O; transport/auth/receipt errors
+or queued refreshes cannot make `flush` submit that intent. Retry the same confirmed
+operation or query the original ID. `cancel_pending` does not mean work stopped.
+
+Only an executor's signed `cancelled` receipt confirms cancellation in its retained
+pre-execution history. Tombstones consume capacity and must not be pruned, restored
+away or reset to queued. Started work cannot be stopped. Uncertainty notes are
+caller-signed local advisory statements, not proof of external effects or authority
+to retry; preserve original uncertain receipts and protect notes/backups as private
+evidence. Notes remain offline-readable after expiry/dissolution. See
+[task operations](task-operations.md) for exact migration, CLI and retry behavior.

@@ -1,4 +1,4 @@
-# Implementation status — v0.29
+# Implementation status — v0.30 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -6,7 +6,7 @@ its future requirements must not be read as implemented security guarantees.
 | Area | Current state | Next work |
 |---|---|---|
 | Registry | Durable central directory | Distributed discovery/anti-entropy |
-| Signed tasks | Opt-in scoped Echo executor/caller identities, durable task intent/results, signed receipts, crash-to-uncertain recovery, no implicit retry/migration | No real adapters, uncertain resolution/cancellation UI, HA, Human UI/MCP task bridge; legacy bearer API remains in memory |
+| Signed tasks | Opt-in scoped Echo executor/caller identities, durable task intent/results, signed receipts, cancellation tombstones/caller barriers and advisory uncertainty notes, no implicit retry/migration | No stopping running work, verified external outcome resolution, real adapters, cancellation UI, HA or MCP bridge; legacy bearer API remains in memory |
 | MCP | Local tools subset | Real client interoperability verification |
 | Human UI | Local roles/chat and opt-in signed policy creation/approval/removal/renewal/dissolution/export and explicit recipient delivery; separate grant issuance/download | Automatic secure provisioning, broader browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
@@ -358,6 +358,45 @@ UI and MCP still use their separate simulated/legacy paths. v0.29.0 is published
 as a GitHub prerelease with a matching annotated tag. PR #17 passed all six CI
 checks. Merged-main validation: all 453 identity tests pass without skips; core
 passes 55 with 398 expected skips; all three Chromium checks pass on their first run.
+
+## v0.30 pre-execution cancellation and advisory uncertainty records (unreleased)
+
+A caller explicitly previews its original task locally and confirms task ID/hash
+before requesting cancellation. The client commits a durable cancellation barrier
+before I/O; `flush` skips it after transport/receipt/storage failure, a queued
+refresh or process restart. Nonterminal pending cancellations are separately counted
+as `cancel_pending`, and show/list/receipt views retain `cancellation_requested`.
+
+The executor accepts cancellation only for absent/queued original signed intents.
+Current authorization for both principals and a fresh cancel-bound proof remain
+required. Cancellation and the running marker serialize under one lock. A committed
+signed `cancelled` tombstone prevents late original submissions from executing;
+retries return the same receipt. Started/terminal work conflicts and is not stopped.
+Tombstones retain input/ID history and count toward capacity; pruning remains open.
+
+For a locally verified `uncertain` receipt, explicit preview/confirmation can append
+a caller-signed review tied to original request/receipt hashes and context. Decisions
+are human-entered advisory statements, not authenticated Human-principal attestations
+or independently verified external effects. The signed record explicitly preserves
+`task_status: uncertain`; it changes no result, membership, permission or retry gate.
+Local history/review works after credential expiry/dissolution without remote I/O.
+
+Caller state upgrades from the old binding list to `task-operations-v1` while
+retaining keys/group/source and original tasks. Older callers reject that format,
+preventing them from ignoring the cancellation barrier. Upgrade client and executor
+together and protect consistent backups; no downgrade/reset bypass is supported.
+
+The suite contains 483 tests (30 new task-operation checks). Focused operation and
+existing 35 durable-task checks pass; an actual v0.29 caller also rejected migrated
+state while v0.30 restored the cancellation barrier. Full local verification:
+all 483 identity tests pass without skips; core passes 55 with 428 expected skips;
+all three serial Chromium checks pass. Dependencies, package/MCP version, mesh
+simulation, JS syntax and 27-document link/anchor checks pass. See the PR for
+remote CI results and [task operations](task-operations.md) for commands and limits.
+
+Unimplemented: stopping running/external work, verified uncertainty resolution,
+requeue/migration after review, remote Human UI/MCP operations, note distribution,
+retention/pruning, real product adapters and physical LAN/Tailscale trials.
 
 ## Documentation maintenance rule
 
