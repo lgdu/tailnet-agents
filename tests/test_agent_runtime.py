@@ -448,13 +448,22 @@ class AgentRuntimeTests(unittest.TestCase):
         self.assertEqual(self.observation(), [])
 
     def test_run_stops_idle_wait_and_sends_best_effort_signed_offline(self):
-        runtime = self.runtime()
+        runtime = self.runtime(record=self.record | {'ttl_seconds': 10}, interval=5)
+        original = runtime.client.client.request
+        def delayed(path, *args, **kwargs):
+            response = original(path, *args, **kwargs)
+            if path == '/v1/challenges': self.now += 8.75
+            return response
         emitted = []
         def emit(result):
             emitted.append(result)
             runtime.stop.set()
-        runtime.run(emit)
+        with patch.object(runtime.client.client, 'request', side_effect=delayed), \
+                patch.object(runtime.stop, 'wait', wraps=runtime.stop.wait) as wait:
+            runtime.run(emit)
         self.assertEqual([result['state'] for result in emitted], ['registered', 'offline'])
+        self.assertEqual(emitted[0]['lease_seconds'], 1)
+        wait.assert_called_once_with(1/3)
         self.assertEqual(self.observation()[0]['state'], 'offline')
 
     def test_wrong_saved_key_owner_or_group_fails_before_state_creation(self):

@@ -75,7 +75,8 @@ Requested TTL is 10–300 seconds, including a ten-second heartbeat with a real
 fractional clock. Signed timestamps preserve fractional seconds; existing integer
 timestamps remain valid. Interval is 1–60 seconds and must be below the requested
 TTL; successful short leases tighten the next wait to at most one third of the
-acknowledged lease. Online registration still requires at least ten seconds of
+acknowledged lease, including subsecond waits for 1–2 second remaining leases.
+Online registration still requires at least ten seconds of
 grant and policy validity. Transport consumes the signed heartbeat budget: the
 acknowledged remaining lease is rounded down to whole seconds and can be 1–9
 seconds even when requesting ten. Less than one full second remaining is rejected.

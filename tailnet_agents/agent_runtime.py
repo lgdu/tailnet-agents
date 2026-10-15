@@ -144,7 +144,7 @@ class AgentRuntime:
             while not self.stop.is_set():
                 result = self.step()
                 emit(result)
-                delay = min(self.interval, max(1, result.get('lease_seconds', self.record['ttl_seconds']) / 3))
+                delay = min(self.interval, result.get('lease_seconds', self.record['ttl_seconds']) / 3)
                 self.stop.wait(delay)
         finally:
             emit(self.step(offline=True))  # Best effort; denied/unreachable recipients expire the old lease.
