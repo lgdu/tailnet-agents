@@ -500,7 +500,7 @@ independently verified, but authorization-at-insertion depends on the trusted
 store, not attached historical policy proofs. Plaintext storage operators are
 trusted. See [network messages](network-messages.md) for recovery and privacy limits.
 
-## Signed durable Echo tasks (v0.27, unreleased)
+## Signed durable Echo tasks (v0.27)
 
 Separate custom API on admission, default disabled. Explicit `--tasks` requires
 signed policy mode plus original approved executor key/grant. Legacy bridge

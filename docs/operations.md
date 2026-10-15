@@ -322,7 +322,7 @@ changing origin/audience/CA without a migration plan can lose receipt/cursor
 meaning; rollback recovery and HA replication are not implemented. Production
 quotas, rate limits, key rotation and physical LAN/Tailscale trials remain open.
 
-## Signed durable task state (v0.27, unreleased)
+## Signed durable task state (v0.27)
 
 Explicit task mode adds a fixed executor identity/audience/adapter context and
 immutable request/status/signed-receipt tables to the private admission database.

@@ -141,7 +141,7 @@ message tables pin the original audience and retain immutable IDs/receipts acros
 restart. No read bearer shortcut or owner private key is used. See
 [network messages](network-messages.md).
 
-## Separate signed task plane (v0.27, unreleased)
+## Separate signed task plane (v0.27)
 
 `TaskExecutor` reuses current signed policy, scoped grants, learned revocations,
 the directory lock and SQLite connection, with a separate exclusive executor file

@@ -551,7 +551,7 @@ be durable before real side effects. Do not automatically migrate an uncertain
 task to another executor. Model permissions and network permissions are both
 necessary; network membership never grants filesystem or secret access.
 
-### Implemented signed task boundary (v0.27, unreleased)
+### Implemented signed task boundary (v0.27)
 
 The opt-in task plane uses a configured original executor key and approved grant,
 not a discovered host or owner key. Every submit/query verifies both caller and
@@ -631,7 +631,7 @@ physical LAN/tailnet validation are future work. See [durable tasks](durable-tas
   checks, attributed cache and durable merged-view ordering.
 - v0.26: signed group/direct text at a configured trusted store,
   scoped operation proofs, durable outbox/deduplication and catch-up cursors.
-- v0.27 (unreleased): signed Echo task/executor identities, durable intent and
+- v0.27: signed Echo task/executor identities, durable intent and
   result boundaries, signed receipts, explicit queued recovery and crash-to-uncertain.
 - Next: multi-source policy reconciliation, human renewal UX and candidate-to-runtime trust handoff.
 - Next: integrated mesh transport with cryptographic admission.

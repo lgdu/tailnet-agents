@@ -1,4 +1,4 @@
-# Implementation status — v0.27 (unreleased)
+# Implementation status — v0.27
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -241,7 +241,7 @@ is published as a GitHub prerelease with a matching annotated tag. Merged-main
 verification: all 355 identity tests pass without skips; core passes 50 with 305
 expected skips; both Chromium regressions pass on their first run.
 
-## v0.27 durable signed Echo tasks (unreleased)
+## v0.27 durable signed Echo tasks
 
 The admission service explicitly enables a simulation executor with an existing
 Agent key and approved `task.echo` grant. Caller and executor independently require
@@ -273,7 +273,9 @@ Unimplemented: real side-effect adapters, general exactly-once execution, databa
 rollback/key-clone recovery, MCP/Human UI integration, asynchronous scheduling,
 automatic retry/polling, cancellation/uncertain resolution, retention/quota UI,
 HA and physical LAN/Tailscale/WAN trials. The legacy bearer bridge remains
-in-memory and independent. v0.27.0 is not published or tagged.
+in-memory and independent. v0.27.0 is published as a GitHub prerelease with a matching annotated tag.
+Merged main validation: 390 identity tests pass without skips; core passes 50
+with 340 expected skips; both Chromium regressions pass on their first run.
 
 ## Documentation maintenance rule
 

@@ -235,7 +235,7 @@ does not automatically send text, start a client or expose private history to th
 signing administrator. Run the separate client explicitly with its original key,
 group and private messaging state.
 
-## Separate signed tasks (v0.27, unreleased)
+## Separate signed tasks (v0.27)
 
 [Durable signed Echo tasks](durable-tasks.md) use the separate CLI and configured
 simulation executor. Human UI can issue/approve `task.echo` credentials through

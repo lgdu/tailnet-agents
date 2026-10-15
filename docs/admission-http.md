@@ -185,7 +185,7 @@ service audience are persistent; restart cannot replace that audience. See
 [network messages](network-messages.md) for participant-only direct reads, durable
 outbox, catch-up, TLS deployment and trusted-plaintext-store limits.
 
-## Explicit signed Echo executor (v0.27, unreleased)
+## Explicit signed Echo executor (v0.27)
 
 `--tasks --task-agent-key ORIGINAL.pem --task-grant-file APPROVED.grant` requires
 signed policy mode and enables POST `/v1/task-challenges` and `/v1/agent-tasks`.

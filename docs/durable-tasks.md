@@ -1,4 +1,4 @@
-# Signed durable Echo tasks (v0.27, unreleased)
+# Signed durable Echo tasks (v0.27)
 
 An explicitly configured simulation executor accepts signed `echo` tasks for an
 existing human-created group. Executor and caller state survive restart. The

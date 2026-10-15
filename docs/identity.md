@@ -117,7 +117,7 @@ while continuing policy/grant/revocation checks. These observations do not issue
 authority, execute tasks or establish product health. Same-host Agents retain
 independent keys and approvals; peer presence replication remains future work.
 
-## Signed task scope (v0.27, unreleased)
+## Signed task scope (v0.27)
 
 [Durable signed Echo tasks](durable-tasks.md) require separate current `task.echo`
 grants/approval for caller and original executor. Admission/discovery/chat scope

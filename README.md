@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.27 prototype (unreleased).** Working components are listed below. The network mesh and
+**v0.27 prototype.** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -333,7 +333,7 @@ and state. No automatic group creation, replies or task execution occurs. See
 [network messaging](docs/network-messages.md) for LAN/Tailscale TLS configuration,
 commands, recovery and limits. Local Human UI Echo chat remains separate.
 
-## Signed durable tasks (v0.27, unreleased)
+## Signed durable tasks (v0.27)
 
 Explicit `--tasks` enables a simulated Echo executor with its original approved
 Agent key/grant in the policy-enforced admission service. `tailnet-tasks` persists
@@ -386,8 +386,8 @@ Next: multi-source policy reconciliation, human renewal UX and explicit candidat
 identity and candidate discovery to the mesh engine, broaden browser QA,
 and then add real product adapters and deployment trials.
 The working registry mode remains available during mesh development.
-v0.26.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.26.0)
-with a matching annotated version tag. v0.27.0 remains unreleased and untagged in this PR. Release checks and tag synchronization are described
+v0.27.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.27.0)
+with a matching annotated version tag. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 
 No open-source license has been selected yet. Public release requires an owner
