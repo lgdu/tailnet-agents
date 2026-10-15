@@ -18,9 +18,12 @@ from .policy_sync import PolicySynchronizer,load_policy_sources
 from .discovery import DISCOVERY_PORT,LanBroadcaster,lan_config,origin
 from .peer_presence import PresenceSynchronizer
 from .policy_delivery import load_policy_targets
+from .durable_tasks import TaskExecutor,TaskUnavailable
 
 
-def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=None,discovery=None,*,presence_export=False,presence_synchronizer=None,messages=False):
+def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=None,discovery=None,*,presence_export=False,presence_synchronizer=None,messages=False,task_executor=None):
+    if task_executor is not None and task_executor.directory is not directory:
+        raise ValueError('executor must belong to this pinned directory')
     from .network_messages import MessageStore
     message_store=MessageStore(directory) if messages else None
     allowed_hosts=allowed_hosts or ("127.0.0.1","localhost")
@@ -112,9 +115,11 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=N
         def do_POST(self):
             try:
                 self.local()
+                if self.path in ('/v1/task-challenges','/v1/agent-tasks') and task_executor is None:
+                    return self.respond(404,{'error':'tasks disabled'})
                 if self.path in ('/v1/messages/challenges','/v1/messages') and message_store is None:
                     return self.respond(404,{'error':'messages disabled'})
-                if self.path not in ('/v1/challenges','/v1/registrations','/v1/revocations','/v1/policies','/v1/messages/challenges','/v1/messages'):
+                if self.path not in ('/v1/challenges','/v1/registrations','/v1/revocations','/v1/policies','/v1/messages/challenges','/v1/messages','/v1/task-challenges','/v1/agent-tasks'):
                     return self.respond(404,{'error':'not found'})
                 if self.path in ('/v1/revocations','/v1/policies'):
                     self.read_auth()
@@ -124,6 +129,14 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=N
                 payload=json.loads(self.rfile.read(size))
                 if not isinstance(payload,dict):
                     raise ValueError('object required')
+                if self.path=='/v1/task-challenges':
+                    if set(payload)!={'request'}:raise ValueError('invalid task challenge')
+                    return self.respond(200,task_executor.challenge(payload['request']))
+                if self.path=='/v1/agent-tasks':
+                    if set(payload)!={'request','grant','public_key','proof','nonce'} or not all(isinstance(payload[k],str) for k in ('grant','public_key','proof','nonce')):
+                        raise ValueError('invalid authenticated task operation')
+                    key=Ed25519PublicKey.from_public_bytes(decode(payload['public_key']))
+                    return self.respond(200,task_executor.execute(payload['request'],payload['grant'],key,payload['proof'],payload['nonce']))
                 if self.path=='/v1/messages/challenges':
                     if set(payload)!={'request'}:raise ValueError('invalid message challenge')
                     return self.respond(200,message_store.challenge(payload['request']))
@@ -162,11 +175,15 @@ def handler(directory,read_token,allowed_hosts=None,scheme="http",synchronizer=N
                 directory.revoke(payload['revocation'])
                 self.respond(200,{'revoked':True})
             except FileExistsError:
-                self.respond(409,{'error':'stale or conflicting identity/message'})
+                self.respond(409,{'error':'stale or conflicting identity/message/task'})
             except (PermissionError,AdmissionError):
                 # Do not expose grant, proof, keys, prompts or detailed verifier errors.
                 self.respond(403,{'error':'request not authorized'})
-            except sqlite3.Error:
+            except KeyError:
+                self.respond(404,{'error':'resource not found'})
+            except OverflowError:
+                self.respond(429,{'error':'task capacity reached; preserve existing state'})
+            except (sqlite3.Error,TaskUnavailable):
                 self.respond(503,{'error':'storage unavailable; retry original request'})
             except (ValueError,UnicodeError,TypeError):
                 self.respond(400,{'error':'invalid request'})
@@ -235,6 +252,9 @@ def main():
     parser.add_argument('--policy-peer-ca',help='trusted CA certificate PEM for the configured source')
     parser.add_argument('--policy-sync-interval',type=float,default=10,help='policy pull interval, 1..3600 seconds')
     parser.add_argument('--policy-max-age',type=int,help='maximum signed policy age, 1..86400 seconds; default 300 or persisted limit')
+    parser.add_argument('--tasks',action='store_true',help='explicit signed durable Echo executor; requires policy mode and existing key/grant')
+    parser.add_argument('--task-agent-key',help='original approved simulation executor key; never the owner key')
+    parser.add_argument('--task-grant-file',help='existing approved task.echo executor grant')
     parser.add_argument('--messages',action='store_true',help='opt-in signed group/direct text store; requires policy mode')
     parser.add_argument('--presence-export',action='store_true',help='explicitly export local signed presence AND scoped grants to authenticated replicas')
     parser.add_argument('--presence-sources-file',help='1..8 fixed sources: id, url, group_id, token_env and optional ca_cert')
@@ -254,6 +274,10 @@ def main():
         parser.error('--policy-peer-ca requires --policy-peer')
     if (args.policy_sources_file or args.policy_max_age is not None) and not (args.require_policy or args.policy_file):
         parser.error('policy sources and maximum age require policy mode')
+    if args.tasks and (not (args.require_policy or args.policy_file) or not args.task_agent_key or not args.task_grant_file):
+        parser.error('tasks require policy mode and original executor key/grant')
+    if not args.tasks and (args.task_agent_key or args.task_grant_file):
+        parser.error('executor key/grant require explicit --tasks')
     if args.messages and not (args.require_policy or args.policy_file):
         parser.error('messages require signed policy mode')
     if (args.presence_export or args.presence_sources_file) and not (args.require_policy or args.policy_file):
@@ -268,6 +292,7 @@ def main():
     synchronizer=None
     presence_synchronizer=None
     broadcaster=None
+    task_executor=None
     server=None
     try:
         discovery_key=load_identity(args.discovery_agent_key) if args.discovery_agent_key else None
@@ -285,6 +310,8 @@ def main():
         directory=VerifiedDirectory(authority,args.group_id,args.audience,database=args.database,require_policy=args.require_policy or bool(args.policy_file),policy_max_age=args.policy_max_age)
         if args.policy_file:
             directory.apply_policy(Path(args.policy_file).read_text().strip())
+        if args.tasks:
+            task_executor=TaskExecutor(directory,load_identity(args.task_agent_key),Path(args.task_grant_file).read_text().strip())
         if peers:
             synchronizer=PolicySynchronizer(directory,peers[0],args.policy_sync_interval,fallback_clients=peers[1:])
         if args.presence_sources_file:
@@ -294,8 +321,9 @@ def main():
             broadcaster=LanBroadcaster(discovery,args.discovery_lan_interface,args.discovery_lan_port)
         scheme='https' if context else 'http'
         server=AdmissionHTTPServer((args.host,args.port),handler(directory,token,allowed,scheme,synchronizer,discovery,
-            presence_export=args.presence_export,presence_synchronizer=presence_synchronizer,messages=args.messages),context)
-    except (ValueError,OSError):
+            presence_export=args.presence_export,presence_synchronizer=presence_synchronizer,messages=args.messages,task_executor=task_executor),context)
+    except (ValueError,OSError,sqlite3.Error,TaskUnavailable):
+        if task_executor is not None:task_executor.close()
         if presence_synchronizer is not None:presence_synchronizer.stop()
         if broadcaster is not None:
             broadcaster.stop()
@@ -321,6 +349,7 @@ def main():
         if synchronizer is not None:
             synchronizer.stop()
         if presence_synchronizer is not None:presence_synchronizer.stop()
+        if task_executor is not None:task_executor.close()
         directory.close()
 
 

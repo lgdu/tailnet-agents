@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.26 prototype.** Working components are listed below. The network mesh and
+**v0.27 prototype (unreleased).** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -12,7 +12,8 @@ action; agents may only discover or restore previously authorized groups.
 | Component | Implemented | Boundary |
 |---|---|---|
 | Directory | SQLite registration, leases, ownership, removal, status | Central registry; not distributed mesh |
-| Bridge | Automatic renewal, discovery CLI, authenticated Echo tasks | Custom task API; task state is in memory |
+| Legacy bridge | Automatic renewal, discovery CLI, bearer Echo tasks | Custom v0.1 API; in-memory history; separate from durable signed tasks |
+| Durable signed tasks | Explicit Echo executor identity, scoped operation proofs, durable caller intents/executor results and signed receipts; interrupted work becomes uncertain | Simulation only; no automatic uncertain retry/migration, real adapters, MCP/UI integration or HA |
 | MCP | Stdio discovery, delegation, result tools | 2025 handshake family; real client compatibility unvalidated |
 | Human UI | Explicit groups, scoped chat, opt-in owner-signed creation/approval/removal/renewal/dissolution, policy export, explicit recipient delivery and human-confirmed grant issuance | Trusted loopback gateway; private-file installer; manual trusted transfer; simulated agents |
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
@@ -68,6 +69,11 @@ flowchart TB
     INSTALL -->|"Separate explicit client run / 另行运行准入客户端"| VC
     VC["Verified client / 持有身份私钥"] -->|"TLS + grant + proof"| API["Admission HTTP service"]
     MSG["Synthetic message clients / 同机多个独立密钥、持久 outbox"] -->|"Signed text + operation proof / 显式配置 HTTPS"| API
+    TC["Signed task caller / 原任务 ID、原执行器、持久待送"] -->|"Current task.echo grant + fresh proof"| API
+    API --> TE["Explicit Echo executor / 原身份、独立授权"]
+    TE --> TDB[("SQLite / 任务、running 标记、签名结果")]
+    TDB -->|"Restart: running becomes uncertain / 不自动重跑"| TE
+    TE -->|"Signed receipt / 对照原任务核验、保存"| TC
     API --> MS["Opt-in message store / 当前授权、私聊参与者 ACL"]
     MS --> MDB[("SQLite / 已提交消息、去重与序号")]
     MDB -->|"Signed history pages / 持久补读游标"| MSG
@@ -171,7 +177,7 @@ python3 -m tailnet_agents.registry --database state/registry.sqlite3
 See [two-node quickstart](docs/quickstart.md) for private HTTPS origins, bridge
 credentials and CLI calls. This has been tested on loopback; a real LAN/tailnet
 trial is still required. Restart preserves directory ownership and invalidates
-old leases until each bridge renews. Echo tasks have bounded in-memory history
+old leases until each bridge renews. These legacy Echo tasks have bounded in-memory history
 and process-local idempotency; do not use them for real side effects yet.
 
 ## MCP and optional identity primitives
@@ -327,6 +333,19 @@ and state. No automatic group creation, replies or task execution occurs. See
 [network messaging](docs/network-messages.md) for LAN/Tailscale TLS configuration,
 commands, recovery and limits. Local Human UI Echo chat remains separate.
 
+## Signed durable tasks (v0.27, unreleased)
+
+Explicit `--tasks` enables a simulated Echo executor with its original approved
+Agent key/grant in the policy-enforced admission service. `tailnet-tasks` persists
+original task IDs and executor selection before sending; the executor persists
+request/running/result state and signs receipts. Lost acknowledgments safely
+recover the original result. After a crash, unfinished running tasks become
+`uncertain` and are never automatically retried or migrated. Queued tasks need a
+fresh explicit submission; reads never execute. Caller and executor both need
+current `task.echo` permission. Same-host Agents/executors retain independent
+keys and private state. See [durable tasks](docs/durable-tasks.md) for commands,
+TLS, recovery and bounds. Legacy bearer bridge/MCP tasks remain separate.
+
 ## Verification
 
 ```bash
@@ -339,8 +358,10 @@ are explicitly skipped. CI runs both core and identity installations. The new si
 visual/accessibility coverage and real-agent compatibility remain outstanding.
 The dedicated CI browser job also delays policy reads and checks that download
 never uses a pre-mutation snapshot; failed refreshes keep exports disabled.
-v0.26 includes 355 tests: the 322-test v0.25 baseline plus 33 network-message
-checks covering actual HTTP/TLS and service/client processes, participant isolation,
+v0.27 includes 390 tests: the 355-test v0.26 baseline plus 35 durable-task
+checks, including a real process crash after a simulated side effect, conservative
+uncertainty, transaction failures, signed receipt checks and independent same-host
+executors/callers. v0.26 added 33 network-message checks covering actual HTTP/TLS and service/client processes, participant isolation,
 current authorization, same-host identities, lost-ACK deduplication, offline/restart
 recovery and atomic catch-up cursors. v0.24 added 21 runtime-monitor checks. Separate Chromium coverage verifies source selection, same-host identities,
 expiry/clock rollback, read failures and stale responses after target, policy,
@@ -360,12 +381,12 @@ state/lease preservation, mid-scan updates, service shutdown and restart recover
 - [Current status and next work](docs/status.md)
 - [Prioritized remaining work](docs/roadmap.md)
 
-Next: durable tasks and explicit candidate enrollment; connect verified
+Next: multi-source policy reconciliation, human renewal UX and explicit candidate enrollment; connect verified
 identity and candidate discovery to the mesh engine, broaden browser QA,
 and then add real product adapters and deployment trials.
 The working registry mode remains available during mesh development.
 v0.26.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.26.0)
-with a matching annotated version tag. Release checks and tag synchronization are described
+with a matching annotated version tag. v0.27.0 remains unreleased and untagged in this PR. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 
 No open-source license has been selected yet. Public release requires an owner
