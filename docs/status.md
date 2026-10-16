@@ -1,4 +1,4 @@
-# Implementation status — v0.32 (unreleased)
+# Implementation status — v0.32
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -441,7 +441,7 @@ Unimplemented: payload pruning/compaction, automatic archive/retention, export/i
 byte/outbox quotas, running-work cancellation, verified uncertainty resolution,
 UI/MCP task operations, real product adapters and physical LAN/Tailscale trials.
 
-## v0.32 explicit signed-task MCP caller (unreleased)
+## v0.32 explicit signed-task MCP caller
 
 A separate `tailnet-tasks-mcp` stdio entrypoint opens one original caller identity,
 group, scoped grant, source/audience/CA, executor pin and private state from explicit
@@ -467,12 +467,15 @@ signed tasks; the new process has no registry/discovery fallback.
 Thirty-one new checks (six core, 25 identity) cover exact tool schemas, private
 configurations, single-task behavior, concurrent/stable queue IDs, failed/lost
 ACK/receipt commits, running/uncertain/cancel barriers, same-host callers, HTTP/TLS
-and actual stdio processes/restart. Full local verification: all 547 identity tests
-pass without skips; core passes 61 with 486 expected skips; all three serial Chromium
-checks pass. Actual v0.31 caller source also retained the MCP original intent and
-cancellation barrier through CLI/new-MCP handoff with the original identity/group.
+and actual stdio processes/restart. Merged-main verification: all 547 identity tests
+pass without skips (312.821s); core passes 61 with 486 expected skips (10.435s); all
+three serial Chromium checks pass on their first run. Actual v0.31 caller source
+also retained the MCP original intent and cancellation barrier through CLI/new-MCP
+handoff with the original identity/group.
 Dependencies, installed entrypoint/version, mesh simulation, JS syntax and
-29-document/225-local-link checks pass. See the PR for remote CI results and
+29-document/225-local-link checks pass. [PR #20](https://github.com/lgdu/tailnet-agents/pull/20)
+passed all six CI checks; merged-main CI also passed all three jobs. v0.32.0 is
+published as a GitHub prerelease with a matching annotated tag. See
 [signed-task MCP](task-mcp.md) for setup, tools, authority and recovery boundaries.
 
 Unimplemented: actual product client interoperability/inbound workers, Human UI

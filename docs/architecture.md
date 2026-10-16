@@ -643,7 +643,7 @@ outbox and fixed executor; it does not migrate legacy tasks or create product wo
   and caller-signed local uncertainty notes; no running stop or outcome rewrite.
 - v0.31: explicit full-record terminal archives and active/total row
   quotas globally and by caller public-key identity; all history remains deduplicated.
-- v0.32 (unreleased): explicit fixed signed-task MCP caller, stable queue IDs,
+- v0.32: explicit fixed signed-task MCP caller, stable queue IDs,
   original single-task submissions, verified local/remote results and cancellation/archive operations.
 - Next: real interface validation when available, safe payload compaction,
   independently authorized Human UI task integration and candidate-to-runtime trust handoff.
@@ -844,7 +844,7 @@ backups; no rollback, disk-loss, export/import, automatic retention, payload pru
 Human UI task bridge or physical network validation is claimed. See
 [task archives and quotas](task-history.md).
 
-### Implemented fixed signed-task MCP caller (v0.32, unreleased)
+### Implemented fixed signed-task MCP caller (v0.32)
 
 A separate stdio entrypoint opens an explicitly configured original Agent key,
 scoped grant, group, fixed source/audience/executor/CA and private caller state.

@@ -435,7 +435,7 @@ replay work. The Echo contract remains `echo-v1`, and the caller's existing
 `task-operations-v1` context is unchanged. There is no downgrade bypass, archive
 import/export, secure deletion, automatic retention or byte/disk quota.
 
-## Signed-task MCP operations (v0.32, unreleased)
+## Signed-task MCP operations (v0.32)
 
 Install the identity extra and explicitly configure `TAILNET_TASK_MCP_CONFIG` for
 `tailnet-tasks-mcp`. Config, original Agent key and scoped grant must be bounded,

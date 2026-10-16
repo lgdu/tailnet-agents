@@ -723,7 +723,7 @@ Older executors fail their context check before ignoring archived IDs. The Echo
 adapter contract and caller format stay unchanged. Opening a service never
 archives, deletes, dispatches work, creates a group/key or repairs lost history.
 
-## Explicit signed-task MCP caller (v0.32, unreleased)
+## Explicit signed-task MCP caller (v0.32)
 
 A separately configured stdio process uses the same 2025 MCP tools lifecycle and
 64-KiB input bound, with its own fixed twelve-tool catalog. It advertises only

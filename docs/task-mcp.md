@@ -1,4 +1,4 @@
-# Explicit signed-task MCP caller (v0.32, unreleased)
+# Explicit signed-task MCP caller (v0.32)
 
 `tailnet-tasks-mcp` exposes the existing synthetic signed Echo caller through a
 separate **stdio** MCP process. A human explicitly configures one original caller
