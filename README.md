@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.33 prototype (unreleased).** Working components are listed below. The network mesh and
+**v0.33 prototype.** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -428,7 +428,7 @@ in the active area. This does not delete plaintext or reduce disk use. See
 [task archives and quotas](docs/task-history.md) for commands, defaults and the
 one-way executor migration that makes older executors refuse the new state.
 
-## Human-confirmed signed tasks (v0.33, unreleased)
+## Human-confirmed signed tasks (v0.33)
 
 The loopback UI can explicitly bind up to sixteen original signed Echo callers
 using private configuration. Only the configured admin who created the signed
@@ -446,8 +446,8 @@ operations still enforce the original scoped authorization and signed receipts.
 See [Human task UI](docs/task-ui.md) for setup, recovery and remaining limits.
 
 v0.33 includes 571 tests, adding 24 Human task-UI checks (two core, 22 identity)
-and a fourth Chromium workflow. Publication remains pending PR merge/validation;
-the latest published version is linked below.
+and a fourth Chromium workflow. It is published as a GitHub prerelease with
+a matching annotated version tag; see the release link below.
 
 ## Explicit signed-task MCP caller (v0.32)
 
@@ -520,7 +520,7 @@ scoped real adapters, and conduct physical deployment trials. Quorum/automatic p
 resolution and explicit candidate enrollment remain open; connect verified identity
 and candidate discovery to the mesh engine and broaden browser QA.
 The working registry mode remains available during mesh development.
-v0.32.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.32.0)
+v0.33.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.33.0)
 with a matching annotated version tag. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 

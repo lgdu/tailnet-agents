@@ -759,7 +759,7 @@ do not independently authenticate a Human principal, and notes prove no external
 effect. There is no tool to create groups/grants, change membership, sign reviews,
 start product Agents, migrate uncertain work or bypass existing row quotas.
 
-## Human task preview and confirmation (v0.33, unreleased)
+## Human task preview and confirmation (v0.33)
 
 This is a loopback UI API extension, not a signed-task wire or MCP extension.
 All endpoints require the separate configured Human UI bearer credential and

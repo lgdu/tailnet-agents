@@ -1,4 +1,4 @@
-# Implementation status — v0.33 (unreleased)
+# Implementation status — v0.33
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -483,7 +483,7 @@ Human authentication/sessions, consent through MCP, MCP review creation,
 modern protocol/task extensions, scheduling/polling, running cancellation, verified
 uncertain resolution, payload deletion and physical LAN/Tailscale trials.
 
-## v0.33 Human-confirmed signed Echo tasks (unreleased)
+## v0.33 Human-confirmed signed Echo tasks
 
 The trusted loopback gateway accepts one to sixteen explicitly configured original
 caller bindings. A binding requires the existing signed UI group, matching owner,
@@ -516,14 +516,16 @@ concurrent/lost acknowledgments, transaction failures, restart/CLI loading,
 cancellation barriers, uncertain refusal, HTTPS/CA, current remote authorization
 and same-host independent callers. A fourth Chromium script checks actual human
 interaction, edited drafts, expiry, original-ID retry/archive/cancel recovery,
-late responses, logout and narrow layouts. Full local verification: all 571
-identity tests pass without skips (370.030s); core passes 63 with 508 expected
-skips (12.389s); all four serial Chromium workflows pass. A deterministic
-delayed re-preview regression fails before clearing the old preview/locking
-confirmation input, and passes after that fix. Actual v0.32 caller source also preserved the original
-UI intent, cancellation barrier and started consent through CLI/UI handoff without
-replay. Dependencies, installed CLI/version, JS syntax, mesh simulation and
-30-document/243-local-link checks pass. See the PR for remote CI results.
+late responses, logout and narrow layouts. Merged-main verification: all 571
+identity tests pass without skips (363.456s); core passes 63 with 508 expected
+skips (10.832s); all four serial Chromium workflows pass on their first run.
+The delayed re-preview check confirms the old display is cleared and task-ID
+confirmation stays locked until the response. Actual v0.32 caller source also
+preserved the original UI intent, cancellation barrier and started consent through
+CLI/UI handoff without replay. Dependencies, installed CLI/version, JS syntax,
+mesh simulation and 30-document/243-local-link checks pass. [PR #21](https://github.com/lgdu/tailnet-agents/pull/21)
+passed all six final CI checks; merged-main CI also passed all three jobs.
+v0.33.0 is published as a GitHub prerelease with a matching annotated tag.
 
 Remaining: external Human authentication/sessions, Human uncertainty-review
 creation, real product adapters/interoperability, MCP Human-consent bridging,

@@ -645,7 +645,7 @@ outbox and fixed executor; it does not migrate legacy tasks or create product wo
   quotas globally and by caller public-key identity; all history remains deduplicated.
 - v0.32: explicit fixed signed-task MCP caller, stable queue IDs,
   original single-task submissions, verified local/remote results and cancellation/archive operations.
-- v0.33 (unreleased): explicit Human UI signed-task bindings, durable actor-bound
+- v0.33: explicit Human UI signed-task bindings, durable actor-bound
   preview/confirmation and original-intent recovery; no chat or MCP authority adoption.
 - Next: real interface validation when available, safe payload compaction,
   caller-outbox/byte bounds and candidate-to-runtime trust handoff.
@@ -893,7 +893,7 @@ Real product clients/inbound workers, external Human authentication, modern MCP 
 extensions, review creation, scheduling, running cancellation, verified external
 outcomes and physical network trials remain open. See [signed-task MCP](task-mcp.md).
 
-### Implemented Human task confirmation gateway (v0.33, unreleased)
+### Implemented Human task confirmation gateway (v0.33)
 
 An opt-in private binding file connects existing signed UI groups and their original
 configured Human administrator to fixed signed Echo callers. Human authorization

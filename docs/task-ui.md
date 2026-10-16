@@ -1,4 +1,4 @@
-# Human-confirmed signed Echo tasks (v0.33, unreleased)
+# Human-confirmed signed Echo tasks (v0.33)
 
 The loopback Human UI can operate explicitly configured original signed-task
 callers. This is separate from simulated chat replies and both MCP processes.

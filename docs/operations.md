@@ -458,7 +458,7 @@ all payload/history, and uncertainty notes grant no replay. Config/grant changes
 are read at restart; human authorization renewal stays separate. No v0.32 format
 migration, registry fallback, product worker or auto-retry daemon is introduced.
 
-## Human task gateway operations (v0.33, unreleased)
+## Human task gateway operations (v0.33)
 
 Use the original signed UI database/signer and a private absolute-path
 `--task-bindings-file` mapping configured Human admin creators to existing fixed
