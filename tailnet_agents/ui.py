@@ -4,12 +4,18 @@ import hmac
 import json
 import os
 import re
+import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from urllib.error import HTTPError
 from .chat import ChatStore, PolicyDeliveryError, RuntimeMonitorError
 
 WEB = Path(__file__).parent / 'web'
+
+
+class TaskUIError(ValueError):
+    """Preserve original consent/task after an unconfirmed operation."""
 
 
 def validate_users(users):
@@ -30,7 +36,7 @@ def validate_users(users):
     return users
 
 
-def handler(store, users):
+def handler(store, users, *, task_bridge=None):
     if isinstance(users, str):
         users = {'demo-owner': {'token': users, 'role': 'admin'}}
     validate_users(users)
@@ -69,12 +75,29 @@ def handler(store, users):
                         return principal, config['role']
             raise PermissionError('invalid UI credential')
 
+        def task_call(self, principal, role, group, method, *args):
+            if role != 'admin' or task_bridge is None:
+                raise PermissionError('explicit human task configuration required')
+            try:
+                store.require_group(principal, group)
+                return getattr(task_bridge, method)(principal, group, *args)
+            except PermissionError:
+                raise PermissionError('configured task human/group access required') from None
+            except FileExistsError:
+                raise FileExistsError('Task consent/state conflicts; inspect the original task and preview again.') from None
+            except (KeyError, ValueError, TypeError):
+                raise ValueError('Invalid task request; use the original configured binding and task.') from None
+            except (OSError, sqlite3.Error) as error:
+                if isinstance(error, HTTPError):error.close()
+                raise TaskUIError('Task result unconfirmed; retain the original consent/task and retry explicitly. Check authorization, TLS and connectivity.') from None
+
         def do_GET(self):
             try:
                 self.local_request()
                 parsed = urlparse(self.path)
                 static = {'/': ('index.html', 'text/html; charset=utf-8'),
                           '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
+                          '/tasks.js': ('tasks.js', 'text/javascript; charset=utf-8'),
                           '/app.css': ('app.css', 'text/css; charset=utf-8')}
                 if parsed.path in static:
                     filename, mime = static[parsed.path]
@@ -82,6 +105,14 @@ def handler(store, users):
                 principal, role = self.authorize()
                 if parsed.path == '/api/me':
                     return self.response(200, {'id': principal, 'role': role})
+                if parsed.path == '/api/task-bindings':
+                    query = parse_qs(parsed.query, keep_blank_values=True)
+                    if set(query) != {'group_id'} or len(query['group_id']) != 1:
+                        raise ValueError('one explicit task group required')
+                    if task_bridge is None:
+                        store.require_group(principal, query['group_id'][0])
+                        return self.response(200, {'bindings': []})
+                    return self.response(200, self.task_call(principal, role, query['group_id'][0], 'catalog'))
                 if parsed.path == '/api/policy-config':
                     if parsed.query:
                         raise ValueError('policy config takes no query')
@@ -144,6 +175,8 @@ def handler(store, users):
                 self.response(403, {'error': str(exc)})
             except RuntimeMonitorError as exc:
                 self.response(502, {'error': str(exc)})
+            except TaskUIError as exc:
+                self.response(502, {'error': str(exc)})
             except ValueError as exc:
                 self.response(400, {'error': str(exc)})
 
@@ -163,10 +196,15 @@ def handler(store, users):
                         not isinstance(payload.get('request_id'),str) or not 1<=len(payload['request_id'])<=128 or not isinstance(payload['humans'],list) or any(not isinstance(p,str) or p not in users for p in payload['humans'])):
                         raise ValueError('select configured human members')
                     return self.response(201,store.create_group(payload['name'],principal,payload['humans'],request_id=payload['request_id'], signed_policy=payload.get('signed_policy', False)))
+                if self.path in ('/api/task-read', '/api/task-preview', '/api/task-confirm') and 'group_id' not in payload:
+                    raise ValueError('explicit task group required')
                 group_id = payload.pop('group_id','legacy')
                 if not isinstance(group_id,str):
                     raise ValueError('invalid group id')
                 store.require_group(principal,group_id)
+                if self.path in ('/api/task-read', '/api/task-preview', '/api/task-confirm'):
+                    method = {'/api/task-read':'read', '/api/task-preview':'preview', '/api/task-confirm':'confirm'}[self.path]
+                    return self.response(200, self.task_call(principal, role, group_id, method, payload))
                 if self.path in ('/api/policy-preview', '/api/policy-approve', '/api/policy-remove', '/api/policy-renew', '/api/policy-delivery-preview', '/api/policy-deliver', '/api/credential-preview', '/api/credential-issue', '/api/policy-source-check', '/api/policy-renew-preview', '/api/policy-renew-confirm'):
                     authority = store.policy_authority
                     if role != 'admin' or authority is None or principal != authority.principal:
@@ -217,6 +255,8 @@ def handler(store, users):
                 self.response(409, {'error': str(exc)})
             except PolicyDeliveryError as exc:
                 self.response(502, {'error': str(exc)})
+            except TaskUIError as exc:
+                self.response(502, {'error': str(exc)})
             except (ValueError, UnicodeError, TypeError) as exc:
                 self.response(400, {'error': str(exc)})
     return Handler
@@ -230,7 +270,9 @@ def main():
     parser.add_argument('--policy-owner-public-key', help='separate pinned owner public key file')
     parser.add_argument('--policy-admin', help='configured admin human allowed to sign group policies')
     parser.add_argument('--policy-targets-file', help='trusted recipient JSON; origins/groups and credential environment names')
+    parser.add_argument('--task-bindings-file', help='private explicit human/signed-caller bindings; see docs/task-ui.md')
     args = parser.parse_args()
+    store = task_bridge = None
     try:
         configured = os.environ.get('TAILNET_UI_USERS')
         users = json.loads(configured) if configured else {
@@ -250,13 +292,21 @@ def main():
             from .policy_delivery import load_policy_targets
             targets = load_policy_targets(args.policy_targets_file)
         store = ChatStore(args.database, policy_authority=authority, policy_targets=targets)
-    except (ImportError, ValueError, TypeError, OSError):
+        if args.task_bindings_file:
+            from .task_ui import TaskBridge
+            task_bridge = TaskBridge.from_file(store, users, args.task_bindings_file)
+        elif store.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ui_task_bindings'").fetchone() and store.db.execute('SELECT 1 FROM ui_task_bindings').fetchone():
+            raise ValueError('restart requires original explicit task bindings')
+    except (ImportError, ValueError, TypeError, OSError, sqlite3.Error):
+        if task_bridge is not None:task_bridge.close()
+        if store is not None:store.close()
         parser.error('Invalid human credentials or policy authority configuration; see docs/ui.md')
     class UIServer(ThreadingHTTPServer):
         daemon_threads = False  # Finish authorized transactions before closing SQLite.
     try:
-        server = UIServer(('127.0.0.1', args.port), handler(store, users))
+        server = UIServer(('127.0.0.1', args.port), handler(store, users, task_bridge=task_bridge))
     except Exception:
+        if task_bridge is not None:task_bridge.close()
         store.close()
         raise
     print(f'Simulated chat UI: http://127.0.0.1:{server.server_port}', flush=True)
@@ -266,6 +316,7 @@ def main():
         pass
     finally:
         server.server_close()
+        if task_bridge is not None:task_bridge.close()
         store.close()
 
 

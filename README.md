@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.32 prototype.** Working components are listed below. The network mesh and
+**v0.33 prototype (unreleased).** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -14,9 +14,9 @@ action; agents may only discover or restore previously authorized groups.
 | Directory | SQLite registration, leases, ownership, removal, status | Central registry; not distributed mesh |
 | Legacy bridge | Automatic renewal, discovery CLI, bearer Echo tasks | Custom v0.1 API; in-memory history; separate from durable signed tasks |
 | Adapter inspection | Offline product inventory, strict Echo contract and explicit nonce-bound signed metadata probe | Synthetic Echo only; metadata compatibility grants no execution rights; no product scan, launcher or real adapter |
-| Durable signed tasks | Scoped Echo tasks, durable signed intent/results, cancellation barriers/advisory notes, terminal archives/row quotas and an explicitly configured signed-task MCP caller | Simulation only; archives retain plaintext input/results; no payload deletion, running stop, verified external resolution, automatic replay, real adapters, Human UI task integration or HA |
+| Durable signed tasks | Scoped Echo tasks, durable signed intent/results, cancellation barriers/advisory notes, terminal archives/row quotas and an explicitly configured signed-task MCP caller | Simulation only; archives retain plaintext input/results; no payload deletion, running stop, verified external resolution, automatic replay, real adapters or HA |
 | MCP | Separate legacy bearer tools and opt-in fixed signed-task caller; stable intent IDs, single-task submit, verified results, cancellation and archive tools | 2025 stdio tools subset; no discovery-based authority, real client/product validation, authenticated Human consent or MCP task extensions |
-| Human UI | Explicit groups, scoped chat, opt-in owner-signed creation/approval/removal/renewal/dissolution, policy export, explicit recipient delivery and human-confirmed grant issuance | Trusted loopback gateway; private-file installer; manual trusted transfer; simulated agents |
+| Human UI | Explicit groups, scoped chat, opt-in owner-signed creation/approval/removal/renewal/dissolution, policy export, explicit recipient delivery, human-confirmed grant issuance and fixed signed-task bindings with durable preview/confirmation | Trusted loopback gateway; private-file installer; manual trusted transfer; simulated agents |
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
 | Policy replication | Ordered HTTP/TLS source failover, independent revocation cursors, periodic pull and status | Configured policy sources only; no quorum, chat/task replication |
 | Human policy review | Explicit all-source comparison, durable signed conflict/terminal evidence and fixed-time renewal preview/confirmation | Configured recipients only; no automatic adoption, quorum, fork repair or grant renewal |
@@ -38,7 +38,8 @@ OpenClaw, Claude Code, Codex or Qoder already interoperate through this project.
 
 ### Current prototype / 当前已实现
 
-Human chat, signed network text and task runtimes remain separate. The opt-in human signing gateway exports
+Human chat and signed network text remain separate; an explicit Human task bridge now uses
+the signed-task caller. The opt-in human signing gateway exports
 policies for manual application or human-confirmed delivery to configured directories. Solid arrows show
 implemented calls and the labeled human-operated policy handoff.
 
@@ -78,6 +79,9 @@ flowchart TB
     TC["Signed task caller / 原任务 ID、原执行器、持久待送"] -->|"Current task.echo grant + fresh proof"| API
     H -->|"Explicit private config / 原身份、群组、固定执行器"| SMCP["Separate signed-task stdio MCP / 稳定任务 ID、单任务确认、无自动提交"]
     SMCP --> TC
+    UI --> HTASK["Explicit Human task preview / 原输入、固定调用端、原任务 ID"]
+    HTASK --> HCONSENT[("UI SQLite consent / 先保存指定人类确认、重试原操作")]
+    HCONSENT --> TC
     API --> TE["Explicit Echo executor / 原身份、独立授权"]
     PROBE["Explicit adapter probe / 原群组、来源、执行器公钥与 nonce"] -->|"Read credential + metadata POST / 不提交任务"| API
     TE --> CONTRACT["Signed Echo contract / 最长 15 秒、不证明调用权限"]
@@ -424,6 +428,27 @@ in the active area. This does not delete plaintext or reduce disk use. See
 [task archives and quotas](docs/task-history.md) for commands, defaults and the
 one-way executor migration that makes older executors refuse the new state.
 
+## Human-confirmed signed tasks (v0.33, unreleased)
+
+The loopback UI can explicitly bind up to sixteen original signed Echo callers
+using private configuration. Only the configured admin who created the signed
+group may operate its bindings. Each queue/submit/refresh/cancel/archive action
+has a separate exact-input/task preview and 60-second server-bound confirmation;
+a durable authorization precedes mutation/network I/O. Lost acknowledgments and
+restart recover the same consent/task, without automatic dispatch or another ID.
+Local task/consent history stays separate from simulated chat and MCP tools.
+
+No discovery grants authority. Original keys/groups and same-host Agent separation
+remain intact. The separate UI bearer credential authenticates the configured
+human on this trusted local gateway; no external Human authentication, Human
+signature or consent requirement on direct CLI/MCP use is claimed. Remote task
+operations still enforce the original scoped authorization and signed receipts.
+See [Human task UI](docs/task-ui.md) for setup, recovery and remaining limits.
+
+v0.33 includes 571 tests, adding 24 Human task-UI checks (two core, 22 identity)
+and a fourth Chromium workflow. Publication remains pending PR merge/validation;
+the latest published version is linked below.
+
 ## Explicit signed-task MCP caller (v0.32)
 
 `tailnet-tasks-mcp` uses a private fixed configuration and the original signed
@@ -464,6 +489,8 @@ metadata, HTTP/TLS, the CLI, expiry, context/replay failures and same-host recov
 v0.28 added 33 policy-review checks for all-source HTTP/TLS reads, durable conflicts/terminal evidence, partial
 failures, transaction rollback, fixed-time consent and concurrency/retry guards.
 A third Chromium check covers the review/renewal panel and stale responses.
+A fourth (`scripts/check_task_ui.py`) covers separate Human task confirmation,
+original-ID recovery, cancellation/archive, expired/edited previews and stale views.
 v0.27 added 35 durable-task
 checks, including a real process crash after a simulated side effect, conservative
 uncertainty, transaction failures, signed receipt checks and independent same-host
@@ -485,6 +512,7 @@ state/lease preservation, mid-scan updates, service shutdown and restart recover
 - [Protocol boundaries](docs/protocol.md)
 - [Registry operations and backup](docs/operations.md)
 - [Current status and next work](docs/status.md)
+- [Human-confirmed signed task UI](docs/task-ui.md)
 - [Prioritized remaining work](docs/roadmap.md)
 
 Next: validate actual product interfaces when available, implement explicitly

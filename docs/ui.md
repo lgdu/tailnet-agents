@@ -1,7 +1,9 @@
-# Human UI v0.24: scoped runtime monitoring and human administration
+# Human UI v0.33: explicit signed-task consent and human administration
 
 The UI is a local demonstration of the interaction model. It does
 not integrate the mesh simulator, registry, MCP tools or real agent adapters.
+An opt-in [signed-task bridge](task-ui.md) separately operates configured synthetic
+Echo callers using explicit Human preview/confirmation.
 Humans explicitly create groups and select configured human members. Each group
 uses the same three deterministic Echo participants. Those are simulated actors,
 not authorized network Agent identities. It implements configured local human roles and API-level private-history
@@ -240,9 +242,9 @@ group and private messaging state.
 [Durable signed Echo tasks](durable-tasks.md) use the separate CLI and configured
 simulation executor. Human UI can issue/approve `task.echo` credentials through
 its existing explicit workflow, but its Echo chat does not submit those tasks.
-There is no task dashboard, automatic executor startup or uncertain-task recovery
-button. A future UI must preserve original task IDs/executors and distinguish
-queued, running and terminal uncertainty without offering silent replay.
+v0.33 adds a separate [explicit signed-task panel](task-ui.md) using the original
+caller/executor and an independently checked UI Human credential. There is no
+automatic executor startup or uncertainty replay button.
 
 ## Explicit all-source policy review and renewal (v0.28)
 

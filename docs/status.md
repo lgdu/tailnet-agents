@@ -1,4 +1,4 @@
-# Implementation status — v0.32
+# Implementation status — v0.33 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -6,9 +6,9 @@ its future requirements must not be read as implemented security guarantees.
 | Area | Current state | Next work |
 |---|---|---|
 | Registry | Durable central directory | Distributed discovery/anti-entropy |
-| Signed tasks | Scoped Echo identities, durable signed intents/results, cancellation barriers, advisory notes, terminal archives/row quotas and a fixed signed-task MCP caller | Archives retain input/results; no payload deletion, running stop, verified external resolution, real adapters, Human UI task bridge or HA; legacy bearer API remains in memory |
+| Signed tasks | Scoped Echo identities, durable signed intents/results, cancellation barriers, advisory notes, terminal archives/row quotas, a fixed signed-task MCP caller and independently checked UI human confirmation | Archives retain input/results; no payload deletion, running stop, verified external resolution, real adapters or HA; legacy bearer API remains in memory |
 | MCP | Independent legacy bearer tools and explicit signed-task stdio caller, stable task IDs, confirmed single-task submit/cancel/archive, local/remote verified reads | Trusted local caller authority; no independent Human consent, real product/client validation or modern MCP task extensions |
-| Human UI | Local roles/chat and opt-in signed policy creation/approval/removal/renewal/dissolution/export and explicit recipient delivery; separate grant issuance/download | Automatic secure provisioning, broader browser QA, durable outbox, sessions |
+| Human UI | Local roles/chat and opt-in signed policy creation/approval/removal/renewal/dissolution/export and explicit recipient delivery; separate grant issuance/download and explicit signed-task bindings/consents | Automatic secure provisioning, broader browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
 | Agent identity | Optional Ed25519 keys, human-issued scoped grants, verified private-file installation and possession proofs | Trusted manual transfer, owner rotation and key renewal |
 | Network messages | Explicit configured HTTP/TLS store, signed group/direct text, current scoped proof authorization, durable outbox/deduplication and catch-up cursors | Trusted plaintext storage; no E2E, Human UI integration, multi-store failover or automatic replies |
@@ -439,7 +439,7 @@ tag. See [task archives and quotas](task-history.md) for commands, backup and mi
 
 Unimplemented: payload pruning/compaction, automatic archive/retention, export/import,
 byte/outbox quotas, running-work cancellation, verified uncertainty resolution,
-UI/MCP task operations, real product adapters and physical LAN/Tailscale trials.
+external Human sessions, real product adapters and physical LAN/Tailscale trials.
 
 ## v0.32 explicit signed-task MCP caller
 
@@ -478,10 +478,57 @@ passed all six CI checks; merged-main CI also passed all three jobs. v0.32.0 is
 published as a GitHub prerelease with a matching annotated tag. See
 [signed-task MCP](task-mcp.md) for setup, tools, authority and recovery boundaries.
 
-Unimplemented: actual product client interoperability/inbound workers, Human UI
-task integration, independent Human authentication/consent, MCP review creation,
+Unimplemented: actual product client interoperability/inbound workers, external
+Human authentication/sessions, consent through MCP, MCP review creation,
 modern protocol/task extensions, scheduling/polling, running cancellation, verified
 uncertain resolution, payload deletion and physical LAN/Tailscale trials.
+
+## v0.33 Human-confirmed signed Echo tasks (unreleased)
+
+The trusted loopback gateway accepts one to sixteen explicitly configured original
+caller bindings. A binding requires the existing signed UI group, matching owner,
+configured admin human/group creator and original caller context/state. Other
+admins, participants and observers cannot read/confirm it; browser/tool fields
+cannot choose a credential path, origin, executor or Human identity. Existing
+bindings cannot be silently removed or replaced on restart. Same-host callers
+remain independent public-key subjects with separate outboxes.
+
+Each queue/submit/refresh/cancel/archive action first stores a stable-ID preview
+with exact original input, task, executor and policy snapshot. A separate Human
+confirmation expires after 60 seconds if unstarted and commits `started` before
+caller mutation/network I/O. Failure/restart requires explicit retry of that same
+consent/intent. Completed acknowledgments remain historical local reads. Tasks and
+consent history are paginated local reads; startup, chat, previews and listing
+never submit work. Cancellation barriers and immutable uncertain/terminal receipts
+remain unchanged. UI and caller records use separate transactions; a started
+consent can represent a successful but unacknowledged operation.
+
+The separate configured UI bearer credential authenticates this local Human; no
+external identity provider, Human signature or task-wire consent enforcement is
+claimed. Trusted OS operators can still use CLI/MCP with the Agent key. The UI
+stores additional plaintext consent inputs/results and immutable binding contexts;
+no task wire/caller/executor migration is added. Back up all original state and
+observe earlier one-way migrations. See [Human task UI](task-ui.md).
+
+Validation: 24 new checks cover default-off core behavior, private bindings,
+role/group/schema isolation, consent expiry/clock rollback, policy changes,
+concurrent/lost acknowledgments, transaction failures, restart/CLI loading,
+cancellation barriers, uncertain refusal, HTTPS/CA, current remote authorization
+and same-host independent callers. A fourth Chromium script checks actual human
+interaction, edited drafts, expiry, original-ID retry/archive/cancel recovery,
+late responses, logout and narrow layouts. Full local verification: all 571
+identity tests pass without skips (370.030s); core passes 63 with 508 expected
+skips (12.389s); all four serial Chromium workflows pass. A deterministic
+delayed re-preview regression fails before clearing the old preview/locking
+confirmation input, and passes after that fix. Actual v0.32 caller source also preserved the original
+UI intent, cancellation barrier and started consent through CLI/UI handoff without
+replay. Dependencies, installed CLI/version, JS syntax, mesh simulation and
+30-document/243-local-link checks pass. See the PR for remote CI results.
+
+Remaining: external Human authentication/sessions, Human uncertainty-review
+creation, real product adapters/interoperability, MCP Human-consent bridging,
+modern task extensions, scheduling, running stop, verified external resolution,
+payload pruning, byte/outbox bounds, HA and physical LAN/Tailscale trials.
 
 ## Documentation maintenance rule
 

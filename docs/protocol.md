@@ -758,3 +758,32 @@ enforced. The trusted stdio client acts as that Agent. Repeated confirmation fie
 do not independently authenticate a Human principal, and notes prove no external
 effect. There is no tool to create groups/grants, change membership, sign reviews,
 start product Agents, migrate uncertain work or bypass existing row quotas.
+
+## Human task preview and confirmation (v0.33, unreleased)
+
+This is a loopback UI API extension, not a signed-task wire or MCP extension.
+All endpoints require the separate configured Human UI bearer credential and
+existing Host/Origin checks. Only configured admin creators of the matching signed
+group can use their fixed caller bindings; an Agent key or confirmation string
+alone grants no Human UI access.
+
+- `GET /api/task-bindings?group_id=...`: public fixed-binding metadata, local only.
+- `POST /api/task-read`: explicit `group_id`, `binding_id`, `operation` (`list`,
+  `show`, `history`), appropriate `task_id` or integer `after`/`limit`; local only.
+- `POST /api/task-preview`: exact `group_id`, `binding_id`, `operation` (`queue`,
+  `submit`, `refresh`, `cancel`, `archive`), 32-lowercase-hex `task_id` and stable
+  `request_id`; only queue additionally accepts bounded nonempty UTF-8 `input`.
+- `POST /api/task-confirm`: exact `group_id`, `binding_id`, `consent_id` and
+  `confirm_task_id`; all payload/identity/hash bindings come from the saved preview.
+
+Unknown/override fields and changed reuse fail. Preview stores exact original
+input, task, actor, operation, policy hash, eligibility and request/receipt hashes.
+An unstarted preview lasts 60 seconds; changed policy, expiry or observed backward
+time invalidates first confirmation. The server commits `started` before caller
+mutation/network, then `done` with its result. A started authorization supports
+only explicit retry of that original operation, even after the preview deadline;
+completed duplicates return historical local acknowledgment. Current Human/group
+access remains required, and remote operations retain current scoped proof and
+receipt checks. UI/caller commits are independent, so `started` is not evidence of
+failure or nonexecution. Startup never resumes it. See [Human task UI](task-ui.md)
+for trust, recovery, storage and deployment boundaries.

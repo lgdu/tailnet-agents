@@ -34,3 +34,5 @@ jobs:
         run: python scripts/check_runtime_ui.py --browser /usr/bin/google-chrome
       - name: Check all-source policy review and human renewal consent
         run: python scripts/check_policy_review_ui.py --browser /usr/bin/google-chrome
+      - name: Check Human task consent and original-intent recovery
+        run: python scripts/check_task_ui.py --browser /usr/bin/google-chrome

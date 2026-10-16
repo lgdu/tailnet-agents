@@ -124,3 +124,7 @@ no metadata/discovery result or human note authorizes task replay.
 v0.31 [terminal archival and row quotas](task-history.md) also remain separate from
 these legacy MCP tools. They add no MCP archive command, change no delegation
 result and do not turn a discovered worker into a signed-task executor.
+
+The v0.33 [Human task UI](task-ui.md) is a separate authenticated gateway workflow.
+Its durable Human consents are not created or adopted by MCP tool arguments;
+trusted CLI/MCP callers continue to act directly with configured Agent authority.
