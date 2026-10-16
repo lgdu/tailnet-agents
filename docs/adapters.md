@@ -127,11 +127,13 @@ original executor/contract binding and preserve durable intent/running/result
 boundaries; uncertain work must not be automatically replayed or migrated.
 
 Real product access is currently unavailable. No binary installation, login,
-workspace access or external API call is performed in this release. Human UI/MCP
+workspace access or external API call is performed in this release. Human UI task
 integration, generic adapter loading, real task kinds, stopping running work, verified uncertainty
 resolution, product sessions and physical LAN/Tailscale trials remain open.
 v0.30 adds separate [pre-execution task cancellation and advisory local notes](task-operations.md);
 metadata probing itself never invokes either operation.
+v0.32 adds a separate [outbound signed-task MCP caller](task-mcp.md); this is not an
+inbound product execution adapter, and inspecting metadata does not enable it.
 
 ## Verification
 

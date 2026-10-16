@@ -147,7 +147,12 @@ pagination and real CLI calls. A separate check used the actual v0.29 caller sou
 to verify downgrade rejection and restoration of the original cancellation barrier.
 
 Stopping running/external work, independently verified outcome resolution, note
-sharing, safe requeue, payload pruning, running-adapter timeouts, Human UI/MCP
+sharing, safe requeue, payload pruning, running-adapter timeouts, Human UI task
 integration, real product adapters and physical LAN/Tailscale trials remain open.
 The reference Echo adapter and its metadata contract are unchanged; inspecting
 metadata never cancels, reviews or executes anything.
+
+The separate v0.32 [signed-task MCP caller](task-mcp.md) exposes local cancellation
+preview, confirmed cancel and advisory-note reads using this same state. It cannot
+create reviews or authenticate Human consent. Its stable queue/single-task submit
+preserve the cancellation barrier; cached running/terminal results never resubmit.

@@ -1,7 +1,7 @@
 """Explicit cancellation intent and caller-signed, advisory uncertainty reviews."""
 import math
 
-from .durable_tasks import (MAX_COUNTER, bounded_text, digest, task_id, verify_receipt, verify_task)
+from .durable_tasks import (MAX_COUNTER, TERMINAL, bounded_text, digest, task_id, verify_receipt, verify_task)
 from .identity import AdmissionError, identity_id, sign, verify
 
 REVIEW_TYPE = 'tailnet-agent-task-review+jwt'
@@ -38,6 +38,22 @@ def cancel_preview(client, mid):
     return {'operation': 'cancel', 'task_id': mid, 'executor': client.executor, 'request_hash': digest(row[1]),
             'observed_state': row[2], 'eligible': row[2] in ('pending', 'queued', 'cancelled'),
             'cancellation_requested': requested(client, mid), 'sends_original_task': True}
+
+
+def submit_preview(client, mid):
+    row, _, _ = local(client, mid)
+    barrier = requested(client, mid)
+    return {'operation': 'submit', 'task_id': mid, 'executor': client.executor, 'request_hash': digest(row[1]),
+            'observed_state': row[2], 'eligible': row[2] in ('pending', 'queued') and not barrier,
+            'cancellation_requested': barrier, 'sends_original_task': True}
+
+
+def submit(client, mid, expected_hash, confirmation):
+    row, _, claim = local(client, mid)
+    if confirmation != mid or expected_hash != digest(row[1]):raise ValueError('confirm original task id and request hash')
+    if row[2] in TERMINAL or row[2] == 'running':return decorate(client, claim, mid)
+    if requested(client, mid):raise FileExistsError('persisted cancellation intent forbids submission')
+    return client._save(row, client._request({'operation': 'submit', 'task': row[1]}))
 
 
 def archive_preview(client, mid):

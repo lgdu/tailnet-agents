@@ -12,6 +12,11 @@ text messages and MCP delegation. Those interfaces do not silently enable these
 checks or gain durable task state. No real Agent, shell, model or filesystem tool
 adapter is started. Network membership alone grants no execution rights.
 
+v0.32 adds a separately configured [signed-task MCP caller](task-mcp.md) that uses
+this same original outbox and identity/executor pins. It adds explicit stable-ID
+queue and single-intent submit while retaining all cancellation/recovery gates;
+legacy MCP delegation remains separate. No real product worker is connected.
+
 ## Configure the original executor
 
 Install `.[identity]`. A human must have created the group and explicitly issued
@@ -171,7 +176,7 @@ cloned-key state, stolen backups, disk loss and key/CA migration are not solved.
 ## Unimplemented work
 
 The executor only simulates Echo. No real product adapters, external side-effect
-integration, A2A/MCP task bridge, Human UI task panel, asynchronous scheduling,
+integration, A2A or modern MCP task extensions, Human UI task panel, asynchronous scheduling,
 automatic polling/retry daemon, running-work cancellation, verified uncertain-result resolution, retention
 UI, payload pruning, byte/outbox quotas, rate limiting, multi-executor migration, replication/HA or physical LAN/
 Tailscale/WAN trials are implemented. Graceful shutdown drains active operations;

@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.31 prototype.** Working components are listed below. The network mesh and
+**v0.32 prototype (unreleased).** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -14,8 +14,8 @@ action; agents may only discover or restore previously authorized groups.
 | Directory | SQLite registration, leases, ownership, removal, status | Central registry; not distributed mesh |
 | Legacy bridge | Automatic renewal, discovery CLI, bearer Echo tasks | Custom v0.1 API; in-memory history; separate from durable signed tasks |
 | Adapter inspection | Offline product inventory, strict Echo contract and explicit nonce-bound signed metadata probe | Synthetic Echo only; metadata compatibility grants no execution rights; no product scan, launcher or real adapter |
-| Durable signed tasks | Scoped Echo tasks, durable signed intent/results, pre-execution cancellation, caller barriers/advisory uncertainty notes, explicit terminal archives and global/per-key admission quotas | Simulation only; archives retain plaintext input/results; no payload deletion, running stop, verified external resolution, automatic replay, real adapters, MCP/UI integration or HA |
-| MCP | Stdio discovery, delegation, result tools | 2025 handshake family; real client compatibility unvalidated |
+| Durable signed tasks | Scoped Echo tasks, durable signed intent/results, cancellation barriers/advisory notes, terminal archives/row quotas and an explicitly configured signed-task MCP caller | Simulation only; archives retain plaintext input/results; no payload deletion, running stop, verified external resolution, automatic replay, real adapters, Human UI task integration or HA |
+| MCP | Separate legacy bearer tools and opt-in fixed signed-task caller; stable intent IDs, single-task submit, verified results, cancellation and archive tools | 2025 stdio tools subset; no discovery-based authority, real client/product validation, authenticated Human consent or MCP task extensions |
 | Human UI | Explicit groups, scoped chat, opt-in owner-signed creation/approval/removal/renewal/dissolution, policy export, explicit recipient delivery and human-confirmed grant issuance | Trusted loopback gateway; private-file installer; manual trusted transfer; simulated agents |
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
 | Policy replication | Ordered HTTP/TLS source failover, independent revocation cursors, periodic pull and status | Configured policy sources only; no quorum, chat/task replication |
@@ -66,7 +66,7 @@ flowchart TB
   end
   subgraph TASK["Directory and tasks / 目录与任务"]
     direction TB
-    CALL["CLI or MCP caller"] --> REG["Bearer directory / 注册与租约"]
+    CALL["Legacy CLI or bearer MCP caller"] --> REG["Bearer directory / 注册与租约"]
     CALL -->|"Authenticated task API"| ECHO["Echo bridge / 模拟任务"]
     ECHO -->|"Register and renew"| REG
   end
@@ -76,6 +76,8 @@ flowchart TB
     VC["Verified client / 持有身份私钥"] -->|"TLS + grant + proof"| API["Admission HTTP service"]
     MSG["Synthetic message clients / 同机多个独立密钥、持久 outbox"] -->|"Signed text + operation proof / 显式配置 HTTPS"| API
     TC["Signed task caller / 原任务 ID、原执行器、持久待送"] -->|"Current task.echo grant + fresh proof"| API
+    H -->|"Explicit private config / 原身份、群组、固定执行器"| SMCP["Separate signed-task stdio MCP / 稳定任务 ID、单任务确认、无自动提交"]
+    SMCP --> TC
     API --> TE["Explicit Echo executor / 原身份、独立授权"]
     PROBE["Explicit adapter probe / 原群组、来源、执行器公钥与 nonce"] -->|"Read credential + metadata POST / 不提交任务"| API
     TE --> CONTRACT["Signed Echo contract / 最长 15 秒、不证明调用权限"]
@@ -422,6 +424,19 @@ in the active area. This does not delete plaintext or reduce disk use. See
 [task archives and quotas](docs/task-history.md) for commands, defaults and the
 one-way executor migration that makes older executors refuse the new state.
 
+## Explicit signed-task MCP caller (v0.32, unreleased)
+
+`tailnet-tasks-mcp` uses a private fixed configuration and the original signed
+caller state. A stable caller-supplied task ID makes local queue retries recover
+the exact original intent after lost responses/restart. Preview and separately
+confirmed submit affect only that task, preserving cancellation barriers and
+uncertainty; running/terminal receipts return locally without another submission.
+Separate tools read local/downloaded results, explicitly refresh, cancel and
+archive. No tool can change URL/keys/state/executor or create membership. Confirmation
+arguments are caller assertions, not independently authenticated Human consent.
+The old bearer MCP remains independent. See [signed-task MCP](docs/task-mcp.md)
+for twelve tools, private configuration, protocol limits and recovery.
+
 ## Verification
 
 ```bash
@@ -434,7 +449,11 @@ are explicitly skipped. CI runs both core and identity installations. The new si
 visual/accessibility coverage and real-agent compatibility remain outstanding.
 The dedicated CI browser job also delays policy reads and checks that download
 never uses a pre-mutation snapshot; failed refreshes keep exports disabled.
-v0.31 includes 516 tests: 33 new archive/quota checks plus the 483-test v0.30 baseline.
+v0.32 includes 547 tests: 31 new signed-MCP checks (six core, 25 identity) plus the
+516-test v0.31 baseline. New cases exercise actual stdio processes, fixed private
+configuration, stable IDs, lost-response/commit recovery, single-task submission,
+cancel barriers, archived results, same-host callers, HTTP/TLS and sanitized errors.
+v0.31 added 33 archive/quota checks to the 483-test v0.30 baseline.
 New checks cover full-record atomic moves, all four quotas, same-host callers and
 executors, late retries, cancellation tombstones, failures, HTTP/TLS and real CLIs.
 v0.30 added 30 task-operation checks to the 453-test v0.29

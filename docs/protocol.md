@@ -722,3 +722,39 @@ context migrates atomically while preserving identity/group/audience/history.
 Older executors fail their context check before ignoring archived IDs. The Echo
 adapter contract and caller format stay unchanged. Opening a service never
 archives, deletes, dispatches work, creates a group/key or repairs lost history.
+
+## Explicit signed-task MCP caller (v0.32, unreleased)
+
+A separately configured stdio process uses the same 2025 MCP tools lifecycle and
+64-KiB input bound, with its own fixed twelve-tool catalog. It advertises only
+tools, not MCP task extensions, resources, prompts, streaming or product-worker
+capabilities. The three legacy bearer tools remain in their original entrypoint.
+The signed caller takes no registry/peer discovery selection. See
+[signed-task MCP](task-mcp.md) for exact tool arguments and configuration fields.
+
+`queue_signed_task(task_id,input)` requires a stable 32-lowercase-hex ID and bounded
+UTF-8 Echo text. Under the original caller lock, first use commits the original
+signed intent; identical ID/input returns that same envelope/hash, changed input
+conflicts. JSON-RPC IDs do not serve as task idempotency keys. No new storage table,
+format marker, signed intent/result schema or executor HTTP operation is added.
+
+Submit preview returns original request hash, saved state, eligibility and persisted
+cancellation intent without remote authorization checks. Confirmed single-task
+submit binds repeated task ID/hash before sending the original submit request with
+fresh scoped proof. Pending/queued work requires no cancellation barrier; other
+pending rows are untouched. Saved running/terminal receipts return locally without
+submission. Remote refresh uses get only and commits a verified original receipt.
+Explicit cancel/archive reuse their original proof/receipt semantics and scopes.
+
+Tool schemas reject unknown fields, credential/URL/path overrides, invalid IDs/hash
+strings and invalid integer pages before dispatch. SQLite/network/auth/receipt
+failures become sanitized `isError` results. Failed/lost ACKs preserve original
+intent/IDs and cancellation barriers. Local result/history/review reads can remain
+available after expiry/dissolution; these are not renewed network rights.
+
+Configuration/private credentials are fixed at process startup, and the original
+caller identity/group/source/executor/CA context and exclusive state lock remain
+enforced. The trusted stdio client acts as that Agent. Repeated confirmation fields
+do not independently authenticate a Human principal, and notes prove no external
+effect. There is no tool to create groups/grants, change membership, sign reviews,
+start product Agents, migrate uncertain work or bypass existing row quotas.
