@@ -24,6 +24,7 @@ function taskControls(){
   for(const id of ['task-operation','task-id','task-input','task-new','task-preview'])$(id).disabled=locked||!bound;
   $('task-input').disabled=locked||!bound||$('task-operation').value!=='queue';
   $('task-binding').disabled=locked;
+  $('task-confirm-id').disabled=locked||!taskConsent;
   $('task-confirm').disabled=taskBusy||!!taskPending||!taskConsent||
     !['preview','started','done'].includes(taskConsent.consent_state)||!taskConsent.eligible||
     $('task-confirm-id').value!==taskConsent.task_id;
@@ -65,7 +66,8 @@ $('task-preview').onclick=async()=>{
   if(taskConsent)taskPreviewRequest=null;
   if(!taskPreviewRequest){taskPreviewRequest={group_id:group,binding_id:binding,operation:$('task-operation').value,task_id:$('task-id').value,request_id:newTaskId()};
     if(taskPreviewRequest.operation==='queue')taskPreviewRequest.input=$('task-input').value;}
-  taskBusy=true;taskConsent=null;taskControls();$('task-status').textContent='正在保存预览；尚未执行。';
+  taskBusy=true;taskConsent=null;$('task-preview-text').textContent='';$('task-confirm-id').value='';
+  $('task-result').textContent='';taskControls();$('task-status').textContent='正在保存预览；尚未执行。';
   try{const result=await api('/api/task-preview',taskPreviewRequest);
     if(!taskCurrent(g,s,group,binding))return;
     showTaskConsent(result);$('task-status').textContent='请核对完整身份、输入、操作和原任务 ID，再单独确认。预览不是远端授权检查。';

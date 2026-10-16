@@ -37,7 +37,15 @@ try:
         page.locator('#task-confirm-id').fill('a'*32)
         page.evaluate('Date.now=()=>171000');expect(page.locator('#task-confirm')).to_be_disabled()
         page.evaluate('Date.now=()=>110000');expect(page.locator('#task-confirm')).to_be_disabled()
-        page.locator('#task-preview').click();expect(page.locator('#task-preview-text')).to_contain_text('Original human Echo')
+        repreview=[]
+        def hold_repreview(route):
+            repreview.append((route,route.fetch()));page.evaluate("document.body.dataset.repreviewHeld='yes'")
+        page.route('**/api/task-preview',hold_repreview)
+        page.locator('#task-preview').click();expect(page.locator('body')).to_have_attribute('data-repreview-held','yes')
+        expect(page.locator('#task-preview-text')).to_be_empty()
+        expect(page.locator('#task-confirm-id')).to_be_disabled()
+        route,response=repreview.pop();route.fulfill(response=response);page.unroute('**/api/task-preview',hold_repreview)
+        expect(page.locator('#task-preview-text')).to_contain_text('Original human Echo')
         page.locator('#task-confirm-id').fill('a'*32);expect(page.locator('#task-confirm')).to_be_enabled()
         page.locator('#task-confirm').click();expect(page.locator('#task-result')).to_contain_text('pending')
         assert len(case.client.list_tasks()['tasks'])==1 and case.f.calls==[]

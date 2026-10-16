@@ -110,7 +110,9 @@ original executor history and recover the same operation; never generate another
 ID or choose another executor to bypass unknown results. Startup never resumes it.
 
 Closing, switching groups/bindings and logout discard browser previews/results;
-late responses cannot revive them. Preview expiry stays disabled after a browser
+late responses cannot revive them. Starting a replacement preview immediately
+clears the old display and locks confirmation input until the new response.
+Preview expiry stays disabled after a browser
 clock rollback. UI tokens stay in page memory, not URLs or browser storage. The
 browser itself has no durable outbox; the gateway's explicit consent history is
 the recovery record. Review-note creation and reads remain CLI/MCP operations as

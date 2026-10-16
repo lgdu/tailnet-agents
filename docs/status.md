@@ -518,8 +518,9 @@ and same-host independent callers. A fourth Chromium script checks actual human
 interaction, edited drafts, expiry, original-ID retry/archive/cancel recovery,
 late responses, logout and narrow layouts. Full local verification: all 571
 identity tests pass without skips (370.030s); core passes 63 with 508 expected
-skips (12.389s); all four serial Chromium workflows pass on their first run in
-the final full validation. Actual v0.32 caller source also preserved the original
+skips (12.389s); all four serial Chromium workflows pass. A deterministic
+delayed re-preview regression fails before clearing the old preview/locking
+confirmation input, and passes after that fix. Actual v0.32 caller source also preserved the original
 UI intent, cancellation barrier and started consent through CLI/UI handoff without
 replay. Dependencies, installed CLI/version, JS syntax, mesh simulation and
 30-document/243-local-link checks pass. See the PR for remote CI results.
