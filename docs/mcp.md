@@ -3,7 +3,11 @@
 v0.3 adds a local **stdio** MCP server. It exposes discovery, delegation and
 result tools to a client application. This does not make that application a
 remotely callable worker: inbound product execution adapters remain planned.
-Current remote execution is Echo only.
+Current remote execution is Echo only. This guide describes legacy
+`tailnet-agents-mcp`. v0.32 adds a separately configured
+[signed-task MCP caller](task-mcp.md) with its own twelve-tool catalog, durable
+original intents/results, cancellation barriers and archival. Choosing that
+entrypoint is explicit; neither mode adopts tasks or authority from the other.
 
 ## Configuration
 
@@ -94,11 +98,12 @@ validated. Sources used for the protocol subset:
 
 ## Separate signed durable executor (v0.27)
 
-The new [signed task CLI/service](durable-tasks.md) is independent. These MCP tools
+The [signed task CLI/service](durable-tasks.md) is independent of this legacy entrypoint. Its three MCP tools
 still call the legacy bearer Echo bridge, whose task identity/results are in
 memory. They do not automatically select the new executor, acquire `task.echo`
-grants or gain durable caller state. A future explicit bridge must preserve the
-original task ID/executor and uncertainty semantics; no implicit migration exists.
+grants or gain durable caller state. v0.32's separate [signed MCP](task-mcp.md)
+explicitly configures the original caller/executor/state and preserves task IDs,
+cancellation and uncertainty; it does not migrate legacy tasks.
 
 ## Separate adapter contract inspection (v0.29)
 

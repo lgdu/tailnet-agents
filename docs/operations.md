@@ -358,6 +358,8 @@ the same subject. Graceful shutdown drains active task calls; forced termination
 leaves running work uncertain. This Echo-only prototype is not ready for real
 side-effect adapters, and physical LAN/Tailscale/WAN validation remains open.
 The old bearer bridge and MCP delegation still use their separate in-memory API.
+v0.32's explicit [signed-task MCP caller](task-mcp.md) uses the durable outbox;
+it does not migrate these older bearer requests.
 
 ## Policy review evidence and renewal (v0.28)
 
@@ -432,3 +434,26 @@ with policy/revocation history. Never remove the marker or restore stale state t
 replay work. The Echo contract remains `echo-v1`, and the caller's existing
 `task-operations-v1` context is unchanged. There is no downgrade bypass, archive
 import/export, secure deletion, automatic retention or byte/disk quota.
+
+## Signed-task MCP operations (v0.32, unreleased)
+
+Install the identity extra and explicitly configure `TAILNET_TASK_MCP_CONFIG` for
+`tailnet-tasks-mcp`. Config, original Agent key and scoped grant must be bounded,
+owned private regular files; all configured paths are absolute. The process holds
+the original caller SQLite lock, so stop it before using that same state in CLI.
+Use separate configs/keys/grants/outboxes for independent same-host Agents. No tool
+can select another source/executor, install credentials or approve membership.
+
+Startup, tool listing and local reads never contact peers or execute tasks.
+Stable explicit queue IDs retain one original signed intent across lost MCP output;
+reuse that ID/input after restart. Preview and submit just that original ID/hash;
+MCP does not flush other pending rows. Confirmations are caller assertions, not
+independently authenticated Human approval. Cached running/terminal receipts return
+locally; explicit remote refresh retains current authorization checks.
+
+Keep original keys/group/source/CA pins and complete consistent SQLite backups.
+Queue/submit failures do not authorize a replacement ID. A persisted cancellation
+intent still blocks single-task submit after errors/refresh/restart. Archive retains
+all payload/history, and uncertainty notes grant no replay. Config/grant changes
+are read at restart; human authorization renewal stays separate. No v0.32 format
+migration, registry fallback, product worker or auto-retry daemon is introduced.

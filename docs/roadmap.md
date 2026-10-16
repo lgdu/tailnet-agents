@@ -1,4 +1,4 @@
-# Remaining work for the v0.31 development line
+# Remaining work for the v0.32 development line
 
 The verified directory can persist and exchange signed policy and credential
 revocations between configured peers. The human UI remains a local simulated chat application, with an optional
@@ -37,7 +37,7 @@ automatically rerun or migrated; queued work requires an explicit authorized ret
 |---|---|---|
 | P1 | Discovery operations and explicit runtime enrollment | Validate physical LAN/tailnet behavior, optional mDNS/peer enumeration and a separately authorized handoff from candidate to admitted runtime |
 | P1 | Policy history reconciliation and recovery | Explicit safe authority-history import/fork resolution, evidence retention, and quorum semantics; v0.28 delivers all-source diagnosis and human renewal consent |
-| P2 | Task operations | Build on cancellation/advisory reviews and v0.31 full-record archives/row quotas: safe payload compaction, byte/outbox bounds, verified external outcomes, running cancellation, scheduling and Human UI/MCP integration; no automatic replay |
+| P2 | Task operations | Build on cancellation/reviews, archives/row quotas and v0.32 fixed signed-task MCP: Human UI task integration, safe payload compaction, byte/outbox bounds, verified external outcomes, running cancellation and scheduling; no automatic replay |
 | P2 | Message operations | Human UI integration, explicit blocked-outbox cancellation, retention/quotas, push and multi-store routing; any relay privacy claim requires E2E encryption |
 | P2 | Presence operations | Multi-hop propagation and relayed UI preserve original deadlines, provenance and observed conflicts |
 | P2 | Real adapters | Build on the reference contract/probe; validate available product interfaces individually, explicit task scopes and recovery behavior; model APIs and product Agents are distinct |
@@ -55,9 +55,10 @@ real adapters → physical deployment trials. While product access remains unava
 v0.30 provides explicit pre-execution cancellation and caller-signed local
 uncertainty notes using simulation, without stopping running work or rewriting
 outcomes. v0.31 adds explicit full-record terminal archives and global/per-key row
-quotas without deleting deduplication history. Next independent work can add an
-explicit Human UI/MCP task bridge preserving these boundaries; safe payload
-compaction and byte/outbox bounds remain separate work.
+quotas without deleting deduplication history. v0.32 adds a separately configured
+signed-task MCP caller with stable intent IDs and explicit single-task operations.
+Next independent work can add a Human UI task bridge with independently authorized
+human consent; safe payload compaction and byte/outbox bounds remain separate work.
 History reconciliation, safe fork resolution and physical enrollment remain open.
 Real product connections remain conditional on actual interface access.
 Discovery is separate from authorization. A fresh or isolated Agent waits for

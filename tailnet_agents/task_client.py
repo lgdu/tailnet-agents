@@ -13,7 +13,7 @@ from urllib.error import URLError
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from .client import Client
 from .discovery import origin
-from .durable_tasks import (TERMINAL, digest, make_task, task_id, validate_request, verify_receipt, verify_task)
+from .durable_tasks import (TERMINAL, bounded_text, digest, make_task, task_id, validate_request, verify_receipt, verify_task)
 from .identity import (AdmissionError, GRANT_TYPE, decode, encode, identity_id, load_identity,
                        prove_possession, public_bytes, verify, verify_grant)
 from . import task_operations as operations
@@ -71,10 +71,30 @@ class TaskClient:
 
     def queue(self, text):
         with self.lock:
-            token = make_task(self.key, self.owner, self.group, self.audience, self.executor, text, now=int(self.clock()))
-            claim = verify_task(token, self.key.public_key(), self.owner, self.group, self.audience, self.executor)
-            with self.db:self.db.execute('INSERT INTO task_outbox(task_id,token,state) VALUES(?,?,?)', (claim['task_id'], token, 'pending'))
-            return {'task_id': claim['task_id'], 'state': 'pending', 'executor': self.executor}
+            return self._queue(text)
+
+    def _queue(self, text, identifier=None):
+        token = make_task(self.key, self.owner, self.group, self.audience, self.executor, text,
+                          identifier=identifier, now=int(self.clock()))
+        claim = verify_task(token, self.key.public_key(), self.owner, self.group, self.audience, self.executor)
+        with self.db:self.db.execute('INSERT INTO task_outbox(task_id,token,state) VALUES(?,?,?)', (claim['task_id'], token, 'pending'))
+        return {'task_id': claim['task_id'], 'state': 'pending', 'executor': self.executor}
+
+    def queue_once(self, mid, text):
+        if not task_id(mid) or not bounded_text(text):raise ValueError('stable task id and bounded Echo input required')
+        with self.lock:
+            if self.db.execute('SELECT 1 FROM task_outbox WHERE task_id=?', (mid,)).fetchone() is None:
+                self._queue(text, mid)
+            row, original, _ = operations.local(self, mid)
+            if original['input'] != text:raise FileExistsError('task id already binds another original intent')
+            return operations.decorate(self, {'task_id': mid, 'state': row[2], 'executor': self.executor,
+                                               'request_hash': digest(row[1])}, mid)
+
+    def submit_preview(self, mid):
+        with self.lock:return operations.submit_preview(self, mid)
+
+    def submit(self, mid, expected_hash, confirmation):
+        with self.lock:return operations.submit(self, mid, expected_hash, confirmation)
 
     def _save(self, row, response, *, expected_state=None):
         mid, token, previous, old_receipt = row

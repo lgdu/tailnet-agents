@@ -592,8 +592,10 @@ This is not a general exactly-once side-effect guarantee: lost/rolled-back stora
 cloned keys and nontransactional external actions require additional recovery.
 
 Legacy bearer bridge/MCP tasks retain their earlier in-memory protocol. Real
-adapters, Human UI/MCP routing, asynchronous scheduling, uncertain resolution and
+adapters, Human UI task routing, asynchronous scheduling, uncertain resolution and
 physical LAN/tailnet validation are future work. See [durable tasks](durable-tasks.md).
+v0.32 adds a separately configured signed-task MCP caller using the same original
+outbox and fixed executor; it does not migrate legacy tasks or create product workers.
 
 ## Implementation stages
 
@@ -641,8 +643,10 @@ physical LAN/tailnet validation are future work. See [durable tasks](durable-tas
   and caller-signed local uncertainty notes; no running stop or outcome rewrite.
 - v0.31: explicit full-record terminal archives and active/total row
   quotas globally and by caller public-key identity; all history remains deduplicated.
+- v0.32 (unreleased): explicit fixed signed-task MCP caller, stable queue IDs,
+  original single-task submissions, verified local/remote results and cancellation/archive operations.
 - Next: real interface validation when available, safe payload compaction,
-  explicit task UI/MCP integration and candidate-to-runtime trust handoff.
+  independently authorized Human UI task integration and candidate-to-runtime trust handoff.
 - Next: integrated mesh transport with cryptographic admission.
 - Then: validated agent adapters and real LAN/tailnet trials.
 
@@ -792,7 +796,7 @@ attestations or externally proven outcomes. Each binds the original signed recei
 and request/context, explicitly preserves uncertainty and grants no replay right.
 Review signing/history is available offline after expiry/dissolution without
 changing credentials, membership, executor state or the original receipt. Real
-product cancellation, verified resolution, UI/MCP integration and payload pruning
+product cancellation, verified resolution, Human UI task integration and payload pruning
 remain future work. v0.31 adds the full-record archives below. See
 [task operations](task-operations.md).
 
@@ -837,5 +841,52 @@ The executor storage context migrates atomically from `echo-v1` to
 Older executors reject this format before ignoring the archive. Caller format and
 ordinary task/result wire schemas remain compatible. Protect complete consistent
 backups; no rollback, disk-loss, export/import, automatic retention, payload pruning,
-Human UI/MCP bridge or physical network validation is claimed. See
+Human UI task bridge or physical network validation is claimed. See
 [task archives and quotas](task-history.md).
+
+### Implemented fixed signed-task MCP caller (v0.32, unreleased)
+
+A separate stdio entrypoint opens an explicitly configured original Agent key,
+scoped grant, group, fixed source/audience/executor/CA and private caller state.
+The legacy three-tool bearer MCP remains separate. Twelve signed-task tools use
+the existing TaskClient and HTTP proof/receipt path; no registry/discovery result
+can choose a destination or supply membership. Startup and local tools never send
+pending work, renew credentials or create a group/key.
+
+```mermaid
+flowchart LR
+  CONFIG["Explicit private configuration / Original key, grant, group, fixed executor and state"] --> MCP["Separate stdio signed-task MCP / Trusted local client acts as Agent"]
+  CLIENT["MCP tool caller / No independent Human principal"] --> MCP
+  MCP --> QUEUE["Stable caller-chosen task ID + input / Atomic local intent commit"]
+  QUEUE --> OUTBOX[("Original locked outbox / Same envelope/hash across restart and lost output")]
+  MCP --> LOCAL["Local preview, result, list, status and advisory-note reads"]
+  LOCAL --> OUTBOX
+  MCP --> SUBMIT["Explicit original ID/hash confirmation / Single-task submit"]
+  OUTBOX --> BARRIER["No cancellation barrier / Running and terminal results remain local"]
+  BARRIER --> SUBMIT
+  SUBMIT --> PROOF["Fresh scoped proof / Current caller and executor authorization"]
+  MCP --> OPS["Explicit refresh, cancel or archive / Original task and scopes"]
+  OPS --> PROOF
+  PROOF --> EXEC["Fixed LAN/Tailscale HTTPS executor / Durable running/result/archive history"]
+  EXEC --> VERIFY["Verify original context, request hash and immutable receipt"]
+  VERIFY --> OUTBOX
+```
+
+Queue idempotency uses the original task ID, not JSON-RPC IDs or a second mapping
+table. Identical ID/input recovers the original intent; changed input conflicts.
+Single-task submit checks the repeated ID/hash, leaves other pending tasks alone
+and cannot bypass cancellation intent. Cached running/terminal receipts return
+locally without network submission; explicit remote refresh remains authorized.
+Neither uncertainty notes nor a failed operation authorize another ID or executor.
+
+Config/key/grant reads are bounded owned-private regular files; tools accept no
+credential, URL, path or executor override. Original context and POSIX state locking
+remain in force through restart/CLI handoff. Same-host Agents use independent
+keys/grants/configs/outboxes, not host uniqueness. Stdio trust is the configured
+Agent's authority: confirmation arguments are caller assertions, not authenticated
+Human consent. Reviews are read-only through MCP, and results/notes are untrusted
+data rather than instructions. This introduces no new wire/database format.
+
+Real product clients/inbound workers, Human UI consent/routing, modern MCP task
+extensions, review creation, scheduling, running cancellation, verified external
+outcomes and physical network trials remain open. See [signed-task MCP](task-mcp.md).

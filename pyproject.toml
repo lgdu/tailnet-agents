@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tailnet-agents"
-version = "0.31.0"
+version = "0.32.0"
 description = "Discover heterogeneous agents across a Tailscale network"
 requires-python = ">=3.11"
 
@@ -23,6 +23,7 @@ tailnet-grant-install = "tailnet_agents.grant_install:main"
 tailnet-agent-runtime = "tailnet_agents.agent_runtime:main"
 tailnet-presence = "tailnet_agents.presence:main"
 tailnet-tasks = "tailnet_agents.task_client:main"
+tailnet-tasks-mcp = "tailnet_agents.task_mcp:main"
 tailnet-messages = "tailnet_agents.message_client:main"
 tailnet-peer-presence = "tailnet_agents.peer_presence:main"
 

@@ -1,4 +1,4 @@
-# Implementation status — v0.31
+# Implementation status — v0.32 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -6,8 +6,8 @@ its future requirements must not be read as implemented security guarantees.
 | Area | Current state | Next work |
 |---|---|---|
 | Registry | Durable central directory | Distributed discovery/anti-entropy |
-| Signed tasks | Scoped Echo identities, durable signed intents/results, cancellation barriers, advisory uncertainty notes, explicit terminal archives and global/per-caller row quotas | Archives retain input/results; no payload deletion, running stop, verified external resolution, real adapters, UI/MCP bridge or HA; legacy bearer API remains in memory |
-| MCP | Local tools subset | Real client interoperability verification |
+| Signed tasks | Scoped Echo identities, durable signed intents/results, cancellation barriers, advisory notes, terminal archives/row quotas and a fixed signed-task MCP caller | Archives retain input/results; no payload deletion, running stop, verified external resolution, real adapters, Human UI task bridge or HA; legacy bearer API remains in memory |
+| MCP | Independent legacy bearer tools and explicit signed-task stdio caller, stable task IDs, confirmed single-task submit/cancel/archive, local/remote verified reads | Trusted local caller authority; no independent Human consent, real product/client validation or modern MCP task extensions |
 | Human UI | Local roles/chat and opt-in signed policy creation/approval/removal/renewal/dissolution/export and explicit recipient delivery; separate grant issuance/download | Automatic secure provisioning, broader browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
 | Agent identity | Optional Ed25519 keys, human-issued scoped grants, verified private-file installation and possession proofs | Trusted manual transfer, owner rotation and key renewal |
@@ -440,6 +440,45 @@ tag. See [task archives and quotas](task-history.md) for commands, backup and mi
 Unimplemented: payload pruning/compaction, automatic archive/retention, export/import,
 byte/outbox quotas, running-work cancellation, verified uncertainty resolution,
 UI/MCP task operations, real product adapters and physical LAN/Tailscale trials.
+
+## v0.32 explicit signed-task MCP caller (unreleased)
+
+A separate `tailnet-tasks-mcp` stdio entrypoint opens one original caller identity,
+group, scoped grant, source/audience/CA, executor pin and private state from explicit
+configuration. Twelve tools expose local stable-ID queue/preview/history/status,
+single confirmed original submission, remote get/receipt verification, cancellation,
+full-record archival and advisory-note reads. Local startup/listing never discovers
+or submits work; tool arguments cannot replace configuration/credentials/executor.
+
+Stable queue IDs persist the original signed intent before returning. Same ID/input
+recovers it after lost output/restart; changed input conflicts. Single submit leaves
+other pending work alone and respects durable cancellation barriers. Known running
+and terminal results are returned locally without another network submission;
+uncertainty/review notes never permit replay. Explicit refresh still requires current
+remote authorization. This adds no wire format, database schema or new migration.
+
+Config/key/grant reads require bounded owned private regular files. The original
+caller context and POSIX state lock are shared with the CLI; concurrent use or
+changed bindings fail. MCP clients use the configured Agent's authority; confirmation
+arguments are caller assertions, not authenticated Human consent. Review creation
+remains CLI-only. Existing legacy bearer tools stay independent and do not adopt
+signed tasks; the new process has no registry/discovery fallback.
+
+Thirty-one new checks (six core, 25 identity) cover exact tool schemas, private
+configurations, single-task behavior, concurrent/stable queue IDs, failed/lost
+ACK/receipt commits, running/uncertain/cancel barriers, same-host callers, HTTP/TLS
+and actual stdio processes/restart. Full local verification: all 547 identity tests
+pass without skips; core passes 61 with 486 expected skips; all three serial Chromium
+checks pass. Actual v0.31 caller source also retained the MCP original intent and
+cancellation barrier through CLI/new-MCP handoff with the original identity/group.
+Dependencies, installed entrypoint/version, mesh simulation, JS syntax and
+29-document/225-local-link checks pass. See the PR for remote CI results and
+[signed-task MCP](task-mcp.md) for setup, tools, authority and recovery boundaries.
+
+Unimplemented: actual product client interoperability/inbound workers, Human UI
+task integration, independent Human authentication/consent, MCP review creation,
+modern protocol/task extensions, scheduling/polling, running cancellation, verified
+uncertain resolution, payload deletion and physical LAN/Tailscale trials.
 
 ## Documentation maintenance rule
 

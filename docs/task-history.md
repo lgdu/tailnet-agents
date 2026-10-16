@@ -120,6 +120,10 @@ concurrent reads/retries, current authorization and format/integrity recovery.
 
 Payload deletion/compaction, archive export/import, automatic retention, byte and
 caller-outbox quotas, scheduling/rate limiting, running-task cancellation, verified
-uncertain outcome resolution, UI/MCP task operations, HA, real product adapters and
+uncertain outcome resolution, Human UI task operations, HA, real product adapters and
 physical LAN/Tailscale trials remain unimplemented. Trusted history and consistent
 backups are still required; rollback, disk loss and cloned-key recovery are not solved.
+
+v0.32 exposes the same preview/confirmed archive through a separate fixed
+[signed-task MCP caller](task-mcp.md). Placement remains authenticated response
+metadata; no payload deletion, new authority or result state is introduced.
