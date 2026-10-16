@@ -6,7 +6,7 @@ function invalidateTasks(){
   taskGeneration++;taskConsent=null;taskPending=null;taskPreviewRequest=null;taskBusy=false;taskBindings=[];
   $('task-binding').replaceChildren();$('task-rows').replaceChildren();$('task-consents').replaceChildren();
   $('task-input').value='';$('task-id').value='';$('task-confirm-id').value='';
-  $('task-preview-text').textContent='';$('task-result').textContent='';$('task-context').textContent='';
+  $('task-preview-text').textContent='';$('task-result').textContent='';$('task-context').textContent='';$('task-storage').textContent='';
   $('task-status').textContent='尚未读取。';taskAfter=taskHistoryAfter=0;
   $('task-next').disabled=$('task-history-next').disabled=true;taskControls();
 }
@@ -29,7 +29,7 @@ function taskControls(){
     !['preview','started','done'].includes(taskConsent.consent_state)||!taskConsent.eligible||
     $('task-confirm-id').value!==taskConsent.task_id;
   $('task-retry').hidden=!taskPending;$('task-retry').disabled=taskBusy;
-  for(const id of ['task-list','task-history'])$(id).disabled=taskBusy||!bound;
+  for(const id of ['task-list','task-history','task-storage-read'])$(id).disabled=taskBusy||!bound;
 }
 function clearTaskPreview(){
   if(taskBusy||taskPending)return;
@@ -56,7 +56,7 @@ $('task-open').onclick=async()=>{
 $('task-close').onclick=()=>$('task-dialog').close();
 $('task-dialog').onclose=invalidateTasks;
 $('task-form').onsubmit=event=>event.preventDefault();
-$('task-binding').onchange=()=>{clearTaskPreview();$('task-rows').replaceChildren();$('task-consents').replaceChildren();taskAfter=taskHistoryAfter=0;$('task-next').disabled=$('task-history-next').disabled=true;};
+$('task-binding').onchange=()=>{clearTaskPreview();$('task-storage').textContent='';$('task-rows').replaceChildren();$('task-consents').replaceChildren();taskAfter=taskHistoryAfter=0;$('task-next').disabled=$('task-history-next').disabled=true;};
 for(const id of ['task-operation','task-id','task-input'])$(id).addEventListener(id==='task-operation'?'change':'input',clearTaskPreview);
 $('task-confirm-id').oninput=taskControls;
 $('task-new').onclick=()=>{clearTaskPreview();$('task-id').value=newTaskId();$('task-input').value='';$('task-operation').value='queue';taskControls();};
@@ -95,10 +95,11 @@ async function readTaskPage(kind,after=0){
   if(taskBusy)return;
   const g=taskGeneration,s=session,group=activeGroup,binding=$('task-binding').value;
   taskBusy=true;taskControls();
+  const container=$(kind==='list'?'task-rows':'task-consents');container.replaceChildren();
+  $(kind==='list'?'task-next':'task-history-next').disabled=true;
   try{
     const result=await api('/api/task-read',{group_id:group,binding_id:binding,operation:kind,after,limit:20});
     if(!taskCurrent(g,s,group,binding))return;
-    const container=$(kind==='list'?'task-rows':'task-consents');container.replaceChildren();
     for(const entry of result[kind==='list'?'tasks':'consents']){
       const row=node('li'),button=node('button',kind==='list'?entry.task_id+' · '+entry.state+(entry.cancellation_requested?' · 取消请求已保存':''):
         entry.consent_id+' · '+entry.preview.operation+' · '+entry.state);button.type='button';
@@ -127,3 +128,14 @@ async function readTaskPage(kind,after=0){
 $('task-list').onclick=()=>readTaskPage('list');$('task-next').onclick=()=>readTaskPage('list',taskAfter);
 $('task-history').onclick=()=>readTaskPage('history');$('task-history-next').onclick=()=>readTaskPage('history',taskHistoryAfter);
 setInterval(()=>{if($('task-dialog').open)taskControls();},300);
+
+$('task-storage-read').onclick=async()=>{
+  if(taskBusy)return;
+  const g=taskGeneration,s=session,group=activeGroup,binding=$('task-binding').value;
+  taskBusy=true;taskControls();$('task-storage').textContent='';
+  try{
+    const data=await api('/api/task-read',{group_id:group,binding_id:binding,operation:'storage'});
+    if(taskCurrent(g,s,group,binding))$('task-storage').textContent=JSON.stringify(data,null,2);
+  }catch(error){if(taskCurrent(g,s,group,binding))$('task-status').textContent=error.message;}
+  finally{if(taskCurrent(g,s,group,binding)){taskBusy=false;taskControls();}}
+};

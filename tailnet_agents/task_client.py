@@ -17,10 +17,14 @@ from .durable_tasks import (TERMINAL, bounded_text, digest, make_task, task_id, 
 from .identity import (AdmissionError, GRANT_TYPE, decode, encode, identity_id, load_identity,
                        prove_possession, public_bytes, verify, verify_grant)
 from . import task_operations as operations
+from . import task_storage as storage
 
 
 class TaskClient:
-    def __init__(self, url, key, owner, grant, group, audience, executor_key, state, *, ca_file=None, clock=time.time):
+    def __init__(self, url, key, owner, grant, group, audience, executor_key, state, *, ca_file=None, clock=time.time,
+                 capacity=256, history_capacity=10000, byte_capacity=256*1024*1024, review_capacity=10000):
+        self.storage_limits = storage.limits(dict(capacity=capacity, history_capacity=history_capacity,
+            byte_capacity=byte_capacity, review_capacity=review_capacity))
         if not isinstance(audience, str) or not 1 <= len(audience) <= 128:raise ValueError('explicit task audience required')
         saved = verify(grant, owner, GRANT_TYPE)
         if type(saved.get('iat')) is not int:raise AdmissionError('invalid saved caller grant')
@@ -77,7 +81,10 @@ class TaskClient:
         token = make_task(self.key, self.owner, self.group, self.audience, self.executor, text,
                           identifier=identifier, now=int(self.clock()))
         claim = verify_task(token, self.key.public_key(), self.owner, self.group, self.audience, self.executor)
-        with self.db:self.db.execute('INSERT INTO task_outbox(task_id,token,state) VALUES(?,?,?)', (claim['task_id'], token, 'pending'))
+        with self.db:
+            self.db.execute('BEGIN IMMEDIATE')
+            storage.admit_task(self.db, self.storage_limits, token)
+            self.db.execute('INSERT INTO task_outbox(task_id,token,state) VALUES(?,?,?)', (claim['task_id'], token, 'pending'))
         return {'task_id': claim['task_id'], 'state': 'pending', 'executor': self.executor}
 
     def queue_once(self, mid, text):
@@ -145,6 +152,10 @@ class TaskClient:
     def status(self):
         with self.lock:return dict(self.db.execute("SELECT CASE WHEN state NOT IN ('completed','failed','uncertain','cancelled') AND EXISTS (SELECT 1 FROM task_cancellations WHERE task_cancellations.task_id=task_outbox.task_id) THEN 'cancel_pending' ELSE state END AS visible,COUNT(*) FROM task_outbox GROUP BY visible"))
 
+    def storage_status(self):
+        with self.lock:return {'limits': dict(self.storage_limits), 'usage': storage.caller_usage(self.db),
+                               'receipt_reserve_per_task': storage.RECEIPT_RESERVE, 'physical_disk_limit': False}
+
     def cancel_preview(self, mid):
         with self.lock:return operations.cancel_preview(self, mid)
 
@@ -177,6 +188,8 @@ def main():
     for name in ('url', 'agent-key', 'authority-public-key', 'grant-file', 'group-id', 'audience', 'executor-public-key', 'state'):
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--ca-cert')
+    for name in storage.CALLER_DEFAULTS:
+        parser.add_argument('--' + name.replace('_','-'), type=int, default=storage.CALLER_DEFAULTS[name])
     sub = parser.add_subparsers(dest='command', required=True)
     queue = sub.add_parser('queue', help='save a new explicit task locally without network I/O')
     queue.add_argument('--input-file', required=True)
@@ -198,12 +211,14 @@ def main():
     listing.add_argument('--after', type=int, default=0)
     listing.add_argument('--limit', type=int, default=20)
     sub.add_parser('status')
+    sub.add_parser('storage', help='read local admission limits/reserved usage; not SQLite disk usage')
     args = parser.parse_args();client = None
     try:
         owner = Ed25519PublicKey.from_public_bytes(decode(Path(args.authority_public_key).read_text().strip()))
         executor = Ed25519PublicKey.from_public_bytes(decode(Path(args.executor_public_key).read_text().strip()))
         client = TaskClient(args.url, load_identity(args.agent_key), owner, Path(args.grant_file).read_text().strip(),
-            args.group_id, args.audience, executor, args.state, ca_file=args.ca_cert)
+            args.group_id, args.audience, executor, args.state, ca_file=args.ca_cert,
+            **{name:getattr(args,name) for name in storage.CALLER_DEFAULTS})
         if args.command == 'queue':
             with Path(args.input_file).open() as source:text = source.read(2049)
             result = client.queue(text)
@@ -220,7 +235,10 @@ def main():
             result = client.review(args.task_id, args.receipt_hash, args.decision, note, args.request_id, args.confirm_task_id)
         elif args.command == 'reviews':result = client.reviews(args.task_id, after=args.after, limit=args.limit)
         elif args.command == 'list':result = client.list_tasks(after=args.after, limit=args.limit)
+        elif args.command == 'storage':result = client.storage_status()
         else:result = client.status()
+    except storage.StorageFull as exc:
+        parser.exit(1, str(exc) + '\n')
     except (ValueError, TypeError, KeyError, OSError, URLError, sqlite3.Error):
         parser.exit(1, 'Task request failed; preserve original task IDs, executor, identity/group and state. Check authorization, result conflicts and connectivity; never migrate uncertain work.\n')
     finally:

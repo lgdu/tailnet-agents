@@ -78,7 +78,7 @@ full history quota therefore continues returning 429 for new IDs after archival.
 The limits are independent; a smaller history limit may bind before an active
 limit. The existing bounded request/receipt sizes remain in force.
 
-These are row-count admission quotas, not rate limits, byte/disk quotas, worker
+These executor options are row-count admission quotas, not rate limits, byte/disk quotas, worker
 concurrency limits or caller-outbox/review quotas. One caller may still exhaust a
 shared global limit. Same-host callers with different approved keys have separate
 caller quotas; hostname/IP/Tailscale device never identifies the subject. Separate
@@ -118,8 +118,8 @@ isolation, four admission limits, signed receipt preservation, late submissions,
 cancelled tombstones, lost ACK/local commit failures, archive transaction rollback,
 concurrent reads/retries, current authorization and format/integrity recovery.
 
-Payload deletion/compaction, archive export/import, automatic retention, byte and
-caller-outbox quotas, scheduling/rate limiting, running-task cancellation, verified
+Payload deletion/compaction, archive export/import, automatic retention, executor
+byte/disk quotas, scheduling/rate limiting, running-task cancellation, verified
 uncertain outcome resolution, external Human sessions, HA, real product adapters and
 physical LAN/Tailscale trials remain unimplemented. Trusted history and consistent
 backups are still required; rollback, disk loss and cloned-key recovery are not solved.
@@ -131,3 +131,7 @@ metadata; no payload deletion, new authority or result state is introduced.
 The v0.33 [Human task UI](task-ui.md) separately exposes explicit signed Echo
 operations with actor-bound preview/confirmation and original-intent recovery.
 It never dispatches simulated chat or converts MCP arguments into Human consent.
+
+The separate v0.34 [local task budgets](task-storage.md) bound caller/review and
+Human consent admission with recovery reservations. Executor archive/row quotas
+remain unchanged; caller archival does not free retained caller payload charge.

@@ -178,7 +178,7 @@ cloned-key state, stolen backups, disk loss and key/CA migration are not solved.
 The executor only simulates Echo. No real product adapters, external side-effect
 integration, A2A or modern MCP task extensions, external Human sessions, asynchronous scheduling,
 automatic polling/retry daemon, running-work cancellation, verified uncertain-result resolution, retention
-UI, payload pruning, byte/outbox quotas, rate limiting, multi-executor migration, replication/HA or physical LAN/
+UI, payload pruning, executor byte/disk quotas, rate limiting, multi-executor migration, replication/HA or physical LAN/
 Tailscale/WAN trials are implemented. Graceful shutdown drains active operations;
 a future blocking adapter could delay shutdown, and forced termination deliberately
 leaves uncertainty. Unit tests inject simulation callbacks only to verify crash
@@ -208,3 +208,7 @@ tombstones. Review notes never change signed task receipts or authorize retries.
 The v0.33 [Human task UI](task-ui.md) separately exposes explicit signed Echo
 operations with actor-bound preview/confirmation and original-intent recovery.
 It never dispatches simulated chat or converts MCP arguments into Human consent.
+
+v0.34 adds [local task storage admission](task-storage.md): caller active/history/
+byte/review budgets, reserved receipt/cancellation capacity and explicit local
+usage. Reads, existing intents and recovery remain available above admission limits.

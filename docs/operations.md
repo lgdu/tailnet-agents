@@ -475,3 +475,20 @@ require restart. The Human UI stays loopback-only even when its explicitly
 configured executor uses LAN/Tailscale HTTPS and a pinned CA. Bearer credentials,
 trusted gateway storage and clocks are required; external Human sessions and
 production/public UI deployment are not implemented.
+
+## Local task capacity operations (v0.34, unreleased)
+
+Configure original caller `--capacity`, `--history-capacity`, `--byte-capacity`,
+`--review-capacity`, or the same optional `storage_limits` object in its private
+MCP/UI caller file. Human consent startup options are `--task-consent-capacity`
+and `--task-consent-byte-capacity`; these require explicit task bindings. Preserve
+all overrides in service configuration: they are not persisted membership policy.
+
+Read CLI `storage`, signed MCP status or explicit UI capacity before changing
+bounds. Lowering below occupancy preserves data and blocks new admissions;
+raising/restarting uses the same original keys/group/state. A full UI budget also
+blocks a new cancel preview, while saved confirmations remain recoverable. Increase
+bounds or stop UI and use the original CLI for a new cancellation; do not clear
+history or create a replacement identity/outbox. Actual disk failures remain
+outside admission guarantees. See [local task storage](task-storage.md) for exact
+byte reservations, full-history recovery, compatibility and backup requirements.

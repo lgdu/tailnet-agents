@@ -647,8 +647,10 @@ outbox and fixed executor; it does not migrate legacy tasks or create product wo
   original single-task submissions, verified local/remote results and cancellation/archive operations.
 - v0.33: explicit Human UI signed-task bindings, durable actor-bound
   preview/confirmation and original-intent recovery; no chat or MCP authority adoption.
+- v0.34 (unreleased): local caller/review and UI consent admission budgets with
+  reserved recovery space; no data deletion, identity change or automatic replay.
 - Next: real interface validation when available, safe payload compaction,
-  caller-outbox/byte bounds and candidate-to-runtime trust handoff.
+  Human uncertainty-review notes, executor byte/disk bounds and candidate-to-runtime trust handoff.
 - Next: integrated mesh transport with cryptographic admission.
 - Then: validated agent adapters and real LAN/tailnet trials.
 
@@ -933,5 +935,52 @@ OS/database operators and clocks are trusted. This is neither a Human digital
 signature nor tamper/rollback-proof evidence. No new caller/executor format is
 introduced; existing one-way migrations remain. Real products, external Human
 sessions, UI uncertainty-note creation, verified external effects, running stop,
-pruning, byte/outbox bounds, HA and physical trials remain open. See
+pruning, executor byte/disk bounds, HA and physical trials remain open. See
 [Human task UI](task-ui.md).
+
+### Local task admission and reserved recovery (v0.34, unreleased)
+
+Each original locked caller state has configured unresolved/retained task counts,
+charged payload bytes and review counts. Each Human/binding has independent UI
+consent budgets. Configuration is separate from membership/identity and is not
+accepted in tool/browser operation arguments. Same-host public-key identities are
+not merged into a device quota. Neither caller nor UI budget changes executor
+admission or signed task authorization.
+
+```mermaid
+flowchart TB
+  NEW["Explicit new task / CLI, signed MCP or confirmed Human queue"] --> ADMIT["Atomic caller admission / Active, history and reserved bytes"]
+  ADMIT --> OUTBOX[("Original caller state / Intent plus receipt and cancellation reservation")]
+  NOTE["New advisory review / No replay right"] --> REVIEW["Atomic review count and byte admission"]
+  REVIEW --> OUTBOX
+  EXISTING["Existing task / Read, retry, refresh, cancel or archive"] --> OUTBOX
+  OUTBOX --> RECEIPT["Save bounded verified receipt / No new admission slot"]
+  RECEIPT --> OUTBOX
+  PREVIEW["New Human preview / Same signed group and fixed binding"] --> UIADMIT["Atomic per-Human/binding admission / Stored bytes plus result reservation"]
+  UIADMIT --> CONSENTS[("Original consent history / Preview, started, done and expired")]
+  RECOVER["Saved preview ID or confirmation / Explicit original request recovery"] --> CONSENTS
+  CONSENTS --> CONFIRM["Existing Human checks and task-ID confirmation / Save bounded result above quota"]
+  CONFIRM --> OUTBOX
+```
+
+Tasks charge exact signed intent bytes plus a permanent 16384-byte receipt/256-byte
+metadata reservation; reviews charge exact tokens and IDs. Uncertain work retains
+an unresolved slot. Terminal receipts release only active slots, not total-history
+or byte charge. UI consents charge serialized payload/preview bytes plus a permanent
+32768-byte result/512-byte metadata reservation. No expiration/archive operation
+forgets an ID or frees its retained-history charge. Usage is recomputed from rows,
+so rollback of a failed admission leaves no separate counter/credit to repair.
+
+A full UI budget blocks **every new preview**, including new cancellation. It does
+not erase or bypass Human consent: read/retry saved confirmations, explicitly raise
+configured limits/restart, or stop UI and use the original Human-operated caller
+CLI for a new cancel. Existing caller cancellation/result writes remain available
+even when caller admission limits are below occupancy. Actual SQL/disk failures
+still require conservative original-state recovery.
+
+These budgets bound new local payload admission, not physical SQLite/WAL/index/
+backup growth or unrelated directory/chat tables. They add no persisted task/identity
+format. Older versions lack these checks; keep startup overrides and original state
+rather than using a downgrade or replacement outbox as a quota bypass. No pruning,
+wire authorization change, automatic execution or new real Agent adapter is added.
+See [local task storage](task-storage.md) for exact accounting and recovery.
