@@ -127,8 +127,8 @@ original executor/contract binding and preserve durable intent/running/result
 boundaries; uncertain work must not be automatically replayed or migrated.
 
 Real product access is currently unavailable. No binary installation, login,
-workspace access or external API call is performed in this release. Human UI task
-integration, generic adapter loading, real task kinds, stopping running work, verified uncertainty
+workspace access or external API call is performed in this release. Human UI uncertainty-note
+creation, generic adapter loading, real task kinds, stopping running work, verified uncertainty
 resolution, product sessions and physical LAN/Tailscale trials remain open.
 v0.30 adds separate [pre-execution task cancellation and advisory local notes](task-operations.md);
 metadata probing itself never invokes either operation.
@@ -142,5 +142,9 @@ metadata and an offline catalog subprocess without site packages. Twenty-five
 identity checks use actual loopback HTTP/TLS and synthetic identities for nonce,
 signature/context/source failures, independent expiry caps, credential scope,
 revocation/dissolution, no execution/state writes, same-host executors/restart,
-TLS trust/hostname, proxy/redirect isolation and the CLI. Three existing Chromium
-regressions continue to cover the separate Human UI workflows.
+TLS trust/hostname, proxy/redirect isolation and the CLI. Four Chromium regressions cover the separate Human UI workflows, including
+v0.33 task consent/recovery.
+
+The v0.33 [Human task UI](task-ui.md) separately exposes explicit signed Echo
+operations with actor-bound preview/confirmation and original-intent recovery.
+It never dispatches simulated chat or converts MCP arguments into Human consent.

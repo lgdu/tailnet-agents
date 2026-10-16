@@ -592,7 +592,7 @@ This is not a general exactly-once side-effect guarantee: lost/rolled-back stora
 cloned keys and nontransactional external actions require additional recovery.
 
 Legacy bearer bridge/MCP tasks retain their earlier in-memory protocol. Real
-adapters, Human UI task routing, asynchronous scheduling, uncertain resolution and
+adapters, external Human identity/session integration, asynchronous scheduling, uncertain resolution and
 physical LAN/tailnet validation are future work. See [durable tasks](durable-tasks.md).
 v0.32 adds a separately configured signed-task MCP caller using the same original
 outbox and fixed executor; it does not migrate legacy tasks or create product workers.
@@ -645,8 +645,10 @@ outbox and fixed executor; it does not migrate legacy tasks or create product wo
   quotas globally and by caller public-key identity; all history remains deduplicated.
 - v0.32: explicit fixed signed-task MCP caller, stable queue IDs,
   original single-task submissions, verified local/remote results and cancellation/archive operations.
+- v0.33 (unreleased): explicit Human UI signed-task bindings, durable actor-bound
+  preview/confirmation and original-intent recovery; no chat or MCP authority adoption.
 - Next: real interface validation when available, safe payload compaction,
-  independently authorized Human UI task integration and candidate-to-runtime trust handoff.
+  caller-outbox/byte bounds and candidate-to-runtime trust handoff.
 - Next: integrated mesh transport with cryptographic admission.
 - Then: validated agent adapters and real LAN/tailnet trials.
 
@@ -796,7 +798,7 @@ attestations or externally proven outcomes. Each binds the original signed recei
 and request/context, explicitly preserves uncertainty and grants no replay right.
 Review signing/history is available offline after expiry/dissolution without
 changing credentials, membership, executor state or the original receipt. Real
-product cancellation, verified resolution, Human UI task integration and payload pruning
+product cancellation, verified resolution, Human UI uncertainty-note creation and payload pruning
 remain future work. v0.31 adds the full-record archives below. See
 [task operations](task-operations.md).
 
@@ -841,7 +843,7 @@ The executor storage context migrates atomically from `echo-v1` to
 Older executors reject this format before ignoring the archive. Caller format and
 ordinary task/result wire schemas remain compatible. Protect complete consistent
 backups; no rollback, disk-loss, export/import, automatic retention, payload pruning,
-Human UI task bridge or physical network validation is claimed. See
+Human UI uncertainty-note creation or physical network validation is claimed. See
 [task archives and quotas](task-history.md).
 
 ### Implemented fixed signed-task MCP caller (v0.32)
@@ -887,6 +889,49 @@ Agent's authority: confirmation arguments are caller assertions, not authenticat
 Human consent. Reviews are read-only through MCP, and results/notes are untrusted
 data rather than instructions. This introduces no new wire/database format.
 
-Real product clients/inbound workers, Human UI consent/routing, modern MCP task
+Real product clients/inbound workers, external Human authentication, modern MCP task
 extensions, review creation, scheduling, running cancellation, verified external
 outcomes and physical network trials remain open. See [signed-task MCP](task-mcp.md).
+
+### Implemented Human task confirmation gateway (v0.33, unreleased)
+
+An opt-in private binding file connects existing signed UI groups and their original
+configured Human administrator to fixed signed Echo callers. Human authorization
+comes from the independent UI bearer credential plus server-side role, creator,
+group and binding checks. It does not come from Agent tool arguments, and does not
+change task-wire grants or impose consent on trusted OS operators using CLI/MCP.
+
+```mermaid
+flowchart TB
+  HUMAN["Configured Human / Separate UI bearer credential"] --> ACCESS["Loopback gateway / Host, Origin, admin, creator and binding checks"]
+  CONFIG["Explicit private bindings / Original caller, group, owner, source, CA and executor"] --> ACCESS
+  ACCESS --> LOCAL["Explicit local task and consent pages / No automatic dispatch"]
+  ACCESS --> PREVIEW["Exact original input, ID, hashes and operation / 60-second policy-bound preview"]
+  PREVIEW --> CONSENT[("UI SQLite / Actor-bound preview, started authorization, done acknowledgment")]
+  HUMAN --> CONFIRM["Separate confirmation / Repeat original task ID"]
+  CONSENT --> CONFIRM
+  CONFIRM --> CHECK["Recheck Human/group and unstarted deadline/policy / Commit started before mutation or network"]
+  CHECK --> CALLER["Original locked signed-task caller / Same intent and cancellation barrier"]
+  CALLER --> PROOF["Fresh scoped proof / Current caller and executor authorization"]
+  PROOF --> EXEC["Fixed HTTP loopback or LAN/Tailscale HTTPS executor / Original durable history"]
+  EXEC --> RECEIPT["Verify immutable original receipt"]
+  RECEIPT --> CALLER
+  CALLER --> CONSENT
+  CONSENT --> RECOVER["Explicit history/retry after lost acknowledgment / Never another intent or automatic resume"]
+```
+
+The two SQLite databases commit independently: an authorized operation may remain
+`started` after it succeeded. Queue uses the same task ID/input; submit/cancel/archive
+retain original hashes and idempotent executor history. Completed consent responses
+are historical local acknowledgments. Current Human/group access is always checked;
+a dissolved group permits local history but no new preview/unfinished confirmation.
+Browser close/group/binding/logout generations discard stale responses, and expiry
+cannot be revived by an observed browser clock rollback.
+
+The gateway holds private keys, plaintext tasks/results and consent history; local
+OS/database operators and clocks are trusted. This is neither a Human digital
+signature nor tamper/rollback-proof evidence. No new caller/executor format is
+introduced; existing one-way migrations remain. Real products, external Human
+sessions, UI uncertainty-note creation, verified external effects, running stop,
+pruning, byte/outbox bounds, HA and physical trials remain open. See
+[Human task UI](task-ui.md).

@@ -140,7 +140,7 @@ class Server:
             self.state = 'initializing'
             result = {'protocolVersion': version if version in VERSIONS else VERSIONS[0],
                       'capabilities': {'tools': {'listChanged': False}},
-                      'serverInfo': {'name': 'tailnet-agents', 'version': '0.32.0'},
+                      'serverInfo': {'name': 'tailnet-agents', 'version': '0.33.0'},
                       'instructions': self.instructions}
         elif self.state != 'ready':
             return self.error(request_id, -32000, 'Complete initialization first')

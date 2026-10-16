@@ -457,3 +457,21 @@ intent still blocks single-task submit after errors/refresh/restart. Archive ret
 all payload/history, and uncertainty notes grant no replay. Config/grant changes
 are read at restart; human authorization renewal stays separate. No v0.32 format
 migration, registry fallback, product worker or auto-retry daemon is introduced.
+
+## Human task gateway operations (v0.33, unreleased)
+
+Use the original signed UI database/signer and a private absolute-path
+`--task-bindings-file` mapping configured Human admin creators to existing fixed
+caller configurations. Retain every original binding on restart; replacement
+human/context/state paths fail. Each original caller outbox remains exclusively
+locked, so stop the UI before CLI/MCP handoff. Same-host callers use separate keys
+and state. No task, key or group is generated at startup.
+
+Follow [Human task UI](task-ui.md) for local previews and separate confirmation,
+explicit started-consent recovery and consistent UI/caller/executor backups.
+An operation can succeed before the UI records its acknowledgment; retain/retry
+the original consent/task instead of creating another ID. Configuration changes
+require restart. The Human UI stays loopback-only even when its explicitly
+configured executor uses LAN/Tailscale HTTPS and a pinned CA. Bearer credentials,
+trusted gateway storage and clocks are required; external Human sessions and
+production/public UI deployment are not implemented.

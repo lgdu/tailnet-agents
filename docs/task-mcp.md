@@ -9,7 +9,9 @@ tools and configuration; it does not enable this mode or migrate legacy tasks.
 
 This makes signed-task tools available to a local MCP client. It does not make
 that client an inbound product worker, verify a real product integration, add a
-Human UI bridge or implement MCP task extensions. The protocol remains the small
+Human UI bridge or implement MCP task extensions. The separate v0.33
+[Human UI bridge](task-ui.md) checks its own Human credential and consent; MCP
+arguments still convey only Agent authority. The protocol remains the small
 2025 tools/stdio subset described in [MCP](mcp.md#protocol-scope-and-verification).
 
 ## Configure the original identity and fixed executor
@@ -144,9 +146,13 @@ still apply when opening older state. Existing CLI `queue` still creates a new
 random ID per action; MCP's explicit ID queue and single-intent submit share the
 same locked outbox and cancellation barriers. Consistently back up complete state.
 
-Real product client/interoperability tests, inbound product adapters, Human UI task
-integration, authenticated Human consent, review creation through MCP, modern MCP
+Real product client/interoperability tests, inbound product adapters, external Human
+authentication, consent through MCP, review creation through MCP, modern MCP
 protocol/task extensions, auto polling/scheduling, running cancellation, verified
 uncertain resolution, payload deletion and physical LAN/Tailscale trials remain
 unimplemented. This is simulation with synthetic identities and actual loopback
 HTTP/TLS/stdio processes; it does not claim production or external side-effect safety.
+
+The v0.33 [Human task UI](task-ui.md) separately exposes explicit signed Echo
+operations with actor-bound preview/confirmation and original-intent recovery.
+It never dispatches simulated chat or converts MCP arguments into Human consent.

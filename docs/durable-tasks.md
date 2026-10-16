@@ -176,7 +176,7 @@ cloned-key state, stolen backups, disk loss and key/CA migration are not solved.
 ## Unimplemented work
 
 The executor only simulates Echo. No real product adapters, external side-effect
-integration, A2A or modern MCP task extensions, Human UI task panel, asynchronous scheduling,
+integration, A2A or modern MCP task extensions, external Human sessions, asynchronous scheduling,
 automatic polling/retry daemon, running-work cancellation, verified uncertain-result resolution, retention
 UI, payload pruning, byte/outbox quotas, rate limiting, multi-executor migration, replication/HA or physical LAN/
 Tailscale/WAN trials are implemented. Graceful shutdown drains active operations;
@@ -204,3 +204,7 @@ uses the original intent/executor and persists a no-resubmit barrier before I/O.
 Caller state gains a one-way format marker; older clients reject it rather than
 ignore cancellation intent. The executor task table retains signed cancellation
 tombstones. Review notes never change signed task receipts or authorize retries.
+
+The v0.33 [Human task UI](task-ui.md) separately exposes explicit signed Echo
+operations with actor-bound preview/confirmation and original-intent recovery.
+It never dispatches simulated chat or converts MCP arguments into Human consent.
