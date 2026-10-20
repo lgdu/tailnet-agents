@@ -145,7 +145,7 @@ verified external outcomes, payload pruning, executor byte/disk bounds, HA or ph
 LAN/Tailscale trials. Verification uses synthetic identities and real loopback
 HTTP/TLS/stdio processes plus Chromium; it does not establish production safety.
 
-## Local consent and caller admission (v0.34, unreleased)
+## Local consent and caller admission (v0.34)
 
 The gateway now accepts `--task-consent-capacity` and
 `--task-consent-byte-capacity` as validated startup options for each Human/binding.

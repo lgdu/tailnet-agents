@@ -476,7 +476,7 @@ configured executor uses LAN/Tailscale HTTPS and a pinned CA. Bearer credentials
 trusted gateway storage and clocks are required; external Human sessions and
 production/public UI deployment are not implemented.
 
-## Local task capacity operations (v0.34, unreleased)
+## Local task capacity operations (v0.34)
 
 Configure original caller `--capacity`, `--history-capacity`, `--byte-capacity`,
 `--review-capacity`, or the same optional `storage_limits` object in its private

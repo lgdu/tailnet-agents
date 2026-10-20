@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.34 prototype (unreleased).** Working components are listed below. The network mesh and
+**v0.34 prototype.** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -430,7 +430,7 @@ in the active area. This does not delete plaintext or reduce disk use. See
 [task archives and quotas](docs/task-history.md) for commands, defaults and the
 one-way executor migration that makes older executors refuse the new state.
 
-## Local task storage admission (v0.34, unreleased)
+## Local task storage admission (v0.34)
 
 Original signed callers now bound unresolved tasks, total retained history,
 charged payload bytes and new advisory review records. Atomic admission uses
@@ -448,7 +448,7 @@ is bypassed. CLI `storage`, signed MCP status and explicit UI capacity reads exp
 limits/charged usage. These are admission budgets, not physical disk quotas.
 See [local task storage](docs/task-storage.md) for defaults, accounting, recovery
 and configuration. v0.34 adds 26 checks to the 571-test baseline (597 total), with
-four Chromium workflows. This version is unreleased pending merge/validation.
+four Chromium workflows. v0.34.0 is published as a GitHub prerelease with a matching annotated tag.
 
 ## Human-confirmed signed tasks (v0.33)
 
@@ -543,7 +543,7 @@ scoped real adapters, and conduct physical deployment trials. Quorum/automatic p
 resolution and explicit candidate enrollment remain open; connect verified identity
 and candidate discovery to the mesh engine and broaden browser QA.
 The working registry mode remains available during mesh development.
-v0.33.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.33.0)
+v0.34.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-agents/releases/tag/v0.34.0)
 with a matching annotated version tag. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 

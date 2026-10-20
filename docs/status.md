@@ -1,4 +1,4 @@
-# Implementation status — v0.34 (unreleased)
+# Implementation status — v0.34
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -537,7 +537,7 @@ creation, real product adapters/interoperability, MCP Human-consent bridging,
 modern task extensions, scheduling, running stop, verified external resolution,
 payload pruning, executor byte/disk bounds, HA and physical LAN/Tailscale trials.
 
-## v0.34 local task storage admission (unreleased)
+## v0.34 local task storage admission
 
 Original callers enforce configured unresolved/total task counts, charged payload
 bytes and local review counts before accepting new records. Charged usage includes

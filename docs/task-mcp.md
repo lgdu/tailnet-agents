@@ -158,7 +158,7 @@ The v0.33 [Human task UI](task-ui.md) separately exposes explicit signed Echo
 operations with actor-bound preview/confirmation and original-intent recovery.
 It never dispatches simulated chat or converts MCP arguments into Human consent.
 
-## Local storage admission (v0.34, unreleased)
+## Local storage admission (v0.34)
 
 An optional `storage_limits` object in the original private caller configuration
 sets `capacity`, `history_capacity`, `byte_capacity`, `review_capacity` as exact

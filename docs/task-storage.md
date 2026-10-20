@@ -1,4 +1,4 @@
-# Local task storage admission (v0.34, unreleased)
+# Local task storage admission (v0.34)
 
 Signed Echo callers and Human UI consent history now have local admission budgets.
 They stop accepting new records without deleting existing history, changing keys/

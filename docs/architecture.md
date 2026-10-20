@@ -651,7 +651,7 @@ outbox and fixed executor; it does not migrate legacy tasks or create product wo
   original single-task submissions, verified local/remote results and cancellation/archive operations.
 - v0.33: explicit Human UI signed-task bindings, durable actor-bound
   preview/confirmation and original-intent recovery; no chat or MCP authority adoption.
-- v0.34 (unreleased): local caller/review and UI consent admission budgets with
+- v0.34: local caller/review and UI consent admission budgets with
   reserved recovery space; no data deletion, identity change or automatic replay.
 - Next: real interface validation when available, safe payload compaction,
   Human uncertainty-review notes, executor byte/disk bounds and candidate-to-runtime trust handoff.
@@ -942,7 +942,7 @@ sessions, UI uncertainty-note creation, verified external effects, running stop,
 pruning, executor byte/disk bounds, HA and physical trials remain open. See
 [Human task UI](task-ui.md).
 
-### Local task admission and reserved recovery (v0.34, unreleased)
+### Local task admission and reserved recovery (v0.34)
 
 Each original locked caller state has configured unresolved/retained task counts,
 charged payload bytes and review counts. Each Human/binding has independent UI

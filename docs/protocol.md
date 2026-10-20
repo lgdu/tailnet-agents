@@ -788,7 +788,7 @@ receipt checks. UI/caller commits are independent, so `started` is not evidence 
 failure or nonexecution. Startup never resumes it. See [Human task UI](task-ui.md)
 for trust, recovery, storage and deployment boundaries.
 
-## Local task admission metadata (v0.34, unreleased)
+## Local task admission metadata (v0.34)
 
 There is no new task wire, receipt, possession proof or persisted identity format.
 Local limits constrain admission before a new caller task/review or Human preview
