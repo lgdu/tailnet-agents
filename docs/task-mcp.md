@@ -168,3 +168,8 @@ charged usage and receipt reservations. Capacity rejection is a sanitized tool
 error, not another intent or automatic retry. See [local task storage](task-storage.md).
 Existing original-ID recovery, cancellation barriers and result reads remain
 available above caller admission budgets. These are not physical disk quotas.
+
+The v0.35 [Human UI review gateway](task-ui.md#advisory-uncertainty-review-v035-unreleased)
+can separately authorize local advisory-note creation. MCP note reads see the
+unchanged caller signatures; they do not prove that the Human UI was used. MCP
+still has no review-creation tool and does not inherit Human credentials/consent.

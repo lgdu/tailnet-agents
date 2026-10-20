@@ -147,8 +147,8 @@ pagination and real CLI calls. A separate check used the actual v0.29 caller sou
 to verify downgrade rejection and restoration of the original cancellation barrier.
 
 Stopping running/external work, independently verified outcome resolution, note
-sharing, safe requeue, payload pruning, running-adapter timeouts, Human UI review
-creation, real product adapters and physical LAN/Tailscale trials remain open.
+sharing, safe requeue, payload pruning, running-adapter timeouts,
+real product adapters and physical LAN/Tailscale trials remain open.
 The reference Echo adapter and its metadata contract are unchanged; inspecting
 metadata never cancels, reviews or executes anything.
 
@@ -166,3 +166,9 @@ records. Original cancellation/result persistence uses reserved space without
 new admission, and identical review request-ID retries recover the original signed
 note above quota. New notes can be denied by review/byte budgets without changing
 uncertainty or granting replay rights. No record is pruned to free a slot.
+
+The v0.35 [Human task UI](task-ui.md#advisory-uncertainty-review-v035-unreleased)
+adds separate authenticated preview/confirmation of these local advisory notes
+and verified paginated reads. It reuses the original review format and consent
+ID, with no executor I/O or change to uncertainty/replay permissions. CLI notes
+still do not attest Human identity, and MCP review tools remain read-only.

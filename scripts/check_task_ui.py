@@ -4,13 +4,14 @@ from pathlib import Path
 import shutil
 import sys
 from unittest.mock import patch
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests'))
 from playwright.sync_api import sync_playwright, expect
 from test_task_ui import TaskUIIdentityTests
 from tailnet_agents import task_storage as storage
+from tailnet_agents.durable_tasks import TaskUnavailable
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--browser',default=shutil.which('chromium') or shutil.which('google-chrome'))
@@ -110,6 +111,60 @@ try:
         case.client.storage_limits=storage.limits({})
         page.locator('#task-retry').click();expect(page.locator('#task-result')).to_contain_text('pending')
         assert len(case.client.list_tasks()['tasks'])==3 and len(case.f.calls)==1
+        # A synthetic interrupted executor produces a verified uncertain receipt.
+        # Human observations remain local advice, including when an ACK is lost.
+        mid='e'*32
+        case.client.queue_once(mid,'Uncertain browser input')
+        intent=case.client.submit_preview(mid)
+        with patch.object(case.f.executor,'_run',side_effect=TaskUnavailable('pause')):
+            try:case.client.submit(mid,intent['request_hash'],mid)
+            except HTTPError as error:error.close()
+            else:raise AssertionError('expected paused execution')
+        with case.f.node._registry.db:case.f.node._registry.db.execute("UPDATE durable_tasks SET status='running' WHERE task_id=?",(mid,))
+        case.f.restart();case.client.refresh(mid)
+        page.locator('#task-id').fill(mid);page.locator('#task-operation').select_option('review')
+        note='<script>window.reviewInjected=true</script> 人工观察'
+        page.locator('#task-review-note').fill(note)
+        page.locator('#task-preview').click();expect(page.locator('#task-preview-text')).to_contain_text('advisory_local_record_only')
+        assert case.client.reviews(mid)['reviews']==[]
+        page.locator('#task-confirm-id').fill(mid)
+        page.locator('#task-review-decision').select_option('no_effect_observed')
+        expect(page.locator('#task-confirm')).to_be_disabled();expect(page.locator('#task-preview-text')).to_be_empty()
+        page.locator('#task-preview').click();expect(page.locator('#task-preview-text')).to_contain_text('no_effect_observed')
+        page.locator('#task-confirm-id').fill(mid)
+        page.route('**/api/task-confirm',lose)
+        page.locator('#task-confirm').click();expect(page.locator('#task-retry')).to_be_visible()
+        expect(page.locator('#task-status')).to_contain_text('结果未确认')
+        original=case.client.db.execute('SELECT token FROM task_reviews').fetchone()[0]
+        page.unroute('**/api/task-confirm',lose);page.locator('#task-retry').click()
+        expect(page.locator('#task-result')).to_contain_text('advisory_local_record_only')
+        assert case.client.db.execute('SELECT token FROM task_reviews').fetchall()==[(original,)]
+        assert case.client.show(mid)['status']=='uncertain' and len(case.f.calls)==1
+        page.locator('#task-reviews-read').click();expect(page.locator('#task-reviews')).to_contain_text(note)
+        assert page.locator('#task-reviews script').count()==0 and page.evaluate('window.reviewInjected') is None
+        for i in range(20):
+            p=case.client.review_preview(mid)
+            case.client.review(mid,p['receipt_hash'],'unresolved','page-'+str(i),f'{1000+i:032x}',mid)
+        page.locator('#task-reviews-read').click();expect(page.locator('#task-reviews-next')).to_be_enabled()
+        page.locator('#task-reviews-next').click();expect(page.locator('#task-reviews')).to_contain_text('page-19')
+        expect(page.locator('#task-reviews-next')).to_be_disabled()
+        # Returning to a saved review restores its exact original draft. Editing
+        # that draft requires a new preview; an old consent cannot be changed.
+        page.locator('#task-history').click();expect(page.locator('#task-consents li')).to_have_count(10)
+        page.locator('#task-consents button').last.click();expect(page.locator('#task-review-note')).to_have_value(note)
+        expect(page.locator('#task-review-decision')).to_have_value('no_effect_observed')
+        page.locator('#task-confirm-id').fill(mid);expect(page.locator('#task-confirm')).to_be_enabled()
+        page.locator('#task-review-note').fill('Edited observation');expect(page.locator('#task-confirm')).to_be_disabled()
+        delayed_reads=[]
+        def hold_review_read(route):
+            delayed_reads.append((route,route.fetch()));page.evaluate("document.body.dataset.reviewHeld='yes'")
+        page.route('**/api/task-read',hold_review_read)
+        page.locator('#task-reviews-read').click();expect(page.locator('body')).to_have_attribute('data-review-held','yes')
+        page.locator('#task-close').click();page.locator('#group-select').select_option(second)
+        route,response=delayed_reads.pop();route.fulfill(response=response);page.unroute('**/api/task-read',hold_review_read)
+        expect(page.locator('#task-reviews')).to_be_empty();expect(page.locator('#task-review-note')).to_have_value('')
+        page.locator('#group-select').select_option(case.group);page.locator('#task-open').click()
+        expect(page.locator('#task-binding option')).to_have_count(1);page.locator('#task-id').fill(mid)
         # Late previews cannot revive consent after close or a group switch.
         delayed=[]
         def hold(route):
@@ -134,5 +189,5 @@ try:
         expect(page.locator('#task-preview-text')).to_be_empty();expect(page.locator('#task-result')).to_be_empty()
         assert not errors,errors
         browser.close()
-    print('Task UI browser PASS: separate human consent, delayed/edited/expired previews, original-ID lost-ACK/cancel/archive recovery, full caller/consent quota recovery and explicit usage, late-view guards, narrow layout and no credential storage.')
+    print('Task UI browser PASS: explicit Human operations and advisory uncertainty notes, original-ID lost-ACK/cancel/archive/review recovery, edited drafts, signature-preserving retries, review paging and stale reads, quotas, late-view guards, narrow layout and no credential storage.')
 finally:case.doCleanups()

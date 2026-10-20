@@ -653,8 +653,10 @@ outbox and fixed executor; it does not migrate legacy tasks or create product wo
   preview/confirmation and original-intent recovery; no chat or MCP authority adoption.
 - v0.34: local caller/review and UI consent admission budgets with
   reserved recovery space; no data deletion, identity change or automatic replay.
+- v0.35 (unreleased): exact Human preview/confirmation of local advisory uncertainty
+  notes and paginated verified reads; original receipt/signature and consent-ID recovery.
 - Next: real interface validation when available, safe payload compaction,
-  Human uncertainty-review notes, executor byte/disk bounds and candidate-to-runtime trust handoff.
+  executor byte/disk bounds and candidate-to-runtime trust handoff.
 - Next: integrated mesh transport with cryptographic admission.
 - Then: validated agent adapters and real LAN/tailnet trials.
 
@@ -802,10 +804,11 @@ rollback, pruning or key-clone recovery is inferred from a cancellation receipt.
 Reviews are local caller-key statements, not independently verified Human-principal
 attestations or externally proven outcomes. Each binds the original signed receipt
 and request/context, explicitly preserves uncertainty and grants no replay right.
-Review signing/history is available offline after expiry/dissolution without
+Standalone caller review signing/history is available offline after expiry/dissolution without
 changing credentials, membership, executor state or the original receipt. Real
-product cancellation, verified resolution, Human UI uncertainty-note creation and payload pruning
-remain future work. v0.31 adds the full-record archives below. See
+product cancellation, verified resolution and payload pruning remain future work.
+v0.35 adds separate Human UI confirmation; standalone CLI reviews still do not
+acquire Human identity. v0.31 adds the full-record archives below. See
 [task operations](task-operations.md).
 
 ### Implemented explicit terminal archives and quota boundary (v0.31)
@@ -848,8 +851,9 @@ The executor storage context migrates atomically from `echo-v1` to
 `echo-v1/task-history-v1`, preserving subject, group, audience and adapter semantics.
 Older executors reject this format before ignoring the archive. Caller format and
 ordinary task/result wire schemas remain compatible. Protect complete consistent
-backups; no rollback, disk-loss, export/import, automatic retention, payload pruning,
-Human UI uncertainty-note creation or physical network validation is claimed. See
+backups; no rollback, disk-loss, export/import, automatic retention, payload pruning
+or physical network validation is claimed. Human UI review is a separate local
+gateway operation, not executor archival. See
 [task archives and quotas](task-history.md).
 
 ### Implemented fixed signed-task MCP caller (v0.32)
@@ -919,6 +923,10 @@ flowchart TB
   CONFIRM --> CHECK["Recheck Human/group and unstarted deadline/policy / Commit started before mutation or network"]
   CHECK --> CALLER["Original locked signed-task caller / Same intent and cancellation barrier"]
   CALLER --> PROOF["Fresh scoped proof / Current caller and executor authorization"]
+  CALLER --> REVIEW["Local review only / Original verified uncertain receipt, decision and bounded note"]
+  REVIEW --> NOTES[("Caller-signed advisory note / Consent ID is review ID; outcome remains uncertain")]
+  NOTES --> CONSENT
+  ACCESS -->|"Explicit paginated local reads / Verify every note"| NOTES
   PROOF --> EXEC["Fixed HTTP loopback or LAN/Tailscale HTTPS executor / Original durable history"]
   EXEC --> RECEIPT["Verify immutable original receipt"]
   RECEIPT --> CALLER
@@ -938,9 +946,21 @@ The gateway holds private keys, plaintext tasks/results and consent history; loc
 OS/database operators and clocks are trusted. This is neither a Human digital
 signature nor tamper/rollback-proof evidence. No new caller/executor format is
 introduced; existing one-way migrations remain. Real products, external Human
-sessions, UI uncertainty-note creation, verified external effects, running stop,
+sessions, verified external effects, running stop,
 pruning, executor byte/disk bounds, HA and physical trials remain open. See
 [Human task UI](task-ui.md).
+
+v0.35 extends this gateway with local advisory review preview/confirmation. The
+unchanged caller review API verifies the original uncertain receipt; the preview
+binds exact hashes, decision and note. The original consent ID is the stable
+review request ID. UI authorization commits before the caller signs; a lost UI
+acknowledgment recovers the same signature, including after restart above quotas.
+Neither signing nor paginated review reads contact the executor. All three
+observations retain uncertainty and do not authorize replay, cancellation,
+archive or migration. Caller signatures alone do not attest a Human principal;
+the trusted UI consent history is separate and is not tamper/rollback-proof.
+No schema or task/caller/executor format changes. Older UIs cannot confirm the
+new review operation; preserve history and return to this version for recovery.
 
 ### Local task admission and reserved recovery (v0.34)
 

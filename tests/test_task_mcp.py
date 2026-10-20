@@ -402,7 +402,7 @@ class SignedTaskMCPTests(DiscoveryFixture):
             self.assertNotIn('PRIVATE KEY',line)
             return json.loads(line)
         initialized = rpc('initialize',{'protocolVersion':'2025-11-25','capabilities':{},'clientInfo':{}})
-        self.assertEqual(initialized['result']['serverInfo']['version'],'0.34.0')
+        self.assertEqual(initialized['result']['serverInfo']['version'],'0.35.0')
         rpc('notifications/initialized',notify=True)
         def invoke(name,**args):
             response = rpc('tools/call',{'name':name,'arguments':args})

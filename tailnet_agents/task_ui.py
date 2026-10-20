@@ -115,6 +115,8 @@ class TaskBridge:
                 if set(payload) - fields - {'after', 'limit'}:raise ValueError('invalid task page fields')
                 return client.list_tasks(after=payload.get('after', 0), limit=payload.get('limit', 20))
             if operation == 'show' and set(payload) == fields | {'task_id'}:return client.show(payload['task_id'])
+            if operation == 'reviews' and 'task_id' in payload and not set(payload) - fields - {'task_id','after','limit'}:
+                return client.reviews(payload['task_id'],after=payload.get('after',0),limit=payload.get('limit',20))
             if operation == 'history' and set(payload) - fields - {'after', 'limit'} == set():
                 after, limit = payload.get('after', 0), payload.get('limit', 20)
                 if type(after) is not int or not 0 <= after <= 2**53-1 or type(limit) is not int or not 1 <= limit <= 100:
@@ -140,10 +142,15 @@ class TaskBridge:
             if client.group != group:raise PermissionError('task group mismatch')
             operation, mid, cid = payload.get('operation'), payload.get('task_id'), payload.get('request_id')
             fields = {'binding_id', 'operation', 'task_id', 'request_id'}
-            if (operation not in ('queue','submit','cancel','archive','refresh') or not identifier(mid) or not identifier(cid)
-                    or set(payload) != fields | ({'input'} if operation == 'queue' else set())):
+            extra = {'queue':{'input'},'review':{'decision','note'}}.get(operation,set()) if isinstance(operation,str) else set()
+            if (operation not in ('queue','submit','cancel','archive','refresh','review') or not identifier(mid) or not identifier(cid)
+                    or set(payload) != fields | extra):
                 raise ValueError('exact task preview fields required')
             if operation == 'queue' and not bounded_text(payload['input']):raise ValueError('bounded Echo input required')
+            if operation == 'review':
+                from .task_operations import DECISIONS
+                if not isinstance(payload['decision'],str) or payload['decision'] not in DECISIONS or not bounded_text(payload['note']):
+                    raise ValueError('explicit advisory decision and bounded review note required')
             saved = json.dumps(payload, sort_keys=True)
             with self.store.lock:
                 row = self.store.db.execute('SELECT binding,actor,payload,preview,issued,expires,state FROM ui_task_consents WHERE id=?', (cid,)).fetchone()
@@ -152,12 +159,15 @@ class TaskBridge:
                 return json.loads(row[3]) | {'consent_id': cid, 'issued_at': row[4], 'expires_at': row[5], 'consent_state': row[6]}
             if operation == 'queue':detail = {'operation': operation, 'task_id': mid, 'input': payload['input'], 'eligible': True}
             elif operation == 'refresh':detail = {'operation': operation, 'task_id': mid, 'observed': client.show(mid), 'eligible': True}
+            elif operation == 'review':
+                detail = client.review_preview(mid) | {'decision':payload['decision'],'note':payload['note'],
+                    'review_request_id':cid,'eligible':True}
             else:detail = getattr(client, {'submit':'submit_preview','cancel':'cancel_preview','archive':'archive_preview'}[operation])(mid)
             if operation != 'queue':
                 from .task_operations import local
                 with client.lock:detail['input'] = local(client, mid)[1]['input']
             detail |= {'binding_id':payload['binding_id'], 'group_id':group, 'caller':client.subject, 'executor':client.executor,
-                       'url':client.http.url, 'human':actor, 'policy_hash':policy, 'network':operation != 'queue'}
+                       'url':client.http.url, 'human':actor, 'policy_hash':policy, 'network':operation not in ('queue','review')}
             now = self._now()
             encoded_detail = json.dumps(detail)
             with self.store.lock, self.store.db:
@@ -195,6 +205,8 @@ class TaskBridge:
             # started retry uses this same intent; it never starts on its own.
             mid, operation = request['task_id'], request['operation']
             if operation == 'queue':result = client.queue_once(mid, request['input'])
+            elif operation == 'review':
+                result = client.review(mid,preview['receipt_hash'],request['decision'],request['note'],payload['consent_id'],mid)
             elif operation == 'refresh':result = client.refresh(mid)
             elif operation == 'archive':result = client.archive(mid, preview['request_hash'], preview['receipt_hash'], mid)
             else:result = getattr(client, operation)(mid, preview['request_hash'], mid)

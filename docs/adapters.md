@@ -127,8 +127,8 @@ original executor/contract binding and preserve durable intent/running/result
 boundaries; uncertain work must not be automatically replayed or migrated.
 
 Real product access is currently unavailable. No binary installation, login,
-workspace access or external API call is performed in this release. Human UI uncertainty-note
-creation, generic adapter loading, real task kinds, stopping running work, verified uncertainty
+workspace access or external API call is performed in this release. Generic
+adapter loading, real task kinds, stopping running work, verified uncertainty
 resolution, product sessions and physical LAN/Tailscale trials remain open.
 v0.30 adds separate [pre-execution task cancellation and advisory local notes](task-operations.md);
 metadata probing itself never invokes either operation.
@@ -148,3 +148,7 @@ v0.33 task consent/recovery.
 The v0.33 [Human task UI](task-ui.md) separately exposes explicit signed Echo
 operations with actor-bound preview/confirmation and original-intent recovery.
 It never dispatches simulated chat or converts MCP arguments into Human consent.
+
+v0.35 adds [Human UI advisory review](task-ui.md#advisory-uncertainty-review-v035-unreleased)
+of original uncertain receipts. This is local caller signing, not an adapter
+invocation, verified external resolution or permission to replay.

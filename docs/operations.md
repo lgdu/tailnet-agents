@@ -492,3 +492,23 @@ bounds or stop UI and use the original CLI for a new cancellation; do not clear
 history or create a replacement identity/outbox. Actual disk failures remain
 outside admission guarantees. See [local task storage](task-storage.md) for exact
 byte reservations, full-history recovery, compatibility and backup requirements.
+
+
+## Human uncertainty review operations (v0.35, unreleased)
+
+Use the original signed-task UI binding and original Human account. For a locally
+verified uncertain receipt, preview the observation/note, check the original
+input and receipt hashes, repeat the task ID and confirm separately. This only
+writes a local caller-signed advisory record. No executor request is made and the
+task remains uncertain regardless of the observation. Explicit local review pages
+verify signatures; they do not prove current remote authorization or Human origin
+for notes made by standalone CLI clients.
+
+After a timeout or restart, read original consent history and retry its saved
+started confirmation; the exact note/decision and original request ID are restored.
+Keep UI and caller state together: either transaction may already have committed.
+Existing review-ID retries retain the original signature above quota; new notes
+can require raising configured caller review/byte and UI consent limits. Never
+delete history, change task IDs/executors or replay uncertain work to recover.
+Older UIs cannot confirm the new review operation. Return to this version with
+all original state. See [Human task UI](task-ui.md#advisory-uncertainty-review-v035-unreleased).
