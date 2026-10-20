@@ -520,6 +520,10 @@ future work. See [network messaging](network-messages.md) for deployment and lim
 
 ## Human interaction
 
+The [security policy](../SECURITY.md) records the prototype's deployment boundaries
+and private vulnerability reporting process. MIT licensing makes the source
+reusable; it does not change the trusted gateway, identity or storage model.
+
 The human UI shows groups, verified members, local reachability, capabilities,
 tasks and pending approvals. Do not display inferred reachability as global fact.
 Initially use one trusted human gateway; accepting an arbitrary member's Web UI

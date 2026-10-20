@@ -43,7 +43,7 @@ automatically rerun or migrated; queued work requires an explicit authorized ret
 | P2 | Real adapters | Build on the reference contract/probe; validate available product interfaces individually, explicit task scopes and recovery behavior; model APIs and product Agents are distinct |
 | P2 | Secure provisioning operations | Authenticated confidential transfer, credential retention/pruning, recovery and key rotation are verified without confusing installation with admission |
 | P2 | Operational deployment | Actual household LAN and cross-region tailnet trials, certificate/key renewal, backups, rate limits and service packaging |
-| P2 | Release readiness | Browser interaction QA, interoperability/security review, installation instructions and owner-selected open-source license |
+| P2 | Release readiness | Browser interaction QA, interoperability/security review and installation instructions; MIT licensing and a private vulnerability reporting policy are in place |
 
 v0.28 adds explicit all-source policy diagnosis, persistent conflict/terminal
 evidence and fixed-time human renewal consent, without automatic snapshot adoption.

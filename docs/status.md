@@ -3,6 +3,11 @@
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
 
+Source and documentation are available under the [MIT License](../LICENSE).
+The [security policy](../SECURITY.md) describes private vulnerability reporting
+and maintenance scope. This remains an experimental prototype; licensing does
+not change the deployment or authorization boundaries below.
+
 | Area | Current state | Next work |
 |---|---|---|
 | Registry | Durable central directory | Distributed discovery/anti-entropy |

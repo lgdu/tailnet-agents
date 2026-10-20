@@ -524,5 +524,10 @@ v0.33.0 is available as a [GitHub prerelease](https://github.com/lgdu/tailnet-ag
 with a matching annotated version tag. Release checks and tag synchronization are described
 in [operations](docs/operations.md#version-and-github-tag).
 
-No open-source license has been selected yet. Public release requires an owner
-license decision. Keys, tokens and SQLite state must stay outside git.
+## License and security
+
+Released under the [MIT License](LICENSE). See the [security policy](SECURITY.md)
+for private vulnerability reporting, maintenance scope and deployment boundaries.
+Keys, tokens and SQLite state must stay outside git. The Human UI remains a
+trusted loopback service; public source availability does not authorize public
+service exposure or imply production readiness.
