@@ -1,9 +1,11 @@
-# Human UI v0.33: explicit signed-task consent and human administration
+# Human UI v0.35: signed-task consent, advisory reviews and human administration
 
 The UI is a local demonstration of the interaction model. It does
 not integrate the mesh simulator, registry, MCP tools or real agent adapters.
 An opt-in [signed-task bridge](task-ui.md) separately operates configured synthetic
-Echo callers using explicit Human preview/confirmation.
+Echo callers using explicit Human preview/confirmation. It also supports local
+advisory uncertainty notes with separate confirmation and verified paginated reads;
+these never change a task outcome or permit replay.
 Humans explicitly create groups and select configured human members. Each group
 uses the same three deterministic Echo participants. Those are simulated actors,
 not authorized network Agent identities. It implements configured local human roles and API-level private-history

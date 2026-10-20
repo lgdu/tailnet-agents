@@ -1,4 +1,4 @@
-# Human-confirmed signed Echo tasks (v0.33)
+# Human-confirmed signed Echo tasks and advisory reviews (v0.35, unreleased)
 
 The loopback Human UI can operate explicitly configured original signed-task
 callers. This is separate from simulated chat replies and both MCP processes.
@@ -74,6 +74,7 @@ are explicit, paginated and local. There is no polling/flush or automatic chain.
 | Refresh | Show original input and saved observation; confirmation queries and persists a verified remote receipt, never executes queued work |
 | Cancel | Show original input/hash and observed eligibility; confirmation persists the original cancellation barrier before requesting pre-execution cancellation |
 | Archive | Show original input/request/terminal receipt hashes; confirmation moves the full completed/failed/cancelled record, retaining plaintext and deduplication history |
+| Review | Show the original verified uncertain receipt, input, decision and note; confirmation appends a caller-signed local advisory record using the original consent ID, without contacting the executor or changing uncertainty |
 
 The browser must repeat the original task ID before confirming. The server
 stores a 60-second preview bound to authenticated human, binding, group, operation,
@@ -115,8 +116,48 @@ clears the old display and locks confirmation input until the new response.
 Preview expiry stays disabled after a browser
 clock rollback. UI tokens stay in page memory, not URLs or browser storage. The
 browser itself has no durable outbox; the gateway's explicit consent history is
-the recovery record. Review-note creation and reads remain CLI/MCP operations as
-documented in [task operations](task-operations.md).
+the recovery record. Review-note creation is also available through the separate
+CLI; MCP exposes signed-note reads. See [task operations](task-operations.md).
+
+## Advisory uncertainty review (v0.35, unreleased)
+
+Select an original task with a locally verified signed `uncertain` receipt, then
+choose **记录不确定任务的人工观察（不重跑）**. Select **仍无法判断**,
+**观察到效果** or **未观察到效果**, and enter a nonempty note of at most 2048 UTF-8
+bytes. Preview shows the exact original task/input, caller/executor, request and
+receipt hashes, decision and note. Editing a field invalidates the displayed
+preview. Repeat the original task ID and confirm separately.
+
+The existing 60-second policy-bound consent check applies. Human authorization
+is durably recorded before the caller signs anything; the consent ID doubles as
+the review request ID. Preview/confirmation/read operations are entirely local.
+They do not assert that the executor is online or currently authorizes execution.
+Only a verified uncertain receipt is eligible: a note cannot turn a pending,
+running, completed, failed or cancelled observation into an uncertain outcome.
+
+Use **读取此任务审查备注** and **下一页审查备注** for explicit, signature-verified
+local pages (20 entries in the browser). These include notes made by the original
+caller through the CLI; note signatures alone do not prove Human UI confirmation.
+Untrusted text is displayed as data, and late reads after close/group/binding/
+logout changes cannot restore old results. No automatic read or submission occurs.
+
+Notes are advisory, retain `task_status: uncertain` and
+`effect: advisory_local_record_only`, and never change the signed receipt or free
+the unresolved task slot. A note grants no permission to resubmit, cancel, archive
+or migrate the uncertain task. It is not verified evidence of an external effect
+or a Human digital signature. The trusted UI history separately records who
+confirmed the exact note; trusted OS/database operators remain in the trust model.
+
+Caller and UI writes remain separate transactions. A failed acknowledgment can
+leave a started consent after the note already exists. Restart never signs it
+automatically: recover that original history entry, check its restored exact
+decision/note and explicitly retry the original confirmation. This returns the
+same signed note without consuming another review slot, even after expiry or
+above configured budgets. New notes consume caller review/byte and UI consent
+budgets and may return 429; raise explicit limits/restart before retrying the
+saved authorization. Never delete history or allocate another ID as recovery.
+A dissolved group permits local review reads and completed acknowledgments but
+blocks new previews and unfinished confirmations.
 
 ## Trust, storage and remaining work
 
@@ -135,11 +176,13 @@ still apply to older state. Back up the complete UI, caller and executor databas
 consistently and preserve original keys, grants, pins and policy/revocation history.
 Consents contain plaintext inputs/results and are neither independently witnessed
 nor deletion/rollback-proof; no pruning or rollback/disk-loss repair is provided.
-Older UIs do not understand task consent records; do not use a downgrade as a
-recovery procedure.
+Older callers can read the unchanged review signatures. Older UIs do not understand
+new review operations in consent records; do not confirm them using an old UI or
+use a downgrade as a recovery procedure. Returning to this version preserves the
+original history and supports explicit recovery.
 
 Not implemented: real product workers/client interoperability, external Human
-authentication/sessions, Human uncertainty-note creation, generic tool execution,
+authentication/sessions, generic tool execution,
 MCP Human-consent bridging, modern task extensions, running-task stop, scheduling,
 verified external outcomes, payload pruning, executor byte/disk bounds, HA or physical
 LAN/Tailscale trials. Verification uses synthetic identities and real loopback

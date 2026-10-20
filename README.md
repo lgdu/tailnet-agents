@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.34 prototype.** Working components are listed below. The network mesh and
+**v0.35 prototype (unreleased).** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -16,7 +16,7 @@ action; agents may only discover or restore previously authorized groups.
 | Adapter inspection | Offline product inventory, strict Echo contract and explicit nonce-bound signed metadata probe | Synthetic Echo only; metadata compatibility grants no execution rights; no product scan, launcher or real adapter |
 | Durable signed tasks | Scoped Echo tasks, durable signed intent/results, cancellation barriers/advisory notes, terminal archives/row quotas, local caller/consent admission budgets and an explicitly configured signed-task MCP caller | Simulation only; archives retain plaintext input/results; no payload deletion, running stop, verified external resolution, automatic replay, real adapters or HA |
 | MCP | Separate legacy bearer tools and opt-in fixed signed-task caller; stable intent IDs, single-task submit, verified results, cancellation and archive tools | 2025 stdio tools subset; no discovery-based authority, real client/product validation, authenticated Human consent or MCP task extensions |
-| Human UI | Explicit groups, scoped chat, opt-in owner-signed creation/approval/removal/renewal/dissolution, policy export, explicit recipient delivery, human-confirmed grant issuance and fixed signed-task bindings with durable preview/confirmation and consent admission budgets | Trusted loopback gateway; private-file installer; manual trusted transfer; simulated agents |
+| Human UI | Explicit groups, scoped chat, opt-in owner-signed creation/approval/removal/renewal/dissolution, policy export, explicit recipient delivery, human-confirmed grant issuance and fixed signed-task bindings with durable confirmation, admission budgets and local advisory uncertainty notes | Trusted loopback gateway; private-file installer; manual trusted transfer; simulated agents; notes do not resolve outcomes or permit replay |
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
 | Policy replication | Ordered HTTP/TLS source failover, independent revocation cursors, periodic pull and status | Configured policy sources only; no quorum, chat/task replication |
 | Human policy review | Explicit all-source comparison, durable signed conflict/terminal evidence and fixed-time renewal preview/confirmation | Configured recipients only; no automatic adoption, quorum, fork repair or grant renewal |
@@ -84,6 +84,8 @@ flowchart TB
     HTASK --> UIBUDGET["Consent admission / 新预览有配额、原确认可恢复"]
     UIBUDGET --> HCONSENT[("UI SQLite consent / 先保存指定人类确认、重试原操作")]
     HCONSENT --> TC
+    TC --> NOTES[("Local caller-signed review / 原不确定收据、人工观察、保留 uncertain")]
+    NOTES -->|"Explicit paginated local reads / 不联系执行器"| HTASK
     API --> TE["Explicit Echo executor / 原身份、独立授权"]
     PROBE["Explicit adapter probe / 原群组、来源、执行器公钥与 nonce"] -->|"Read credential + metadata POST / 不提交任务"| API
     TE --> CONTRACT["Signed Echo contract / 最长 15 秒、不证明调用权限"]
@@ -430,6 +432,23 @@ in the active area. This does not delete plaintext or reduce disk use. See
 [task archives and quotas](docs/task-history.md) for commands, defaults and the
 one-way executor migration that makes older executors refuse the new state.
 
+## Human uncertainty-review notes (v0.35, unreleased)
+
+The Human task panel can explicitly preview and separately confirm an advisory
+note for a locally verified `uncertain` receipt. Select an observation, enter a
+bounded note and repeat the original task ID. The gateway persists the exact
+human consent before the original caller signs the note; the consent ID is also
+the stable review request ID. Local paginated reads verify each caller signature.
+Preview, confirmation and review reads never contact the executor.
+
+Lost acknowledgments/restarts recover the same note/signature, including above
+admission limits. Notes keep the original outcome uncertain, consume existing
+caller/UI budgets and grant no submit/cancel/archive or replay rights. They are
+caller-key statements plus a trusted UI consent record, not Human digital
+signatures or externally verified outcomes. See [Human task UI](docs/task-ui.md).
+Twenty new identity checks bring the suite to 617; the task Chromium workflow
+also covers edited notes, lost ACKs, paging and stale review responses.
+
 ## Local task storage admission (v0.34)
 
 Original signed callers now bound unresolved tasks, total retained history,
@@ -485,6 +504,9 @@ The old bearer MCP remains independent. See [signed-task MCP](docs/task-mcp.md)
 for twelve tools, private configuration, protocol limits and recovery.
 
 ## Verification
+
+The v0.35 suite contains 617 cases: 67 run in the core installation and 550
+require the identity extra. CI also runs four Chromium workflows.
 
 ```bash
 python3 -m unittest discover -s tests -v

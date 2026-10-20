@@ -135,3 +135,9 @@ This uses simulated Echo identities with actual loopback HTTP/TLS/stdio and
 browser tests. It adds no real Agent adapter, group enrollment, discovery-based
 permission, automatic execution, running stop, verified uncertain resolution,
 external Human session, HA or physical LAN/Tailscale validation.
+
+In v0.35, Human UI uncertainty reviews use these same caller review/byte and UI
+consent budgets. The exact saved Human consent ID is the review request ID. A
+started review whose caller write committed before the UI acknowledgment recovers
+the original signature above quota; a genuinely new note still needs admission.
+No review frees the unresolved task slot or changes the original signed receipt.

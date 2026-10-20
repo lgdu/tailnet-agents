@@ -1,4 +1,4 @@
-# Remaining work for the v0.34 development line
+# Remaining work for the v0.35 development line
 
 The verified directory can persist and exchange signed policy and credential
 revocations between configured peers. The human UI remains a local simulated chat application, with an optional
@@ -37,7 +37,7 @@ automatically rerun or migrated; queued work requires an explicit authorized ret
 |---|---|---|
 | P1 | Discovery operations and explicit runtime enrollment | Validate physical LAN/tailnet behavior, optional mDNS/peer enumeration and a separately authorized handoff from candidate to admitted runtime |
 | P1 | Policy history reconciliation and recovery | Explicit safe authority-history import/fork resolution, evidence retention, and quorum semantics; v0.28 delivers all-source diagnosis and human renewal consent |
-| P2 | Task operations | Build on cancellation/reviews, archives/row quotas, v0.32 fixed signed-task MCP, v0.33 explicit Human UI consent and v0.34 local caller/consent budgets: Human uncertainty review, safe payload compaction, executor byte/disk bounds, verified external outcomes, running cancellation and scheduling; no automatic replay |
+| P2 | Task operations | Build on cancellation/reviews, archives/row quotas, v0.32 fixed signed-task MCP, v0.33 Human UI consent, v0.34 local budgets and v0.35 advisory Human review: safe payload compaction, executor byte/disk bounds, verified external outcomes, running cancellation and scheduling; no automatic replay |
 | P2 | Message operations | Human UI integration, explicit blocked-outbox cancellation, retention/quotas, push and multi-store routing; any relay privacy claim requires E2E encryption |
 | P2 | Presence operations | Multi-hop propagation and relayed UI preserve original deadlines, provenance and observed conflicts |
 | P2 | Real adapters | Build on the reference contract/probe; validate available product interfaces individually, explicit task scopes and recovery behavior; model APIs and product Agents are distinct |
@@ -61,8 +61,10 @@ v0.33 adds an explicitly bound Human UI task bridge with independent UI credenti
 role/group checks and durable preview/confirmation; chat and MCP do not acquire
 Human authority. v0.34 bounds original caller tasks/reviews and UI consent history
 with recovery reservations, without deleting history or changing task authority.
-Next independent work can add Human UI uncertainty-review notes; these must remain
-advisory and never permit replay. Safe payload compaction is separate and must
+v0.35 adds explicit Human UI uncertainty-review notes and paginated local reads,
+using original receipt/consent IDs and recovery without replay. Notes remain
+advisory; they do not resolve outcomes. Next independent work can address executor
+aggregate byte admission. Safe payload compaction is separate and must
 preserve original deduplication/receipt evidence.
 History reconciliation, safe fork resolution and physical enrollment remain open.
 Real product connections remain conditional on actual interface access.

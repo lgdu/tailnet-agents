@@ -1,11 +1,13 @@
 'use strict';
 let taskGeneration=0,taskBindings=[],taskConsent=null,taskPending=null,taskPreviewRequest=null;
-let taskBusy=false,taskAfter=0,taskHistoryAfter=0,taskMono=0,taskWall=0;
+let taskBusy=false,taskAfter=0,taskHistoryAfter=0,taskReviewAfter=0,taskReviewMore=false,taskMono=0,taskWall=0;
 const newTaskId=()=>crypto.randomUUID().replaceAll('-','');
 function invalidateTasks(){
   taskGeneration++;taskConsent=null;taskPending=null;taskPreviewRequest=null;taskBusy=false;taskBindings=[];
   $('task-binding').replaceChildren();$('task-rows').replaceChildren();$('task-consents').replaceChildren();
   $('task-input').value='';$('task-id').value='';$('task-confirm-id').value='';
+  $('task-review-note').value='';$('task-review-decision').value='unresolved';
+  $('task-reviews').textContent='';taskReviewAfter=0;taskReviewMore=false;
   $('task-preview-text').textContent='';$('task-result').textContent='';$('task-context').textContent='';$('task-storage').textContent='';
   $('task-status').textContent='尚未读取。';taskAfter=taskHistoryAfter=0;
   $('task-next').disabled=$('task-history-next').disabled=true;taskControls();
@@ -23,6 +25,7 @@ function taskControls(){
   const bound=taskBindings.some(b=>b.id===$('task-binding').value),locked=taskBusy||!!taskPending;
   for(const id of ['task-operation','task-id','task-input','task-new','task-preview'])$(id).disabled=locked||!bound;
   $('task-input').disabled=locked||!bound||$('task-operation').value!=='queue';
+  for(const id of ['task-review-decision','task-review-note'])$(id).disabled=locked||!bound||$('task-operation').value!=='review';
   $('task-binding').disabled=locked;
   $('task-confirm-id').disabled=locked||!taskConsent;
   $('task-confirm').disabled=taskBusy||!!taskPending||!taskConsent||
@@ -30,10 +33,13 @@ function taskControls(){
     $('task-confirm-id').value!==taskConsent.task_id;
   $('task-retry').hidden=!taskPending;$('task-retry').disabled=taskBusy;
   for(const id of ['task-list','task-history','task-storage-read'])$(id).disabled=taskBusy||!bound;
+  $('task-reviews-read').disabled=taskBusy||!bound||!(/^[a-f0-9]{32}$/).test($('task-id').value);
+  $('task-reviews-next').disabled=$('task-reviews-read').disabled||!taskReviewMore;
 }
 function clearTaskPreview(){
   if(taskBusy||taskPending)return;
   taskGeneration++;taskConsent=null;taskPreviewRequest=null;$('task-confirm-id').value='';
+  $('task-reviews').textContent='';taskReviewAfter=0;taskReviewMore=false;
   $('task-preview-text').textContent='';$('task-result').textContent='';taskControls();
 }
 function showTaskConsent(value){
@@ -57,15 +63,19 @@ $('task-close').onclick=()=>$('task-dialog').close();
 $('task-dialog').onclose=invalidateTasks;
 $('task-form').onsubmit=event=>event.preventDefault();
 $('task-binding').onchange=()=>{clearTaskPreview();$('task-storage').textContent='';$('task-rows').replaceChildren();$('task-consents').replaceChildren();taskAfter=taskHistoryAfter=0;$('task-next').disabled=$('task-history-next').disabled=true;};
-for(const id of ['task-operation','task-id','task-input'])$(id).addEventListener(id==='task-operation'?'change':'input',clearTaskPreview);
+for(const id of ['task-operation','task-id','task-input','task-review-decision','task-review-note'])
+  $(id).addEventListener(['task-operation','task-review-decision'].includes(id)?'change':'input',clearTaskPreview);
 $('task-confirm-id').oninput=taskControls;
-$('task-new').onclick=()=>{clearTaskPreview();$('task-id').value=newTaskId();$('task-input').value='';$('task-operation').value='queue';taskControls();};
+$('task-new').onclick=()=>{clearTaskPreview();$('task-id').value=newTaskId();$('task-input').value='';
+  $('task-review-note').value='';$('task-review-decision').value='unresolved';$('task-operation').value='queue';taskControls();};
 $('task-preview').onclick=async()=>{
   if(taskBusy||taskPending)return;
   const g=taskGeneration,s=session,group=activeGroup,binding=$('task-binding').value;
   if(taskConsent)taskPreviewRequest=null;
   if(!taskPreviewRequest){taskPreviewRequest={group_id:group,binding_id:binding,operation:$('task-operation').value,task_id:$('task-id').value,request_id:newTaskId()};
-    if(taskPreviewRequest.operation==='queue')taskPreviewRequest.input=$('task-input').value;}
+    if(taskPreviewRequest.operation==='queue')taskPreviewRequest.input=$('task-input').value;
+    if(taskPreviewRequest.operation==='review'){
+      taskPreviewRequest.decision=$('task-review-decision').value;taskPreviewRequest.note=$('task-review-note').value;}}
   taskBusy=true;taskConsent=null;$('task-preview-text').textContent='';$('task-confirm-id').value='';
   $('task-result').textContent='';taskControls();$('task-status').textContent='正在保存预览；尚未执行。';
   try{const result=await api('/api/task-preview',taskPreviewRequest);
@@ -108,6 +118,7 @@ async function readTaskPage(kind,after=0){
         clearTaskPreview();$('task-id').value=kind==='list'?entry.task_id:entry.preview.task_id;
         if(kind==='history'){
           $('task-operation').value=entry.preview.operation;$('task-input').value=entry.preview.input||'';
+          $('task-review-decision').value=entry.preview.decision||'unresolved';$('task-review-note').value=entry.preview.note||'';
           showTaskConsent({...entry.preview,consent_id:entry.consent_id,consent_state:entry.state,expires_at:entry.expires_at,issued_at:entry.issued_at});
         }else{
           $('task-operation').value='refresh';const cg=taskGeneration;taskBusy=true;taskControls();
@@ -127,6 +138,19 @@ async function readTaskPage(kind,after=0){
 }
 $('task-list').onclick=()=>readTaskPage('list');$('task-next').onclick=()=>readTaskPage('list',taskAfter);
 $('task-history').onclick=()=>readTaskPage('history');$('task-history-next').onclick=()=>readTaskPage('history',taskHistoryAfter);
+async function readTaskReviews(after=0){
+  if(taskBusy)return;
+  const g=taskGeneration,s=session,group=activeGroup,binding=$('task-binding').value,mid=$('task-id').value;
+  taskBusy=true;taskReviewMore=false;$('task-reviews').textContent='';taskControls();
+  try{
+    const data=await api('/api/task-read',{group_id:group,binding_id:binding,operation:'reviews',task_id:mid,after,limit:20});
+    if(!taskCurrent(g,s,group,binding)||mid!==$('task-id').value)return;
+    $('task-reviews').textContent=JSON.stringify(data,null,2);taskReviewAfter=data.next_after;taskReviewMore=data.has_more;
+    $('task-status').textContent='本地调用端签名的审查备注；不是已验证的外部结果，任务仍不确定，不能据此重跑。';
+  }catch(error){if(taskCurrent(g,s,group,binding))$('task-status').textContent=error.message;}
+  finally{if(taskCurrent(g,s,group,binding)){taskBusy=false;taskControls();}}
+}
+$('task-reviews-read').onclick=()=>readTaskReviews();$('task-reviews-next').onclick=()=>readTaskReviews(taskReviewAfter);
 setInterval(()=>{if($('task-dialog').open)taskControls();},300);
 
 $('task-storage-read').onclick=async()=>{

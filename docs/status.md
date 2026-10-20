@@ -1,4 +1,4 @@
-# Implementation status — v0.34
+# Implementation status — v0.35 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -13,7 +13,7 @@ not change the deployment or authorization boundaries below.
 | Registry | Durable central directory | Distributed discovery/anti-entropy |
 | Signed tasks | Scoped Echo identities, durable signed intents/results, cancellation barriers, advisory notes, terminal archives/row quotas, a fixed signed-task MCP caller, independently checked UI human confirmation and local caller/consent admission budgets | Archives retain input/results; no payload deletion, running stop, verified external resolution, real adapters or HA; legacy bearer API remains in memory |
 | MCP | Independent legacy bearer tools and explicit signed-task stdio caller, stable task IDs, confirmed single-task submit/cancel/archive, local/remote verified reads | Trusted local caller authority; no independent Human consent, real product/client validation or modern MCP task extensions |
-| Human UI | Local roles/chat and opt-in signed policy creation/approval/removal/renewal/dissolution/export and explicit recipient delivery; separate grant issuance/download, explicit signed-task bindings/consents and capacity reads | Automatic secure provisioning, broader browser QA, durable outbox, sessions |
+| Human UI | Local roles/chat and opt-in signed policy administration/delivery; separate grant issuance/download, signed-task bindings/consents, capacity reads and advisory uncertainty-review confirmation with local verified reads | Automatic secure provisioning, broader browser QA, durable outbox, external sessions and verified external outcomes |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
 | Agent identity | Optional Ed25519 keys, human-issued scoped grants, verified private-file installation and possession proofs | Trusted manual transfer, owner rotation and key renewal |
 | Network messages | Explicit configured HTTP/TLS store, signed group/direct text, current scoped proof authorization, durable outbox/deduplication and catch-up cursors | Trusted plaintext storage; no E2E, Human UI integration, multi-store failover or automatic replies |
@@ -532,8 +532,8 @@ mesh simulation and 30-document/243-local-link checks pass. [PR #21](https://git
 passed all six final CI checks; merged-main CI also passed all three jobs.
 v0.33.0 is published as a GitHub prerelease with a matching annotated tag.
 
-Remaining: external Human authentication/sessions, Human uncertainty-review
-creation, real product adapters/interoperability, MCP Human-consent bridging,
+Remaining: external Human authentication/sessions,
+real product adapters/interoperability, MCP Human-consent bridging,
 modern task extensions, scheduling, running stop, verified external resolution,
 payload pruning, executor byte/disk bounds, HA and physical LAN/Tailscale trials.
 
@@ -577,8 +577,44 @@ syntax, mesh scenarios and 31-document/257-local-link checks pass. See the PR fo
 remote CI results.
 
 Remaining: executor aggregate byte/disk quotas, payload pruning/compaction,
-Human UI uncertainty-review creation, external Human sessions, real adapters,
+external Human sessions, real adapters,
 verified external outcomes, scheduling, running stop, HA and physical trials.
+
+## v0.35 Human UI advisory uncertainty reviews (unreleased)
+
+The original configured Human can preview and separately confirm a bounded
+observation/note for an existing locally verified uncertain receipt. Exact
+decision, note, original input/request/receipt hashes, actor, group, binding and
+policy are persisted under the existing 60-second consent checks. The same
+consent ID is the caller review request ID; durable started authorization precedes
+caller signing. Preview, confirmation and signature-verified paginated reads are
+local and never contact the executor. No group, membership or credential changes.
+
+Caller/UI transactions remain independent. Lost output, result-commit failure
+and restart recover the original note/signature through explicit same-consent
+retry, including after the first-confirmation deadline or above admission budgets.
+New previews/reviews remain subject to UI and caller limits. Same-host callers
+retain separate key/state/binding/history. Dissolution permits local reads and
+completed acknowledgments, while blocking new/unfinished Human operations.
+
+All decisions retain `uncertain` and advisory-only effect; original intent/receipt
+bytes and replay barriers remain unchanged. Notes are caller-key statements, not
+Human digital signatures or verified external effects. The trusted UI separately
+records exact Human confirmation. Older callers retain the unchanged review
+format; older UIs cannot confirm the new operation and must not be used as a
+recovery procedure. See [Human task UI](task-ui.md#advisory-uncertainty-review-v035-unreleased).
+
+Twenty new identity tests cover local-only behavior, decision/note bounds,
+authorization, receipt/policy/ID binding, expiry/rollback, transaction failures,
+same-signature restart recovery above quotas, concurrency, signature-verified
+pagination, dissolution and same-host isolation. The suite now contains 617 tests.
+Chromium covers edited drafts, lost-ACK retry, exact draft restoration, mixed
+caller/UI note pages, script-shaped data, stale review responses and narrow layout.
+Final verification results are recorded in the PR.
+
+Remaining: executor aggregate byte/disk admission, payload compaction, external
+Human sessions, real adapters, verified external outcomes, running stop,
+scheduling, HA and physical LAN/Tailscale deployment trials.
 
 ## Documentation maintenance rule
 

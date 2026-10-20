@@ -759,7 +759,7 @@ do not independently authenticate a Human principal, and notes prove no external
 effect. There is no tool to create groups/grants, change membership, sign reviews,
 start product Agents, migrate uncertain work or bypass existing row quotas.
 
-## Human task preview and confirmation (v0.33)
+## Human task preview and confirmation (v0.33–v0.35)
 
 This is a loopback UI API extension, not a signed-task wire or MCP extension.
 All endpoints require the separate configured Human UI bearer credential and
@@ -769,12 +769,29 @@ alone grants no Human UI access.
 
 - `GET /api/task-bindings?group_id=...`: public fixed-binding metadata, local only.
 - `POST /api/task-read`: explicit `group_id`, `binding_id`, `operation` (`list`,
-  `show`, `history`), appropriate `task_id` or integer `after`/`limit`; local only.
+  `show`, `history`, `storage`, `reviews`), appropriate `task_id` or integer `after`/`limit`; local only.
 - `POST /api/task-preview`: exact `group_id`, `binding_id`, `operation` (`queue`,
-  `submit`, `refresh`, `cancel`, `archive`), 32-lowercase-hex `task_id` and stable
-  `request_id`; only queue additionally accepts bounded nonempty UTF-8 `input`.
+  `submit`, `refresh`, `cancel`, `archive`, `review`), 32-lowercase-hex `task_id` and stable
+  `request_id`; queue additionally requires bounded nonempty UTF-8 `input`.
+  Review instead requires `decision` (`effect_observed`, `no_effect_observed` or
+  `unresolved`) and nonempty `note` of at most 2048 UTF-8 bytes, with no hash overrides.
 - `POST /api/task-confirm`: exact `group_id`, `binding_id`, `consent_id` and
   `confirm_task_id`; all payload/identity/hash bindings come from the saved preview.
+
+Review preview verifies the original local uncertain receipt and binds its hashes,
+decision, exact note and `review_request_id` equal to the consent ID. Its `network`
+flag is false. Confirmation calls the original caller's existing review operation
+with those saved fields; the resulting caller-key token format is unchanged.
+Only a durable Human `started` authorization permits this UI mutation. Existing
+request-ID retries return the original signature above quota. The task/result
+stays uncertain and grants no replay/cancel/archive rights. This does not add a
+Human signature or verified external outcome to the task wire protocol.
+
+`reviews` reads require exact `group_id`, `binding_id`, `operation`, `task_id`,
+with optional integer `after` (0..2^53-1) and `limit` (1..100, default 20).
+Each note signature/request ID is checked against the original caller and
+uncertain receipt. Preview, confirm and reads use no executor network I/O and do
+not prove current remote authorization. Human/group/binding checks still apply.
 
 Unknown/override fields and changed reuse fail. Preview stores exact original
 input, task, actor, operation, policy hash, eligibility and request/receipt hashes.
