@@ -34,7 +34,8 @@ grants and fresh policy/revocation delivery. Save a private JSON configuration:
 }
 ```
 
-All fields are required except `ca_cert`; all paths, including the configuration
+All shown fields are required except `ca_cert`; v0.34 also accepts the optional
+`storage_limits` object described below. All paths, including the configuration
 path, must be absolute. Config, Agent private key and grant must be owned private
 regular files (0600 is appropriate); config/key/grant and public-pin file reads
 reject symlinks and bound their size to 16 KiB. Config rejects duplicate/unknown
@@ -156,3 +157,14 @@ HTTP/TLS/stdio processes; it does not claim production or external side-effect s
 The v0.33 [Human task UI](task-ui.md) separately exposes explicit signed Echo
 operations with actor-bound preview/confirmation and original-intent recovery.
 It never dispatches simulated chat or converts MCP arguments into Human consent.
+
+## Local storage admission (v0.34, unreleased)
+
+An optional `storage_limits` object in the original private caller configuration
+sets `capacity`, `history_capacity`, `byte_capacity`, `review_capacity` as exact
+integers. Tool schemas and the twelve-tool catalog are unchanged; no tool argument
+can alter these values. Existing `signed_task_status` adds local `storage` limits/
+charged usage and receipt reservations. Capacity rejection is a sanitized tool
+error, not another intent or automatic retry. See [local task storage](task-storage.md).
+Existing original-ID recovery, cancellation barriers and result reads remain
+available above caller admission budgets. These are not physical disk quotas.

@@ -7,6 +7,7 @@ import stat
 import sys
 
 from .mcp import Server, ToolError, schema, serve
+from .task_storage import limits as storage_limits
 
 ID = {'type': 'string', 'pattern': '^[a-f0-9]{32}$', 'maxLength': 32}
 HASH = {'type': 'string', 'pattern': '^[a-f0-9]{64}$', 'maxLength': 64}
@@ -32,7 +33,7 @@ TOOLS = [
     tool('refresh_signed_task', 'Query the original task at the fixed executor and persist its verified receipt. Never submits queued work.',
          {'task_id': ID}, ('task_id',), network=True),
     tool('list_signed_tasks', 'Page saved task IDs/states locally. Omits input/output; does not contact any executor.', PAGE, readonly=True),
-    tool('signed_task_status', 'Read local state counts and configured caller/executor/group identities. No discovery or network.', {}, readonly=True),
+    tool('signed_task_status', 'Read local state counts, admission limits/reserved usage and configured caller/executor/group identities. These budgets are not physical disk usage. No discovery or network.', {}, readonly=True),
     tool('preview_signed_task_cancel', 'Preview original cancellation hash locally. This does not mean execution has stopped.',
          {'task_id': ID}, ('task_id',), readonly=True),
     tool('cancel_signed_task', 'Persist the original caller cancellation barrier before requesting pre-execution cancellation. Repeat task ID and original request hash. Running work cannot be stopped.',
@@ -78,10 +79,11 @@ def load_config(path):
     if not isinstance(path, str) or not Path(path).is_absolute():raise ValueError('absolute configuration path required')
     config = json.loads(read_file(path, private=True), object_pairs_hook=unique_object)
     required = {'url', 'agent_key', 'authority_public_key', 'grant_file', 'group_id', 'audience', 'executor_public_key', 'state'}
-    if not isinstance(config, dict) or set(config) - required - {'ca_cert'} or required - set(config):
+    if not isinstance(config, dict) or set(config) - required - {'ca_cert','storage_limits'} or required - set(config):
         raise ValueError('invalid signed task configuration fields')
-    if any(not isinstance(value, str) or not 1 <= len(value) <= 4096 for value in config.values()):
+    if any(not isinstance(value, str) or not 1 <= len(value) <= 4096 for name,value in config.items() if name != 'storage_limits'):
         raise ValueError('nonempty configuration strings required')
+    if 'storage_limits' in config:storage_limits(config['storage_limits'])
     for name in ('agent_key', 'authority_public_key', 'grant_file', 'executor_public_key', 'state', 'ca_cert'):
         if name in config and not Path(config[name]).is_absolute():raise ValueError('absolute credential/state paths required')
     return config
@@ -104,13 +106,13 @@ class Backend:
         executor = Ed25519PublicKey.from_public_bytes(decode(read_file(config['executor_public_key']).decode().strip()))
         grant = read_file(config['grant_file'], private=True).decode().strip()
         return cls(TaskClient(config['url'], key, owner, grant, config['group_id'], config['audience'], executor,
-                              config['state'], ca_file=config.get('ca_cert')))
+                              config['state'], ca_file=config.get('ca_cert'), **config.get('storage_limits', {})))
 
     def call(self, name, args):
         client = self.client
         if name == 'queue_signed_task':return client.queue_once(args['task_id'], args['input'])
         if name == 'signed_task_status':return {'caller': client.subject, 'executor': client.executor,
-            'group_id': client.group, 'counts': client.status()}
+            'group_id': client.group, 'counts': client.status(), 'storage': client.storage_status()}
         if name == 'list_signed_tasks':return client.list_tasks(**args)
         mid = args['task_id']
         if name == 'preview_signed_task':return client.submit_preview(mid)

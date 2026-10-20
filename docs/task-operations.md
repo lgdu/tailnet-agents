@@ -160,3 +160,9 @@ preserve the cancellation barrier; cached running/terminal results never resubmi
 The v0.33 [Human task UI](task-ui.md) separately exposes explicit signed Echo
 operations with actor-bound preview/confirmation and original-intent recovery.
 It never dispatches simulated chat or converts MCP arguments into Human consent.
+
+v0.34 [local admission budgets](task-storage.md) bound new caller tasks and review
+records. Original cancellation/result persistence uses reserved space without
+new admission, and identical review request-ID retries recover the original signed
+note above quota. New notes can be denied by review/byte budgets without changing
+uncertainty or granting replay rights. No record is pruned to free a slot.

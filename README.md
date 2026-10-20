@@ -3,7 +3,7 @@
 Build human-controlled collaboration groups for heterogeneous agents across
 LANs and Tailscale networks.
 
-**v0.33 prototype.** Working components are listed below. The network mesh and
+**v0.34 prototype (unreleased).** Working components are listed below. The network mesh and
 real product adapters are not implemented. New groups require an explicit human
 action; agents may only discover or restore previously authorized groups.
 
@@ -14,9 +14,9 @@ action; agents may only discover or restore previously authorized groups.
 | Directory | SQLite registration, leases, ownership, removal, status | Central registry; not distributed mesh |
 | Legacy bridge | Automatic renewal, discovery CLI, bearer Echo tasks | Custom v0.1 API; in-memory history; separate from durable signed tasks |
 | Adapter inspection | Offline product inventory, strict Echo contract and explicit nonce-bound signed metadata probe | Synthetic Echo only; metadata compatibility grants no execution rights; no product scan, launcher or real adapter |
-| Durable signed tasks | Scoped Echo tasks, durable signed intent/results, cancellation barriers/advisory notes, terminal archives/row quotas and an explicitly configured signed-task MCP caller | Simulation only; archives retain plaintext input/results; no payload deletion, running stop, verified external resolution, automatic replay, real adapters or HA |
+| Durable signed tasks | Scoped Echo tasks, durable signed intent/results, cancellation barriers/advisory notes, terminal archives/row quotas, local caller/consent admission budgets and an explicitly configured signed-task MCP caller | Simulation only; archives retain plaintext input/results; no payload deletion, running stop, verified external resolution, automatic replay, real adapters or HA |
 | MCP | Separate legacy bearer tools and opt-in fixed signed-task caller; stable intent IDs, single-task submit, verified results, cancellation and archive tools | 2025 stdio tools subset; no discovery-based authority, real client/product validation, authenticated Human consent or MCP task extensions |
-| Human UI | Explicit groups, scoped chat, opt-in owner-signed creation/approval/removal/renewal/dissolution, policy export, explicit recipient delivery, human-confirmed grant issuance and fixed signed-task bindings with durable preview/confirmation | Trusted loopback gateway; private-file installer; manual trusted transfer; simulated agents |
+| Human UI | Explicit groups, scoped chat, opt-in owner-signed creation/approval/removal/renewal/dissolution, policy export, explicit recipient delivery, human-confirmed grant issuance and fixed signed-task bindings with durable preview/confirmation and consent admission budgets | Trusted loopback gateway; private-file installer; manual trusted transfer; simulated agents |
 | Group lifecycle | Human membership changes, revocation, terminal dissolution, creation deduplication | Local database; no signed mesh propagation |
 | Policy replication | Ordered HTTP/TLS source failover, independent revocation cursors, periodic pull and status | Configured policy sources only; no quorum, chat/task replication |
 | Human policy review | Explicit all-source comparison, durable signed conflict/terminal evidence and fixed-time renewal preview/confirmation | Configured recipients only; no automatic adoption, quorum, fork repair or grant renewal |
@@ -76,11 +76,13 @@ flowchart TB
     INSTALL -->|"Separate explicit client run / 另行运行准入客户端"| VC
     VC["Verified client / 持有身份私钥"] -->|"TLS + grant + proof"| API["Admission HTTP service"]
     MSG["Synthetic message clients / 同机多个独立密钥、持久 outbox"] -->|"Signed text + operation proof / 显式配置 HTTPS"| API
+    TC --> LB["Local admission budgets / 新任务与 review 数量、字节及结果恢复预留"]
     TC["Signed task caller / 原任务 ID、原执行器、持久待送"] -->|"Current task.echo grant + fresh proof"| API
     H -->|"Explicit private config / 原身份、群组、固定执行器"| SMCP["Separate signed-task stdio MCP / 稳定任务 ID、单任务确认、无自动提交"]
     SMCP --> TC
     UI --> HTASK["Explicit Human task preview / 原输入、固定调用端、原任务 ID"]
-    HTASK --> HCONSENT[("UI SQLite consent / 先保存指定人类确认、重试原操作")]
+    HTASK --> UIBUDGET["Consent admission / 新预览有配额、原确认可恢复"]
+    UIBUDGET --> HCONSENT[("UI SQLite consent / 先保存指定人类确认、重试原操作")]
     HCONSENT --> TC
     API --> TE["Explicit Echo executor / 原身份、独立授权"]
     PROBE["Explicit adapter probe / 原群组、来源、执行器公钥与 nonce"] -->|"Read credential + metadata POST / 不提交任务"| API
@@ -428,6 +430,26 @@ in the active area. This does not delete plaintext or reduce disk use. See
 [task archives and quotas](docs/task-history.md) for commands, defaults and the
 one-way executor migration that makes older executors refuse the new state.
 
+## Local task storage admission (v0.34, unreleased)
+
+Original signed callers now bound unresolved tasks, total retained history,
+charged payload bytes and new advisory review records. Atomic admission uses
+existing Agent/file locks; each task reserves space for its bounded signed receipt
+and cancellation metadata. Existing IDs, receipt saves, reads, cancellation and
+retries remain available above configured limits. Uncertain work retains an
+unresolved slot, and archival never deletes caller history to reclaim capacity.
+
+The Human UI separately bounds retained consent rows/bytes per Human/binding,
+reserving room for result acknowledgment. Full history blocks new previews,
+including new cancel/refresh/archive previews; saved confirmations remain
+recoverable. Operators may raise limits and restart with original state, or stop
+the UI and use the original caller CLI for a new cancellation. No Human approval
+is bypassed. CLI `storage`, signed MCP status and explicit UI capacity reads expose
+limits/charged usage. These are admission budgets, not physical disk quotas.
+See [local task storage](docs/task-storage.md) for defaults, accounting, recovery
+and configuration. v0.34 adds 26 checks to the 571-test baseline (597 total), with
+four Chromium workflows. This version is unreleased pending merge/validation.
+
 ## Human-confirmed signed tasks (v0.33)
 
 The loopback UI can explicitly bind up to sixteen original signed Echo callers
@@ -512,6 +534,7 @@ state/lease preservation, mid-scan updates, service shutdown and restart recover
 - [Protocol boundaries](docs/protocol.md)
 - [Registry operations and backup](docs/operations.md)
 - [Current status and next work](docs/status.md)
+- [Local task storage admission](docs/task-storage.md)
 - [Human-confirmed signed task UI](docs/task-ui.md)
 - [Prioritized remaining work](docs/roadmap.md)
 

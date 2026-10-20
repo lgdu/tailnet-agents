@@ -136,7 +136,11 @@ def review(client, mid, receipt_hash, decision, note, request_id, confirmation):
         'request_hash': preview['request_hash'], 'receipt_hash': receipt_hash, 'decision': decision, 'note': note,
         'request_id': request_id, 'issued_at': now, 'task_status': 'uncertain', 'effect': 'advisory_local_record_only'}, REVIEW_TYPE)
     checked = verify_review(client, token, mid)
-    with client.db:client.db.execute('INSERT INTO task_reviews(request_id,task_id,token) VALUES(?,?,?)', (request_id, mid, token))
+    from .task_storage import admit_review
+    with client.db:
+        client.db.execute('BEGIN IMMEDIATE')
+        admit_review(client.db, client.storage_limits, token)
+        client.db.execute('INSERT INTO task_reviews(request_id,task_id,token) VALUES(?,?,?)', (request_id, mid, token))
     return checked
 
 

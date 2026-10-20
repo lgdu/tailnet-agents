@@ -8,6 +8,7 @@ import threading
 import time
 
 from .task_mcp import Backend, load_config, read_file, unique_object
+from . import task_storage as storage
 
 
 def identifier(value):
@@ -15,10 +16,11 @@ def identifier(value):
 
 
 class TaskBridge:
-    def __init__(self, store, bindings, *, clock=time.time):
+    def __init__(self, store, bindings, *, clock=time.time, consent_capacity=10000, consent_byte_capacity=64*1024*1024):
         self.store, self.clock, self.lock = store, clock, threading.Lock()
         self.bindings = {}
         try:
+            self.consent_limits = storage.limits({'capacity':consent_capacity,'byte_capacity':consent_byte_capacity}, consent=True)
             for name, human, backend in bindings:
                 if (not isinstance(name, str) or not re.fullmatch('[a-zA-Z0-9_.-]{1,64}', name)
                         or name in self.bindings):
@@ -43,7 +45,8 @@ class TaskBridge:
             raise
 
     @classmethod
-    def from_file(cls, store, users, path):
+    def from_file(cls, store, users, path, *, clock=time.time, consent_capacity=10000, consent_byte_capacity=64*1024*1024):
+        storage.limits({'capacity':consent_capacity,'byte_capacity':consent_byte_capacity}, consent=True)
         if not isinstance(path, str) or not Path(path).is_absolute():raise ValueError('absolute task bindings path required')
         entries = json.loads(read_file(path, private=True), object_pairs_hook=unique_object)
         if not isinstance(entries, list) or not 1 <= len(entries) <= 16:raise ValueError('bounded explicit task bindings required')
@@ -69,7 +72,7 @@ class TaskBridge:
                     store.policy_authority.current(store.db, config['group_id'])
                     if identity_id(owner) != store.policy_authority.owner:raise PermissionError('task owner pin mismatch')
                 bindings.append((entry['id'], human, Backend.from_config(entry['config_file'])))
-            return cls(store, bindings)
+            return cls(store, bindings, clock=clock, consent_capacity=consent_capacity, consent_byte_capacity=consent_byte_capacity)
         except Exception:
             for _, _, backend in bindings:backend.close()
             raise
@@ -102,6 +105,12 @@ class TaskBridge:
             if client.group != group:raise PermissionError('task group mismatch')
             operation = payload.get('operation')
             fields = {'binding_id', 'operation'}
+            if operation == 'storage' and set(payload) == fields:
+                caller = client.storage_status()
+                with self.store.lock:
+                    usage = storage.consent_usage(self.store.db,payload['binding_id'],actor)
+                return {'caller':caller,'consents':{'limits':dict(self.consent_limits),'usage':usage,
+                    'result_reserve_per_consent':32768,'physical_disk_limit':False}}
             if operation == 'list':
                 if set(payload) - fields - {'after', 'limit'}:raise ValueError('invalid task page fields')
                 return client.list_tasks(after=payload.get('after', 0), limit=payload.get('limit', 20))
@@ -150,11 +159,14 @@ class TaskBridge:
             detail |= {'binding_id':payload['binding_id'], 'group_id':group, 'caller':client.subject, 'executor':client.executor,
                        'url':client.http.url, 'human':actor, 'policy_hash':policy, 'network':operation != 'queue'}
             now = self._now()
+            encoded_detail = json.dumps(detail)
             with self.store.lock, self.store.db:
+                self.store.db.execute('BEGIN IMMEDIATE')
                 _, latest = self._access(actor, payload['binding_id'], active=True)
                 if latest != policy:raise FileExistsError('group policy changed; preview again')
+                storage.admit_consent(self.store.db,self.consent_limits,payload['binding_id'],actor,saved,encoded_detail)
                 self.store.db.execute('INSERT INTO ui_task_consents VALUES(?,?,?,?,?,?,?,?,?,NULL)',
-                    (cid,payload['binding_id'],actor,saved,json.dumps(detail),policy,now,now+60,'preview'))
+                    (cid,payload['binding_id'],actor,saved,encoded_detail,policy,now,now+60,'preview'))
             return detail | {'consent_id':cid, 'issued_at':now, 'expires_at':now+60, 'consent_state':'preview'}
 
     def confirm(self, actor, group, payload):
@@ -186,9 +198,11 @@ class TaskBridge:
             elif operation == 'refresh':result = client.refresh(mid)
             elif operation == 'archive':result = client.archive(mid, preview['request_hash'], preview['receipt_hash'], mid)
             else:result = getattr(client, operation)(mid, preview['request_hash'], mid)
+            encoded_result = json.dumps(result)
+            if storage.size(encoded_result) > 32768:raise ValueError('task result exceeds reserved Echo result size')
             with self.store.lock, self.store.db:
                 self._access(actor, payload['binding_id'])
-                self.store.db.execute("UPDATE ui_task_consents SET state='done',result=? WHERE id=?", (json.dumps(result),payload['consent_id']))
+                self.store.db.execute("UPDATE ui_task_consents SET state='done',result=? WHERE id=?", (encoded_result,payload['consent_id']))
             return result
 
     def close(self):

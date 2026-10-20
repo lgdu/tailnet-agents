@@ -1,4 +1,4 @@
-# Implementation status — v0.33
+# Implementation status — v0.34 (unreleased)
 
 This file and README describe current behavior. Architecture is the target design;
 its future requirements must not be read as implemented security guarantees.
@@ -11,9 +11,9 @@ not change the deployment or authorization boundaries below.
 | Area | Current state | Next work |
 |---|---|---|
 | Registry | Durable central directory | Distributed discovery/anti-entropy |
-| Signed tasks | Scoped Echo identities, durable signed intents/results, cancellation barriers, advisory notes, terminal archives/row quotas, a fixed signed-task MCP caller and independently checked UI human confirmation | Archives retain input/results; no payload deletion, running stop, verified external resolution, real adapters or HA; legacy bearer API remains in memory |
+| Signed tasks | Scoped Echo identities, durable signed intents/results, cancellation barriers, advisory notes, terminal archives/row quotas, a fixed signed-task MCP caller, independently checked UI human confirmation and local caller/consent admission budgets | Archives retain input/results; no payload deletion, running stop, verified external resolution, real adapters or HA; legacy bearer API remains in memory |
 | MCP | Independent legacy bearer tools and explicit signed-task stdio caller, stable task IDs, confirmed single-task submit/cancel/archive, local/remote verified reads | Trusted local caller authority; no independent Human consent, real product/client validation or modern MCP task extensions |
-| Human UI | Local roles/chat and opt-in signed policy creation/approval/removal/renewal/dissolution/export and explicit recipient delivery; separate grant issuance/download and explicit signed-task bindings/consents | Automatic secure provisioning, broader browser QA, durable outbox, sessions |
+| Human UI | Local roles/chat and opt-in signed policy creation/approval/removal/renewal/dissolution/export and explicit recipient delivery; separate grant issuance/download, explicit signed-task bindings/consents and capacity reads | Automatic secure provisioning, broader browser QA, durable outbox, sessions |
 | Lifecycle | Local human member revocation and terminal dissolution | Signed network propagation |
 | Agent identity | Optional Ed25519 keys, human-issued scoped grants, verified private-file installation and possession proofs | Trusted manual transfer, owner rotation and key renewal |
 | Network messages | Explicit configured HTTP/TLS store, signed group/direct text, current scoped proof authorization, durable outbox/deduplication and catch-up cursors | Trusted plaintext storage; no E2E, Human UI integration, multi-store failover or automatic replies |
@@ -421,7 +421,7 @@ are 256/10000 globally and min(64, active)/min(1000, history) per caller. Archiv
 releases active slots but retains total-history usage. Existing reads/retries and
 eligible archival work at/above quota; new IDs return 429. Restart can explicitly
 change operational bounds without forgetting or evicting history. No automatic
-retention, disk/byte quota, rate limiter or caller-outbox bound is claimed.
+retention, executor disk/byte quota or rate limiter is claimed by these archives.
 
 Executor startup migrates its context to `echo-v1/task-history-v1`, preserving the
 original identity/group/audience, intents and `echo-v1` adapter contract. Older
@@ -443,7 +443,7 @@ passed main CI. v0.31.0 is published as a GitHub prerelease with a matching anno
 tag. See [task archives and quotas](task-history.md) for commands, backup and migration.
 
 Unimplemented: payload pruning/compaction, automatic archive/retention, export/import,
-byte/outbox quotas, running-work cancellation, verified uncertainty resolution,
+executor byte/disk quotas, running-work cancellation, verified uncertainty resolution,
 external Human sessions, real product adapters and physical LAN/Tailscale trials.
 
 ## v0.32 explicit signed-task MCP caller
@@ -535,7 +535,50 @@ v0.33.0 is published as a GitHub prerelease with a matching annotated tag.
 Remaining: external Human authentication/sessions, Human uncertainty-review
 creation, real product adapters/interoperability, MCP Human-consent bridging,
 modern task extensions, scheduling, running stop, verified external resolution,
-payload pruning, byte/outbox bounds, HA and physical LAN/Tailscale trials.
+payload pruning, executor byte/disk bounds, HA and physical LAN/Tailscale trials.
+
+## v0.34 local task storage admission (unreleased)
+
+Original callers enforce configured unresolved/total task counts, charged payload
+bytes and local review counts before accepting new records. Charged usage includes
+a 16384-byte signed receipt plus cancellation-metadata reservation per task; saved
+results/barriers do not compete with new work for that space. Existing stable-ID
+queue recovery and signed review retries precede admission. Completed/failed/
+cancelled receipts free only unresolved slots; uncertain work keeps its slot and
+all original history remains charged through executor archival.
+
+The UI separately limits retained consent count/charged bytes per Human/binding,
+including 32768 result bytes reserved for each bounded Echo acknowledgment. New
+previews are atomically admitted; saved preview/started/done recovery is available
+at/above budget. A full UI budget also blocks a new cancellation preview: increase
+configured limits/restart, or stop UI and use the original caller CLI. Existing
+caller cancellation never depends on admitting another task. No quota bypasses
+Human consent, changes membership, deletes history or chooses another executor.
+
+CLI `storage`, existing signed MCP status and explicit UI capacity reads expose
+limits/usage. Limits are typed startup/configuration options, not persisted policy
+or physical disk bounds. Lowering below occupancy retains state; old clients do
+not enforce new budgets. Task wire/caller/executor formats and UI tables remain
+unchanged. Prior migrations and full consistent backups remain required. See
+[local task storage](task-storage.md).
+
+Twenty-six new checks (four core, 22 identity) cover exact byte boundaries,
+multibyte accounting, concurrent/transactional admission, quota errors and schema
+checks, receipt/cancel/review recovery, real CLI/config/MCP behavior, same-host
+independence and UI saved-confirmation restart. Chromium adds explicit usage,
+full-preview denial and same-consent queue recovery. Clean pinned-main baseline:
+all 571 identity tests pass (372.307s). Final local verification: all 597 identity
+tests pass without skips (344.993s); core passes 67 with 530 expected skips
+(10.547s); all four serial Chromium workflows pass. Actual v0.33 caller/UI source
+also preserves original identities/groups, intents, cancellation barriers and
+consent history through handoff; reopening retains over-limit rows and blocks new
+admission without replay. Package/MCP version, dependencies, installed CLI, JS
+syntax, mesh scenarios and 31-document/257-local-link checks pass. See the PR for
+remote CI results.
+
+Remaining: executor aggregate byte/disk quotas, payload pruning/compaction,
+Human UI uncertainty-review creation, external Human sessions, real adapters,
+verified external outcomes, scheduling, running stop, HA and physical trials.
 
 ## Documentation maintenance rule
 

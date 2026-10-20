@@ -141,6 +141,22 @@ recovery procedure.
 Not implemented: real product workers/client interoperability, external Human
 authentication/sessions, Human uncertainty-note creation, generic tool execution,
 MCP Human-consent bridging, modern task extensions, running-task stop, scheduling,
-verified external outcomes, payload pruning, byte/outbox bounds, HA or physical
+verified external outcomes, payload pruning, executor byte/disk bounds, HA or physical
 LAN/Tailscale trials. Verification uses synthetic identities and real loopback
 HTTP/TLS/stdio processes plus Chromium; it does not establish production safety.
+
+## Local consent and caller admission (v0.34, unreleased)
+
+The gateway now accepts `--task-consent-capacity` and
+`--task-consent-byte-capacity` as validated startup options for each Human/binding.
+Caller files may separately include `storage_limits`. The task panel explicitly
+reads both budgets with **读取本地容量**; neither tool/browser fields nor discovery
+can replace the configuration. See [local task storage](task-storage.md) for
+limits, byte reservations, current usage and restart behavior.
+
+Every new preview consumes retained history, even cancel/refresh/archive. Full
+UI admission returns 429 without saving a partial record. Existing preview-ID
+recovery and started/done confirmation retries remain available. Increase explicit
+limits/restart for another preview, or stop UI and use the same original caller
+CLI for cancellation; caller cancel/result persistence does not require new-task
+admission. No history is deleted or Human confirmation bypassed to free capacity.

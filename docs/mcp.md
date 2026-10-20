@@ -128,3 +128,7 @@ result and do not turn a discovered worker into a signed-task executor.
 The v0.33 [Human task UI](task-ui.md) is a separate authenticated gateway workflow.
 Its durable Human consents are not created or adopted by MCP tool arguments;
 trusted CLI/MCP callers continue to act directly with configured Agent authority.
+
+v0.34 exposes [local admission limits/reserved usage](task-storage.md) through the
+existing signed-task status tool. The optional private caller configuration is
+separate from tool arguments; legacy bearer tools remain unchanged.

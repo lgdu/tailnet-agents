@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from urllib.error import HTTPError
 from .chat import ChatStore, PolicyDeliveryError, RuntimeMonitorError
+from .task_storage import StorageFull, limits as storage_limits
 
 WEB = Path(__file__).parent / 'web'
 
@@ -85,6 +86,8 @@ def handler(store, users, *, task_bridge=None):
                 raise PermissionError('configured task human/group access required') from None
             except FileExistsError:
                 raise FileExistsError('Task consent/state conflicts; inspect the original task and preview again.') from None
+            except StorageFull:
+                raise
             except (KeyError, ValueError, TypeError):
                 raise ValueError('Invalid task request; use the original configured binding and task.') from None
             except (OSError, sqlite3.Error) as error:
@@ -177,6 +180,8 @@ def handler(store, users, *, task_bridge=None):
                 self.response(502, {'error': str(exc)})
             except TaskUIError as exc:
                 self.response(502, {'error': str(exc)})
+            except StorageFull as exc:
+                self.response(429, {'error': str(exc)})
             except ValueError as exc:
                 self.response(400, {'error': str(exc)})
 
@@ -257,6 +262,8 @@ def handler(store, users, *, task_bridge=None):
                 self.response(502, {'error': str(exc)})
             except TaskUIError as exc:
                 self.response(502, {'error': str(exc)})
+            except StorageFull as exc:
+                self.response(429, {'error': str(exc)})
             except (ValueError, UnicodeError, TypeError) as exc:
                 self.response(400, {'error': str(exc)})
     return Handler
@@ -271,6 +278,8 @@ def main():
     parser.add_argument('--policy-admin', help='configured admin human allowed to sign group policies')
     parser.add_argument('--policy-targets-file', help='trusted recipient JSON; origins/groups and credential environment names')
     parser.add_argument('--task-bindings-file', help='private explicit human/signed-caller bindings; see docs/task-ui.md')
+    parser.add_argument('--task-consent-capacity', type=int, help='retained consent rows per configured Human/binding')
+    parser.add_argument('--task-consent-byte-capacity', type=int, help='charged consent bytes per Human/binding, including result reservations')
     args = parser.parse_args()
     store = task_bridge = None
     try:
@@ -278,6 +287,10 @@ def main():
         users = json.loads(configured) if configured else {
             'demo-owner': {'token': os.environ.get('TAILNET_UI_TOKEN', ''), 'role': 'admin'}}
         validate_users(users)
+        consent_options = {name:value for name,value in [('consent_capacity',args.task_consent_capacity),
+            ('consent_byte_capacity',args.task_consent_byte_capacity)] if value is not None}
+        storage_limits({name.removeprefix('consent_'):value for name,value in consent_options.items()}, consent=True)
+        if consent_options and not args.task_bindings_file:raise ValueError('consent quotas require explicit task bindings')
         signing = (args.policy_owner_key, args.policy_owner_public_key, args.policy_admin)
         authority = None
         if any(signing):
@@ -294,7 +307,7 @@ def main():
         store = ChatStore(args.database, policy_authority=authority, policy_targets=targets)
         if args.task_bindings_file:
             from .task_ui import TaskBridge
-            task_bridge = TaskBridge.from_file(store, users, args.task_bindings_file)
+            task_bridge = TaskBridge.from_file(store, users, args.task_bindings_file, **consent_options)
         elif store.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ui_task_bindings'").fetchone() and store.db.execute('SELECT 1 FROM ui_task_bindings').fetchone():
             raise ValueError('restart requires original explicit task bindings')
     except (ImportError, ValueError, TypeError, OSError, sqlite3.Error):

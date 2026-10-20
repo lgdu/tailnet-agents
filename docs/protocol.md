@@ -787,3 +787,25 @@ access remains required, and remote operations retain current scoped proof and
 receipt checks. UI/caller commits are independent, so `started` is not evidence of
 failure or nonexecution. Startup never resumes it. See [Human task UI](task-ui.md)
 for trust, recovery, storage and deployment boundaries.
+
+## Local task admission metadata (v0.34, unreleased)
+
+There is no new task wire, receipt, possession proof or persisted identity format.
+Local limits constrain admission before a new caller task/review or Human preview
+is inserted. Same-ID/payload recovery precedes admission. Result/cancellation and
+saved-confirmation updates use reserved space and do not consume new slots. No
+quota decision authorizes group creation, membership, another executor or replay.
+
+The existing signed MCP `signed_task_status` result adds `storage` (`limits`,
+`usage`, `receipt_reserve_per_task`, `physical_disk_limit: false`). Tool schemas
+remain unchanged, and capacity failure is a sanitized tool error. CLI `status`
+retains its old state-count schema; the new `storage` subcommand is explicit.
+
+`POST /api/task-read` accepts exact `group_id`, `binding_id`, `operation: storage`
+for local caller and per-Human/binding consent budgets. Existing Human role/group/
+binding checks apply. A new record denied by a caller/UI admission budget returns
+HTTP 429; validation/conflict/authorization and transport failures retain their
+existing statuses. Every new UI preview, including cancel/refresh/archive, needs
+capacity. Existing preview IDs and saved confirmations recover above budget; the
+Human confirmation step is never bypassed. No query changes limits or contacts an
+executor. See [local task storage](task-storage.md) for accounting and recovery.

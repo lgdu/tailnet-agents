@@ -12,6 +12,7 @@ from urllib.error import URLError
 
 from .bridge import PROTOCOL
 from .client import Client, validate_url
+from .task_storage import StorageFull
 
 VERSIONS = ('2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05')
 MAX_LINE = 65536
@@ -140,7 +141,7 @@ class Server:
             self.state = 'initializing'
             result = {'protocolVersion': version if version in VERSIONS else VERSIONS[0],
                       'capabilities': {'tools': {'listChanged': False}},
-                      'serverInfo': {'name': 'tailnet-agents', 'version': '0.33.0'},
+                      'serverInfo': {'name': 'tailnet-agents', 'version': '0.34.0'},
                       'instructions': self.instructions}
         elif self.state != 'ready':
             return self.error(request_id, -32000, 'Complete initialization first')
@@ -161,6 +162,8 @@ class Server:
                           'structuredContent': payload, 'isError': False}
             except ToolError as exc:
                 result = {'content': [{'type': 'text', 'text': str(exc)}], 'isError': True}
+            except StorageFull:
+                result = {'content': [{'type':'text','text':'Local storage admission full; read signed_task_status, retain original tasks/state and retry existing request IDs.'}], 'isError':True}
             except (ValueError, TypeError, KeyError, URLError, TimeoutError, OSError, sqlite3.Error):
                 result = {'content': [{'type': 'text', 'text': 'Request failed; check peer configuration, credentials and connectivity.'}], 'isError': True}
         else:

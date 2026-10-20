@@ -10,6 +10,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests'))
 from playwright.sync_api import sync_playwright, expect
 from test_task_ui import TaskUIIdentityTests
+from tailnet_agents import task_storage as storage
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--browser',default=shutil.which('chromium') or shutil.which('google-chrome'))
@@ -86,6 +87,29 @@ try:
         page.locator('#task-consents button').last.click();expect(page.locator('#task-preview-text')).to_contain_text('started')
         page.locator('#task-confirm-id').fill('c'*32);page.locator('#task-confirm').click()
         expect(page.locator('#task-result')).to_contain_text('cancelled');assert len(case.f.calls)==1
+        # Full retained consent history blocks another preview, while local
+        # usage/history and an original completed acknowledgment stay available.
+        page.locator('#task-storage-read').click();expect(page.locator('#task-storage')).to_contain_text('charged_bytes')
+        assert storage.consent_usage(case.store.db,'caller','owner')['consents']==7
+        case.bridge.consent_limits=storage.limits({'capacity':7},consent=True)
+        page.locator('#task-new').click();page.locator('#task-id').fill('d'*32);page.locator('#task-input').fill('Blocked preview')
+        page.locator('#task-preview').click();expect(page.locator('#task-status')).to_contain_text('consent admission full')
+        expect(page.locator('#task-preview-text')).to_be_empty();expect(page.locator('#task-confirm')).to_be_disabled()
+        page.locator('#task-history').click();expect(page.locator('#task-consents li')).to_have_count(7)
+        page.locator('#task-consents button').last.click();page.locator('#task-confirm-id').fill('c'*32)
+        page.locator('#task-confirm').click();expect(page.locator('#task-result')).to_contain_text('cancelled')
+        case.bridge.consent_limits=storage.limits({},consent=True)
+        # A queue rejected by the caller keeps the same started Human consent.
+        # Increasing explicit admission limits lets that original request recover.
+        case.client.storage_limits=storage.limits({'byte_capacity':1})
+        page.locator('#task-new').click();page.locator('#task-id').fill('d'*32);page.locator('#task-input').fill('Quota original')
+        page.locator('#task-preview').click();expect(page.locator('#task-preview-text')).to_contain_text('Quota original')
+        page.locator('#task-confirm-id').fill('d'*32);page.locator('#task-confirm').click()
+        expect(page.locator('#task-status')).to_contain_text('Caller storage admission full')
+        expect(page.locator('#task-retry')).to_be_visible()
+        case.client.storage_limits=storage.limits({})
+        page.locator('#task-retry').click();expect(page.locator('#task-result')).to_contain_text('pending')
+        assert len(case.client.list_tasks()['tasks'])==3 and len(case.f.calls)==1
         # Late previews cannot revive consent after close or a group switch.
         delayed=[]
         def hold(route):
@@ -110,5 +134,5 @@ try:
         expect(page.locator('#task-preview-text')).to_be_empty();expect(page.locator('#task-result')).to_be_empty()
         assert not errors,errors
         browser.close()
-    print('Task UI browser PASS: separate human preview/confirmation, no startup/preview dispatch, edited drafts, expiry/rollback, original-ID lost-ACK recovery, archive, cancellation barrier/history recovery, late close/group guards, narrow layout and no credential storage.')
+    print('Task UI browser PASS: separate human consent, delayed/edited/expired previews, original-ID lost-ACK/cancel/archive recovery, full caller/consent quota recovery and explicit usage, late-view guards, narrow layout and no credential storage.')
 finally:case.doCleanups()
